@@ -1,0 +1,136 @@
+openapi: 3.0.3
+info:
+  title: AI Centralized Minutes API
+  version: 0.1.0
+servers:
+  - url: http://localhost:4000
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /auth/login:
+    post:
+      summary: Login and get JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200': { description: Logged in }
+  /meetings:
+    post:
+      summary: Create meeting minute session
+      responses:
+        '201': { description: Created }
+    get:
+      summary: List meeting minutes
+      responses:
+        '200': { description: OK }
+  /ai/ask:
+    post:
+      summary: Ask question against stored minutes
+      responses:
+        '200': { description: AI answer }
+  /notifications/me:
+    get:
+      summary: Get my reminders
+      responses:
+        '200': { description: OK }
+  /notifications/settings/me:
+    get:
+      summary: Get my notification settings
+      responses:
+        '200': { description: OK }
+    patch:
+      summary: Update my notification settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                inAppEnabled: { type: boolean }
+                emailEnabled: { type: boolean }
+                pushEnabled: { type: boolean }
+      responses:
+        '200': { description: OK }
+  /notifications/settings/page:
+    get:
+      summary: Simple HTML page for notification settings
+      responses:
+        '200': { description: OK }
+  /notifications/push/vapid-public-key:
+    get:
+      summary: Get VAPID public key for web push subscription
+      responses:
+        '200': { description: OK }
+  /notifications/push/generate-vapid:
+    post:
+      summary: Generate VAPID key pair (admin only)
+      responses:
+        '200': { description: OK }
+        '403': { description: Forbidden }
+  /notifications/push/broadcast:
+    post:
+      summary: Broadcast push message to subscriptions (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                message: { type: string }
+                userIds:
+                  type: array
+                  items: { type: string }
+                onlyPushEnabled: { type: boolean }
+      responses:
+        '200': { description: OK }
+        '400': { description: Invalid payload }
+        '403': { description: Forbidden }
+  /notifications/push-subscriptions/me:
+    get:
+      summary: List my push subscriptions
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Register or update push subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                endpoint: { type: string }
+                expirationTime: { type: number, nullable: true }
+                keys:
+                  type: object
+                  properties:
+                    p256dh: { type: string }
+                    auth: { type: string }
+      responses:
+        '201': { description: Created }
+    delete:
+      summary: Delete my push subscription by endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                endpoint: { type: string }
+      responses:
+        '204': { description: Deleted }

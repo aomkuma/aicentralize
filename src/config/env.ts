@@ -1,0 +1,41 @@
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const isTest = process.env.NODE_ENV === "test";
+
+function required(name: string, testFallback?: string): string {
+  const value = process.env[name];
+  if (value) {
+    return value;
+  }
+
+  if (isTest && testFallback) {
+    return testFallback;
+  }
+
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+export const env = {
+  nodeEnv: process.env.NODE_ENV ?? "development",
+  port: Number(process.env.PORT ?? 4000),
+  databaseUrl: required("DATABASE_URL", "postgresql://test:test@localhost:5432/test"),
+  jwtSecret: required("JWT_SECRET", "test-secret"),
+  reminderCron: process.env.REMINDER_CRON ?? "*/30 * * * *",
+  reminderLookAheadHours: Number(process.env.REMINDER_LOOKAHEAD_HOURS ?? 24),
+  slackWebhookUrl: process.env.SLACK_WEBHOOK_URL,
+  aiSimilarityThreshold: Number(process.env.AI_SIMILARITY_THRESHOLD ?? 0.2),
+  smtpHost: process.env.SMTP_HOST,
+  smtpPort: Number(process.env.SMTP_PORT ?? 587),
+  smtpUser: process.env.SMTP_USER,
+  smtpPass: process.env.SMTP_PASS,
+  smtpSecure: process.env.SMTP_SECURE === "true",
+  mailFrom: process.env.MAIL_FROM ?? "noreply@aicentralize.local",
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY,
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
+  vapidSubject: process.env.VAPID_SUBJECT
+};
