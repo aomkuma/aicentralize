@@ -106,6 +106,19 @@ notificationRouter.get("/push/vapid-public-key", (_req, res) => {
   res.json({ publicKey: env.vapidPublicKey ?? null });
 });
 
+notificationRouter.get("/push/sw.js", (_req, res) => {
+  res.type("application/javascript").send(`self.addEventListener("push", (event) => {
+  const payload = event.data ? event.data.json() : { title: "AI Centralize", body: "New notification" };
+  const title = payload && payload.title ? payload.title : "AI Centralize";
+  const body = payload && payload.body ? payload.body : "New notification";
+
+  event.waitUntil(self.registration.showNotification(title, {
+    body,
+    icon: "/favicon.ico"
+  }));
+});`);
+});
+
 notificationRouter.post("/push/generate-vapid", requireAuth, requireRole([UserRole.ADMIN]), async (req, res) => {
   const keys = webpush.generateVAPIDKeys();
 
@@ -218,123 +231,136 @@ notificationRouter.get("/push/broadcast/page", (_req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Push Broadcast</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Plus Jakarta Sans", "ui-sans-serif", "sans-serif"],
+            display: ["Sora", "Plus Jakarta Sans", "ui-sans-serif", "sans-serif"]
+          },
+          colors: {
+            deep: "#13233f"
+          }
+        }
+      }
+    };
+  </script>
   <style>
-    :root {
-      --bg: #ecf7f5;
-      --panel: #ffffff;
-      --accent: #0f766e;
-      --text: #172026;
-      --subtle: #5e6d74;
-      --border: #cfe2de;
-      --warn: #a44123;
-    }
     body {
-      margin: 0;
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      color: var(--text);
-      background: linear-gradient(135deg, #e5f4f0 0%, #f7fbfa 100%);
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 18px;
+      background:
+        radial-gradient(70vw 50vh at -10% 20%, rgba(136, 219, 180, 0.36), transparent 65%),
+        radial-gradient(60vw 40vh at 108% 18%, rgba(147, 191, 255, 0.30), transparent 65%),
+        linear-gradient(180deg, #f9fcff 0%, #f4f9ff 42%, #eef6f8 100%);
     }
-    .card {
-      width: min(720px, 100%);
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 16px 36px rgba(7, 35, 31, 0.12);
-      padding: 22px;
-    }
-    h1 {
-      margin: 0 0 6px;
-      font-size: 1.6rem;
-    }
-    p {
-      margin: 0 0 14px;
-      color: var(--subtle);
-    }
-    .grid {
-      display: grid;
-      gap: 10px;
-    }
-    label {
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-    input[type="text"], textarea {
-      width: 100%;
-      box-sizing: border-box;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-      font: inherit;
-    }
-    textarea {
-      min-height: 120px;
-      resize: vertical;
-    }
-    .check {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
-    }
-    .actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 2px;
-    }
-    button {
-      border: 0;
-      border-radius: 9px;
-      background: var(--accent);
-      color: #fff;
-      padding: 10px 14px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    #status {
-      min-height: 1.2em;
-      color: var(--warn);
-      margin-top: 8px;
-      white-space: pre-wrap;
-      font-size: 0.95rem;
+    .glass {
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(8px);
     }
   </style>
 </head>
-<body>
-  <main class="card">
-    <h1>Push Broadcast</h1>
-    <p>Admin tool for sending one-shot push messages to subscribed devices.</p>
+<body class="font-sans text-deep antialiased">
+  <main class="mx-auto w-full max-w-[1180px] px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+    <header class="glass rounded-2xl border border-white/70 px-5 py-3 shadow-card sm:px-7">
+      <div class="flex items-center justify-between gap-3">
+        <a href="/" class="flex items-center gap-3">
+          <div class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-emerald-400 text-lg font-extrabold text-white">A</div>
+          <div>
+            <p class="font-display text-lg font-bold tracking-tight">AI Centralize</p>
+            <p class="text-xs text-slate-500">AI workspace for modern teams</p>
+          </div>
+        </a>
 
-    <div class="grid">
-      <label for="token">Admin bearer token</label>
-      <input id="token" type="text" placeholder="Paste admin JWT token" />
+        <nav class="hidden items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
+          <a href="/#features" class="transition hover:text-blue-600">Features</a>
+          <a href="/#workflow" class="transition hover:text-blue-600">Workflow</a>
+          <a href="/docs" class="transition hover:text-blue-600">API Docs</a>
+          <a href="/health" class="transition hover:text-blue-600">Health</a>
+        </nav>
 
-      <label for="title">Title</label>
-      <input id="title" type="text" placeholder="System announcement" maxlength="120" />
-
-      <label for="message">Message</label>
-      <textarea id="message" placeholder="Write broadcast message here" maxlength="500"></textarea>
-
-      <label for="userIds">User IDs (optional, comma-separated)</label>
-      <input id="userIds" type="text" placeholder="Leave empty to target all subscribed users" />
-
-      <label class="check"><input id="onlyPushEnabled" type="checkbox" checked /> Target only users with pushEnabled setting</label>
-
-      <div class="actions">
-        <button id="send">Send Broadcast</button>
+        <div class="flex items-center gap-2 sm:gap-3">
+          <a href="/auth/login" class="hidden rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 sm:inline">Log in</a>
+          <a href="/ai/playground/page" class="hidden rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:scale-[1.02] sm:inline-block">Get Started</a>
+          <button id="menuToggle" type="button" class="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 md:hidden" aria-controls="mobileMenu" aria-expanded="false" aria-label="Open navigation menu">
+            <svg id="menuIconOpen" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+            <svg id="menuIconClose" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="hidden h-5 w-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      <div id="status"></div>
-    </div>
+      <div id="mobileMenu" class="mt-3 hidden rounded-xl border border-slate-200 bg-white p-3 md:hidden">
+        <nav class="grid gap-2 text-sm font-semibold text-slate-700">
+          <a href="/#features" class="rounded-lg px-3 py-2 transition hover:bg-blue-50 hover:text-blue-700">Features</a>
+          <a href="/#workflow" class="rounded-lg px-3 py-2 transition hover:bg-blue-50 hover:text-blue-700">Workflow</a>
+          <a href="/docs" class="rounded-lg px-3 py-2 transition hover:bg-blue-50 hover:text-blue-700">API Docs</a>
+          <a href="/health" class="rounded-lg px-3 py-2 transition hover:bg-blue-50 hover:text-blue-700">Health</a>
+          <a href="/auth/login" class="rounded-lg px-3 py-2 transition hover:bg-blue-50 hover:text-blue-700">Log in</a>
+          <a href="/ai/playground/page" class="rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-3 py-2 text-center text-white">Get Started</a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="mt-4">
+      <h1 class="font-display text-2xl font-extrabold">Push Broadcast</h1>
+      <p class="mt-1 text-sm text-slate-500">Admin tool for one-shot push announcements to subscribed devices.</p>
+    </section>
+
+    <section class="mt-4">
+    <section class="glass rounded-2xl border border-white/80 p-6 shadow-2xl sm:p-7">
+      <div class="grid gap-3">
+        <label class="text-sm font-semibold text-slate-600" for="token">Admin bearer token</label>
+        <input id="token" type="text" placeholder="Paste admin JWT token" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+
+        <label class="text-sm font-semibold text-slate-600" for="title">Title</label>
+        <input id="title" type="text" placeholder="System announcement" maxlength="120" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+
+        <label class="text-sm font-semibold text-slate-600" for="message">Message</label>
+        <textarea id="message" placeholder="Write broadcast message here" maxlength="500" class="min-h-[130px] w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"></textarea>
+
+        <label class="text-sm font-semibold text-slate-600" for="userIds">User IDs (optional, comma-separated)</label>
+        <input id="userIds" type="text" placeholder="Leave empty to target all subscribed users" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+
+        <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"><input id="onlyPushEnabled" type="checkbox" checked /> Target only users with pushEnabled setting</label>
+
+        <div class="mt-1 flex flex-wrap gap-2">
+          <button id="send" class="rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:scale-[1.02]">Send Broadcast</button>
+        </div>
+
+        <div id="status" class="min-h-[1.2em] whitespace-pre-wrap pt-1 text-sm text-rose-600"></div>
+      </div>
+    </section>
+    </section>
   </main>
 
   <script>
+    const menuToggleEl = document.getElementById("menuToggle");
+    const mobileMenuEl = document.getElementById("mobileMenu");
+    const menuIconOpenEl = document.getElementById("menuIconOpen");
+    const menuIconCloseEl = document.getElementById("menuIconClose");
+
+    if (menuToggleEl && mobileMenuEl && menuIconOpenEl && menuIconCloseEl) {
+      const setOpen = (open) => {
+        mobileMenuEl.classList.toggle("hidden", !open);
+        menuIconOpenEl.classList.toggle("hidden", open);
+        menuIconCloseEl.classList.toggle("hidden", !open);
+        menuToggleEl.setAttribute("aria-expanded", String(open));
+      };
+
+      setOpen(false);
+      menuToggleEl.addEventListener("click", () => {
+        const isOpen = !mobileMenuEl.classList.contains("hidden");
+        setOpen(!isOpen);
+      });
+    }
+
     const tokenEl = document.getElementById("token");
     const titleEl = document.getElementById("title");
     const messageEl = document.getElementById("message");
@@ -409,113 +435,154 @@ notificationRouter.get("/settings/page", (_req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Notification Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Plus Jakarta Sans", "ui-sans-serif", "sans-serif"],
+            display: ["Sora", "Plus Jakarta Sans", "ui-sans-serif", "sans-serif"]
+          },
+          colors: {
+            deep: "#13233f"
+          }
+        }
+      }
+    };
+  </script>
   <style>
-    :root {
-      --bg: #f4f7f8;
-      --panel: #ffffff;
-      --accent: #0f766e;
-      --text: #172026;
-      --subtle: #6b7280;
-      --border: #d8e2e7;
-    }
     body {
-      margin: 0;
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      background: radial-gradient(circle at top right, #d6f0ec 0%, var(--bg) 55%);
-      color: var(--text);
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 20px;
+      background:
+        radial-gradient(70vw 50vh at -10% 20%, rgba(136, 219, 180, 0.36), transparent 65%),
+        radial-gradient(60vw 40vh at 108% 18%, rgba(147, 191, 255, 0.30), transparent 65%),
+        linear-gradient(180deg, #f9fcff 0%, #f4f9ff 42%, #eef6f8 100%);
     }
-    .card {
-      width: min(560px, 100%);
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-      padding: 22px;
-    }
-    h1 {
-      margin: 0 0 6px;
-      font-size: 1.4rem;
-    }
-    p {
-      margin: 0 0 16px;
-      color: var(--subtle);
-    }
-    .row {
-      margin-bottom: 12px;
-    }
-    label {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-    }
-    input[type="text"] {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      box-sizing: border-box;
-    }
-    button {
-      border: 0;
-      border-radius: 8px;
-      padding: 10px 14px;
-      background: var(--accent);
-      color: #fff;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .status {
-      margin-top: 10px;
-      color: var(--subtle);
-      min-height: 1.2em;
+    .glass {
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(8px);
     }
   </style>
 </head>
-<body>
-  <main class="card">
-    <h1>Notification Settings</h1>
-    <p>Default behavior is in-app enabled and email disabled.</p>
+<body class="font-sans text-deep antialiased">
+  <main class="mx-auto w-full max-w-[1180px] px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+    <header class="glass rounded-2xl border border-white/70 px-5 py-3 shadow-card sm:px-7">
+      <div class="flex items-center justify-between gap-3">
+        <a href="/" class="flex items-center gap-3">
+          <div class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-emerald-400 text-lg font-extrabold text-white">A</div>
+          <div>
+            <p class="font-display text-lg font-bold tracking-tight">AI Centralize</p>
+            <p class="text-xs text-slate-500">AI workspace for modern teams</p>
+          </div>
+        </a>
 
-    <div class="row">
-      <input id="token" type="text" placeholder="Paste Bearer token" />
-    </div>
+        <nav class="hidden items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
+          <a href="/#features" class="transition hover:text-blue-600">Features</a>
+          <a href="/#workflow" class="transition hover:text-blue-600">Workflow</a>
+          <a href="/docs" class="transition hover:text-blue-600">API Docs</a>
+          <a href="/health" class="transition hover:text-blue-600">Health</a>
+        </nav>
 
-    <div class="row">
-      <button id="load">Load Current Settings</button>
-      <button id="save">Save Settings</button>
-    </div>
+        <div class="flex items-center gap-2 sm:gap-3">
+          <a href="/auth/login" class="hidden rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 sm:inline">Log in</a>
+          <a href="/ai/playground/page" class="hidden rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:scale-[1.02] sm:inline-block">Get Started</a>
+          <button id="menuToggle" type="button" class="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 md:hidden" aria-controls="mobileMenu" aria-expanded="false" aria-label="Open navigation menu">
+            <svg id="menuIconOpen" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+            <svg id="menuIconClose" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="hidden h-5 w-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+      </div>
 
-    <div class="row">
-      <label><input id="inAppEnabled" type="checkbox" /> In-app notifications</label>
-    </div>
-    <div class="row">
-      <label><input id="emailEnabled" type="checkbox" /> Email notifications</label>
-    </div>
-    <div class="row">
-      <label><input id="pushEnabled" type="checkbox" /> Push notifications (reserved for PWA)</label>
-    </div>
+      <div id="mobileMenu" class="mt-3 hidden rounded-xl border border-slate-200 bg-white p-3 md:hidden">
+        <nav class="grid gap-2 text-sm font-semibold text-slate-700">
+          <a href="/#features" class="rounded-lg px-3 py-2 transition hover:bg-blue-50 hover:text-blue-700">Features</a>
+          <a href="/#workflow" class="rounded-lg px-3 py-2 transition hover:bg-blue-50 hover:text-blue-700">Workflow</a>
+          <a href="/docs" class="rounded-lg px-3 py-2 transition hover:bg-blue-50 hover:text-blue-700">API Docs</a>
+          <a href="/health" class="rounded-lg px-3 py-2 transition hover:bg-blue-50 hover:text-blue-700">Health</a>
+          <a href="/auth/login" class="rounded-lg px-3 py-2 transition hover:bg-blue-50 hover:text-blue-700">Log in</a>
+          <a href="/ai/playground/page" class="rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 px-3 py-2 text-center text-white">Get Started</a>
+        </nav>
+      </div>
+    </header>
 
-    <div class="row">
-      <button id="subscribePush">Register Push For This Browser</button>
-      <button id="unsubscribePush">Remove Push From This Browser</button>
-    </div>
+    <section class="mt-4">
+      <h1 class="font-display text-2xl font-extrabold">Notification Settings</h1>
+      <p class="mt-1 text-sm text-slate-500">Default behavior is in-app enabled and email disabled.</p>
+    </section>
 
-    <div id="status" class="status"></div>
+    <section class="mt-4">
+    <section class="glass rounded-2xl border border-white/80 p-6 shadow-2xl sm:p-7">
+      <div class="space-y-3">
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Session</p>
+          <p id="sessionInfo" class="mt-1 text-sm text-slate-600">Checking local device session...</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <a href="/auth/login" class="rounded-xl border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">Open Login</a>
+            <button id="clearSession" type="button" class="rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50">Clear Session On This Device</button>
+          </div>
+        </div>
+
+        <details class="rounded-xl border border-slate-200 bg-white p-3">
+          <summary class="cursor-pointer text-sm font-semibold text-slate-700">Advanced: override access token</summary>
+          <input id="token" type="text" placeholder="Paste Bearer token (optional override)" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+        </details>
+
+        <div class="flex flex-wrap gap-2">
+          <button id="load" class="rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:scale-[1.02]">Load Current Settings</button>
+          <button id="save" class="rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:scale-[1.02]">Save Settings</button>
+        </div>
+
+        <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"><input id="inAppEnabled" type="checkbox" /> In-app notifications</label>
+        <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"><input id="emailEnabled" type="checkbox" /> Email notifications</label>
+        <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"><input id="pushEnabled" type="checkbox" /> Push notifications (reserved for PWA)</label>
+
+        <div class="flex flex-wrap gap-2">
+          <button id="subscribePush" class="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 transition hover:bg-blue-50">Register Push For This Browser</button>
+          <button id="unsubscribePush" class="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-bold text-rose-700 transition hover:bg-rose-50">Remove Push From This Browser</button>
+        </div>
+
+        <div id="status" class="min-h-[1.2em] pt-1 text-sm text-slate-600"></div>
+      </div>
+    </section>
+    </section>
   </main>
 
   <script>
+    const menuToggleEl = document.getElementById("menuToggle");
+    const mobileMenuEl = document.getElementById("mobileMenu");
+    const menuIconOpenEl = document.getElementById("menuIconOpen");
+    const menuIconCloseEl = document.getElementById("menuIconClose");
+
+    if (menuToggleEl && mobileMenuEl && menuIconOpenEl && menuIconCloseEl) {
+      const setOpen = (open) => {
+        mobileMenuEl.classList.toggle("hidden", !open);
+        menuIconOpenEl.classList.toggle("hidden", open);
+        menuIconCloseEl.classList.toggle("hidden", !open);
+        menuToggleEl.setAttribute("aria-expanded", String(open));
+      };
+
+      setOpen(false);
+      menuToggleEl.addEventListener("click", () => {
+        const isOpen = !mobileMenuEl.classList.contains("hidden");
+        setOpen(!isOpen);
+      });
+    }
+
     const tokenEl = document.getElementById("token");
     const inAppEl = document.getElementById("inAppEnabled");
     const emailEl = document.getElementById("emailEnabled");
     const pushEl = document.getElementById("pushEnabled");
     const statusEl = document.getElementById("status");
+    const sessionInfoEl = document.getElementById("sessionInfo");
+    const ACCESS_KEY = "aicentralize_token";
+    const REFRESH_KEY = "aicentralize_refresh_token";
 
     function urlBase64ToUint8Array(base64String) {
       const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -530,10 +597,56 @@ notificationRouter.get("/settings/page", (_req, res) => {
 
     const setStatus = (text) => { statusEl.textContent = text; };
 
-    async function request(path, method = "GET", body) {
-      const token = tokenEl.value.trim();
+    function getAccessToken() {
+      return (tokenEl.value || localStorage.getItem(ACCESS_KEY) || "").trim();
+    }
+
+    function setAccessToken(token) {
+      if (!token) return;
+      localStorage.setItem(ACCESS_KEY, token);
+      tokenEl.value = token;
+      refreshSessionInfo();
+    }
+
+    function refreshSessionInfo() {
+      const hasAccess = !!(localStorage.getItem(ACCESS_KEY) || "").trim();
+      const hasRefresh = !!(localStorage.getItem(REFRESH_KEY) || "").trim();
+      if (!sessionInfoEl) return;
+      if (hasRefresh) {
+        sessionInfoEl.textContent = "Active device session found (auto refresh enabled).";
+      } else if (hasAccess) {
+        sessionInfoEl.textContent = "Access token found, but no refresh token. Login again for persistent session.";
+      } else {
+        sessionInfoEl.textContent = "No local session. Please login first.";
+      }
+    }
+
+    async function refreshAccessToken() {
+      const refreshToken = (localStorage.getItem(REFRESH_KEY) || "").trim();
+      if (!refreshToken) {
+        throw new Error("Session expired. Please login again.");
+      }
+
+      const response = await fetch("/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken })
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.token || !data.refreshToken) {
+        throw new Error("Session expired. Please login again.");
+      }
+
+      localStorage.setItem(REFRESH_KEY, data.refreshToken);
+      setAccessToken(data.token);
+      return data.token;
+    }
+
+    async function request(path, method = "GET", body, isRetry = false) {
+      const token = getAccessToken();
       if (!token) {
-        throw new Error("Token is required");
+        throw new Error("Please login first at /auth/login");
       }
 
       const response = await fetch(path, {
@@ -544,6 +657,11 @@ notificationRouter.get("/settings/page", (_req, res) => {
         },
         body: body ? JSON.stringify(body) : undefined
       });
+
+      if (response.status === 401 && !isRetry) {
+        await refreshAccessToken();
+        return request(path, method, body, true);
+      }
 
       if (!response.ok) {
         const text = await response.text();
@@ -583,9 +701,8 @@ notificationRouter.get("/settings/page", (_req, res) => {
     document.getElementById("subscribePush").addEventListener("click", async () => {
       try {
         setStatus("Registering push subscription...");
-        const token = tokenEl.value.trim();
-        if (!token) {
-          throw new Error("Token is required");
+        if (!getAccessToken() && !localStorage.getItem(REFRESH_KEY)) {
+          throw new Error("Please login first at /auth/login");
         }
 
         if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -603,17 +720,7 @@ notificationRouter.get("/settings/page", (_req, res) => {
           throw new Error("VAPID public key is not configured on server");
         }
 
-        const swCode = "self.addEventListener('push', (event) => {\\n"
-          + "  const data = event.data ? event.data.json() : { title: 'AI Centralize', body: 'New notification' };\\n"
-          + "  event.waitUntil(self.registration.showNotification(data.title || 'AI Centralize', {\\n"
-          + "    body: data.body || 'New notification',\\n"
-          + "    icon: '/favicon.ico'\\n"
-          + "  }));\\n"
-          + "});";
-
-        const swBlob = new Blob([swCode], { type: "application/javascript" });
-        const swUrl = URL.createObjectURL(swBlob);
-        const registration = await navigator.serviceWorker.register(swUrl);
+        const registration = await navigator.serviceWorker.register("/notifications/push/sw.js");
 
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
@@ -648,6 +755,32 @@ notificationRouter.get("/settings/page", (_req, res) => {
         setStatus(error.message || "Push unsubscribe failed");
       }
     });
+
+    document.getElementById("clearSession").addEventListener("click", async () => {
+      try {
+        const refreshToken = (localStorage.getItem(REFRESH_KEY) || "").trim();
+        if (refreshToken) {
+          await fetch("/auth/logout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken })
+          });
+        }
+      } finally {
+        localStorage.removeItem(ACCESS_KEY);
+        localStorage.removeItem(REFRESH_KEY);
+        tokenEl.value = "";
+        refreshSessionInfo();
+        setStatus("Local session cleared.");
+      }
+    });
+
+    tokenEl.value = localStorage.getItem(ACCESS_KEY) || "";
+    refreshSessionInfo();
+
+    if (getAccessToken()) {
+      document.getElementById("load").click();
+    }
   </script>
 </body>
 </html>`);
