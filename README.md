@@ -1,295 +1,228 @@
-# AI Centralize - Meeting Minute Intelligence Platform
+# AI Centralize - Sprint 1 to Sprint 2
 
-ระบบคลังข้อมูล minute meeting แบบรวมศูนย์สำหรับองค์กร พร้อม AI query และระบบแจ้งเตือนงานที่ได้รับมอบหมาย
+AI Centralize is a backend-first meeting-minute workflow system built on Node.js, Prisma, and PostgreSQL.
 
-## Core Capabilities
+Sprint 1 turns the project from playground-style AI usage into an operational workflow:
+- meeting ingestion
+- AI minute draft extraction
+- human review and approval
+- structured action tracking
+- approved-data grounded Ask-AI
+- reminder worker with dedupe and delivery logs
 
-- จัดเก็บ minute meeting แยกตาม project และ session
-- เก็บ action item พร้อม assignee และ due date
-- ค้นหา/ถามตอบข้อมูลด้วย endpoint `/ai/ask` จากข้อมูลที่เก็บแล้ว
-- แจ้งเตือนงาน `upcoming` และ `overdue` อัตโนมัติผ่าน scheduler
-- แจ้งเตือนผ่านอีเมล (SMTP) เมื่อมีงานใกล้ครบกำหนดหรือเกินกำหนด
-- ค่าเริ่มต้นช่องทางแจ้งเตือนเป็น In-app (email/push ปิดไว้จนกว่าจะเปิดเอง)
-- รองรับ role-based access: `ADMIN`, `PM`, `MEMBER`
+## What Sprint 1 Includes
 
-## Architecture (MVP)
+1. Meeting ingestion
+- `POST /projects/:projectId/meetings`
+- `POST /meetings/:meetingId/artifacts`
+- `GET /meetings/:meetingId`
 
-- API: Node.js + Express + TypeScript
-- Database: PostgreSQL + Prisma
-- AI Retrieval: keyword/full-text retrieval layer (vector-ready via `EmbeddingChunk`)
-- Scheduler: node-cron (ตรวจงานตามคาบเวลา)
-- Notification channel: In-app DB notification + SMTP email
-- Auth: JWT
+2. Minute draft extraction
+- `POST /meetings/:meetingId/minute-drafts/extract`
 
-## Data Model Summary
+3. Draft review and approval
+- `GET /minute-drafts/:draftId`
+- `PATCH /minute-drafts/:draftId`
+- `POST /minute-drafts/:draftId/approve`
 
-- `User`: ผู้ใช้งานและบทบาท
-- `Project`: โปรเจกต์
-- `Meeting`: session ประชุม
-- `MinuteEntry`: รายการบันทึกนาทีประชุม
-- `ActionItem`: งานที่มอบหมายในที่ประชุม
-- `Notification`: การแจ้งเตือนงาน
-- `EmbeddingChunk`: ช่องสำหรับเก็บ embedding/vector ในอนาคต
+4. Action item board operations
+- `GET /action-items`
+- `GET /action-items/:id`
+- `PATCH /action-items/:id`
+- `POST /action-items/:id/reassign`
+- `POST /action-items/:id/status`
 
-## Quick Start
+5. Ask-AI grounded on approved data
+- `POST /ask-ai`
 
-1. ติดตั้ง dependencies
+6. Reminder Worker V1
+- due-soon and overdue selection
+- duplicate prevention by time window
+- reminder delivery logs
+
+## Sprint 2 Progress (Current)
+
+Completed modules:
+1. Prompt 01: Hybrid retrieval foundation
+- Retrieval chunk indexing and backfill
+- Hybrid scoring (vector + lexical + boosts)
+
+2. Prompt 02: Ask-AI grounded answering V2
+- Uses hybrid retrieval evidence
+- Structured citations and used evidence output
+- Ask-AI query log persistence for audit
+
+3. Prompt 03: Reminder escalation and digest
+- Escalation rules (`OVERDUE_SHORT`, `OVERDUE_ESCALATE`)
+- Improved dedupe windows by reminder rule
+- Reminder digest snapshots and admin/PM endpoints
+
+4. Prompt 04: Project continuity dashboard API layer
+- Continuity summary metrics by project
+- Risk-oriented grouped views
+- Project memory snapshot endpoint
+
+5. Prompt 05: Tenant and access hardening
+- Centralized scope guards for project/meeting/draft/action-item access
+- Ask-AI, retrieval, continuity, meeting, and action-item scope checks for member access
+
+6. Prompt 06: Observability and AI run audit
+- Structured AI run logging (`AiRunLog`) for extraction/retrieval/ask-ai/reminder runs
+- Observability endpoint for AI run inspection
+
+7. Prompt 07: Acceptance and handover refresh
+- Sprint 2 handover docs updated
+- Sprint 2 acceptance checklist updated
+- Sprint 3 recommendation notes added
+
+## Source of Truth Rule
+
+- Approved `MinuteVersion` + structured `Decision` and `ActionItem` rows are the source of truth.
+- Unapproved drafts are editable work artifacts and are not the primary evidence source for downstream automation.
+
+## Runtime Strategy
+
+- Local development: use PostgreSQL installed on your machine (no Docker required).
+- Deployment environment: use Docker (`Dockerfile` + `docker-compose.yml`) with the `production` profile and a dedicated `.env.production` file.
+
+## Local Runbook
+
+1. Install dependencies
 
 ```bash
 npm install
 ```
 
-2. สตาร์ทฐานข้อมูล PostgreSQL
+2. Start local PostgreSQL service
 
 ```bash
-docker compose up -d
+pg_ctl -D "<your_pg_data_dir>" start
 ```
 
-3. ตั้งค่า env
+3. Create database (once)
+
+```bash
+psql -U postgres -c "CREATE DATABASE aicentralize;"
+```
+
+4. Configure environment
 
 ```bash
 copy .env.example .env
 ```
 
-4. สร้าง Prisma client และ migrate
+5. Generate Prisma client
 
 ```bash
 npm run prisma:generate
-npm run prisma:migrate -- --name init
 ```
 
-5. seed ข้อมูลตัวอย่าง
+6. Apply migrations
+
+```bash
+npm run prisma:migrate -- --name local_init
+```
+
+7. Seed sample data
 
 ```bash
 npm run prisma:seed
 ```
 
-6. รันระบบ
+8. Run API
 
 ```bash
 npm run dev
 ```
 
-7. ตั้งค่า SMTP เพื่อเปิดใช้งานอีเมลแจ้งเตือน
+9. Build validation
 
 ```bash
-SMTP_HOST="smtp.your-org.local"
-SMTP_PORT=587
-SMTP_USER="smtp-user"
-SMTP_PASS="smtp-pass"
-SMTP_SECURE=false
-MAIL_FROM="AI Centralize <noreply@your-org.local>"
+npm run build
 ```
+
+## Deployment Runbook (Docker)
+
+1. Create deployment env file
+
+```bash
+copy .env.production.example .env.production
+```
+
+2. Build and start services
+
+```bash
+docker compose --profile production --env-file .env.production up -d --build
+```
+
+3. Check service health
+
+```bash
+docker compose --profile production --env-file .env.production ps
+```
+
+4. Tail logs
+
+```bash
+docker compose --profile production --env-file .env.production logs -f app
+```
+
+5. Stop services
+
+```bash
+docker compose --profile production --env-file .env.production down
+```
+
+## Required Environment Variables
+
+Core:
+- `DATABASE_URL`
+- `JWT_SECRET`
+
+AI and Reminder:
+- `AI_SIMILARITY_THRESHOLD` (optional)
+- `REMINDER_CRON` (optional)
+- `REMINDER_LOOKAHEAD_HOURS` (optional)
+- `REMINDER_DEDUPE_HOURS` (optional)
+
+Notification channels (optional):
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_SECURE`
+- `MAIL_FROM`
+- `VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+- `VAPID_SUBJECT`
+
+## API and Docs
 
 - API base: `http://localhost:4000`
 - Swagger UI: `http://localhost:4000/docs`
+- OpenAPI file: `src/openapi.yaml`
 
-## Example Flow
+## Documentation
 
-1. Login
+- End-to-end flow: `docs/sprint1-flow.md`
+- Manual acceptance checklist: `docs/sprint1-acceptance-checklist.md`
+- Open TODOs and Sprint 2 recommendations: `docs/sprint1-open-todos.md`
+- Sprint 2 handover: `docs/sprint2-handover.md`
+- Sprint 2 manual acceptance checklist: `docs/sprint2-acceptance-checklist.md`
+- Retrieval and AI run runbook: `docs/sprint2-retrieval-ai-run-runbook.md`
+- Sprint 3 recommendations: `docs/sprint3-recommendations.md`
 
-```http
-POST /auth/login
-Content-Type: application/json
+## Known Limitations
 
-{
-  "email": "pm@org.local",
-  "password": "Pm123456!"
-}
-```
+- Draft extraction repair is basic controlled JSON repair.
+- Owner mapping from free-text draft fields is heuristic.
+- Tenant model is currently project/meeting membership based; no dedicated organization entity yet.
+- Integration tests for cross-module Sprint 2 behavior still need expansion.
+- Sprint workflow UI pages are still backend-first and not fully implemented.
 
-2. สร้าง meeting minute
+## Next Recommended Modules
 
-```http
-POST /meetings
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "projectId": "<project-id>",
-  "title": "Weekly PM Sync",
-  "sessionAt": "2026-06-20T09:00:00.000Z",
-  "summary": "สรุปสถานะงานและประเด็นติดขัด",
-  "minutes": [
-    { "section": "Decision", "content": "เพิ่ม backup approver" }
-  ],
-  "actionItems": [
-    {
-      "task": "ส่งแผน mitigation",
-      "assigneeId": "<user-id>",
-      "dueDate": "2026-06-22T09:00:00.000Z"
-    }
-  ]
-}
-```
-
-3. ถาม AI จาก minute ที่จัดเก็บ
-
-```http
-POST /ai/ask
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{ "question": "งานที่ยังไม่เสร็จของโปรเจกต์ Alpha มีอะไรบ้าง" }
-```
-
-4. ดูแจ้งเตือนของฉัน
-
-```http
-GET /notifications/me
-Authorization: Bearer <token>
-```
-
-5. ตั้งค่าการแจ้งเตือนของฉัน
-
-```http
-GET /notifications/settings/me
-Authorization: Bearer <token>
-```
-
-```http
-PATCH /notifications/settings/me
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "inAppEnabled": true,
-  "emailEnabled": false,
-  "pushEnabled": false
-}
-```
-
-- หน้า settings แบบง่าย: `GET /notifications/settings/page`
-
-6. จัดการ Push subscription (สำหรับ PWA)
-
-สร้าง VAPID keys อัตโนมัติ (one-shot setup)
-
-```bash
-npm run setup:push
-```
-
-ถ้าต้องการ regenerate ใหม่
-
-```bash
-npm run setup:push:force
-```
-
-หรือสร้างผ่าน API (เฉพาะ ADMIN)
-
-```http
-POST /notifications/push/generate-vapid
-Authorization: Bearer <admin-token>
-```
-
-ส่ง broadcast push (เฉพาะ ADMIN)
-
-```http
-POST /notifications/push/broadcast
-Authorization: Bearer <admin-token>
-Content-Type: application/json
-
-{
-  "title": "System Notice",
-  "message": "Maintenance starts at 22:00",
-  "onlyPushEnabled": true
-}
-```
-
-- หน้า Broadcast แบบง่าย: `GET /notifications/push/broadcast/page`
-
-```http
-GET /notifications/push/vapid-public-key
-```
-
-```http
-GET /notifications/push-subscriptions/me
-Authorization: Bearer <token>
-```
-
-```http
-POST /notifications/push-subscriptions/me
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "endpoint": "https://fcm.googleapis.com/fcm/send/....",
-  "expirationTime": null,
-  "keys": {
-    "p256dh": "...",
-    "auth": "..."
-  }
-}
-```
-
-```http
-DELETE /notifications/push-subscriptions/me
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "endpoint": "https://fcm.googleapis.com/fcm/send/...."
-}
-```
-
-หมายเหตุ: เวอร์ชันนี้รองรับการส่ง push จริงผ่าน `web-push` แล้วเมื่อกำหนดค่า `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
-
-## HANDOVER
-
-### Current Status
-
-- Backend core stack is running on Node.js + Express + Prisma + PostgreSQL.
-- Local PostgreSQL setup works with migrated schema and seeded demo data.
-- Push notification flow is available (user subscription + admin broadcast).
-- Local Ollama model `qwen2.5:7b` is installed and tested.
-
-### New Features Delivered
-
-- Notification settings per user with defaults:
-  - `inAppEnabled=true`
-  - `emailEnabled=false`
-  - `pushEnabled=false`
-- Push subscription endpoints:
-  - `GET /notifications/push-subscriptions/me`
-  - `POST /notifications/push-subscriptions/me`
-  - `DELETE /notifications/push-subscriptions/me`
-- Push broadcast endpoints/pages:
-  - `POST /notifications/push/broadcast` (admin)
-  - `GET /notifications/push/broadcast/page`
-- AI playground:
-  - `GET /ai/playground/page`
-  - `POST /ai/playground/generate`
-
-### Voice V1 (Playground)
-
-- Browser recording is enabled from playground page.
-- Recording is uploaded and stored at `uploads/recordings`.
-- V1 speaker flow is manual tagging (A/B/C buttons while recording).
-- Segment analysis route:
-  - `POST /ai/playground/diarize-analyze`
-- Recording routes:
-  - `POST /ai/playground/record/upload`
-  - `GET /ai/playground/recordings/:fileName`
-
-### Known Limitations
-
-- Speaker diarization is not fully automatic yet (manual A/B/C in V1).
-- Auto speaker diarization (Whisper + pyannote) is planned for V2.
-- Vitest may fail in this environment due to `tinypool spawn UNKNOWN` runtime issue.
-
-### Runbook (Local)
-
-1. `npm install`
-2. Ensure PostgreSQL is running and `.env` has valid `DATABASE_URL`.
-3. `npm run prisma:generate`
-4. `npm run prisma:migrate -- --name init`
-5. `npm run prisma:seed`
-6. `npm run setup:push`
-7. `npm run dev`
-
-## Notes For Production
-
-- ควรต่อ Notification channel จริง เช่น Email/Slack/LINE
-- ควรเปลี่ยน retrieval เป็น hybrid search + vector DB
-- ควรเพิ่ม audit log, SSO, tenancy isolation
-- ควรตั้ง worker แยก process จาก API เพื่อทำ reminder และ AI indexing
+1. Sprint 3 Productization (billing, plan controls, admin pricing backend)
+2. Enterprise identity (SSO/SCIM) and stronger org-level access controls
+3. Full integration and regression test suite for core workflow
+4. Dashboard/UI surfaces for continuity and reminder operations

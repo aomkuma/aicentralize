@@ -4,7 +4,7 @@ import path from "node:path";
 import multer from "multer";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
-import { askMinutes } from "../services/aiService";
+import { askMinutes, generateWithLocalModel } from "../services/aiService";
 
 export const aiRouter = Router();
 
@@ -64,25 +64,14 @@ aiRouter.post("/playground/generate", async (req, res) => {
   }
 
   try {
-    const ollamaRes = await fetch("http://127.0.0.1:11434/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: parsed.data.model,
-        prompt: parsed.data.prompt,
-        stream: false
-      })
+    const data = await generateWithLocalModel({
+      model: parsed.data.model,
+      prompt: parsed.data.prompt
     });
 
-    if (!ollamaRes.ok) {
-      const text = await ollamaRes.text();
-      return res.status(502).json({ message: "Ollama request failed", detail: text });
-    }
-
-    const data = await ollamaRes.json() as { response?: string };
     return res.json({
-      model: parsed.data.model,
-      output: data.response ?? ""
+      model: data.model,
+      output: data.output
     });
   } catch (error) {
     return res.status(502).json({
@@ -191,25 +180,14 @@ aiRouter.post("/playground/diarize-analyze", async (req, res) => {
   ].filter(Boolean).join("\n");
 
   try {
-    const ollamaRes = await fetch("http://127.0.0.1:11434/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: parsed.data.model,
-        prompt,
-        stream: false
-      })
+    const data = await generateWithLocalModel({
+      model: parsed.data.model,
+      prompt
     });
 
-    if (!ollamaRes.ok) {
-      const text = await ollamaRes.text();
-      return res.status(502).json({ message: "Ollama request failed", detail: text, transcript });
-    }
-
-    const data = await ollamaRes.json() as { response?: string };
     return res.json({
       transcript,
-      summary: data.response ?? ""
+      summary: data.output
     });
   } catch (error) {
     return res.status(502).json({

@@ -14,15 +14,129 @@ enum UserRole {
 }
 
 enum ActionStatus {
+  OPEN
   TODO
   IN_PROGRESS
   BLOCKED
   DONE
+  CANCELLED
 }
 
 enum ReminderType {
   UPCOMING
   OVERDUE
+}
+
+enum ReminderLogType {
+  DUE_SOON
+  OVERDUE
+  OVERDUE_SHORT
+  OVERDUE_ESCALATE
+}
+
+enum ReminderDeliveryStatus {
+  SENT
+  SKIPPED
+  FAILED
+}
+
+enum KnowledgeChunkSourceType {
+  MINUTE_SUMMARY
+  KEY_POINT
+  DECISION
+  ACTION_ITEM
+  MEETING_METADATA
+}
+
+enum MeetingParticipantRole {
+  ORGANIZER
+  ATTENDEE
+  OBSERVER
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+enum MeetingAttendanceStatus {
+  INVITED
+  ATTENDED
+  ABSENT
+  LATE
+}
+
+enum MeetingArtifactType {
+  TRANSCRIPT
+  RAW_NOTE
+  AUDIO
+  FILE
+  AUDIO_FILE
+  DOCUMENT
+  OTHER
+}
+
+enum MeetingArtifactSourceType {
+  VOICE_CAPTURE
+  MANUAL_PASTE
+  FILE_UPLOAD
+  IMPORT
+  OTHER
+}
+
+enum MinuteDraftStatus {
+  DRAFT
+  READY_FOR_REVIEW
+  REJECTED
+  SUPERSEDED
+  READY
+  FAILED
+}
+
+enum MinuteDraftGeneratedBy {
+  AI
+  USER
+  HYBRID
+}
+
+enum MinuteVersionStatus {
+  APPROVED
+  REVOKED
+  ARCHIVED
+}
+
+enum DecisionStatus {
+  ACTIVE
+  SUPERSEDED
+  CANCELLED
+}
+
+enum ActionItemSource {
+  MANUAL
+  AI_EXTRACTED
+  AI_DRAFT
+  APPROVED_MINUTE
+}
+
+enum ActionItemPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AiRunOperation {
+  MINUTE_EXTRACTION
+  RETRIEVAL_QUERY
+  ASK_AI_ANSWER
+  REMINDER_RUN
+}
+
+enum AiRunStatus {
+  SUCCESS
+  FAILED
 }
 
 model User {
@@ -40,6 +154,15 @@ model User {
   notificationSetting NotificationSetting?
   pushSubscriptions PushSubscription[]
   refreshTokens RefreshToken[]
+  meetingParticipants MeetingParticipant[]
+  meetingArtifacts MeetingArtifact[]
+  minuteDraftsCreated MinuteDraft[]
+  approvedMinuteVersions MinuteVersion[] @relation("MinuteVersionApprover")
+  decisionsOwned Decision[] @relation("DecisionOwner")
+  actionItemStatusHistory ActionItemStatusHistory[] @relation("ActionItemStatusChangedBy")
+  reminderLogs ReminderLog[]
+  askAiQueryLogs AskAiQueryLog[]
+  aiRunLogs AiRunLog[]
 }
 
 model RefreshToken {
@@ -66,13 +189,20 @@ model Project {
   updatedAt   DateTime  @updatedAt
 
   meetings    Meeting[]
+  knowledgeChunks MeetingKnowledgeChunk[]
+  askAiQueryLogs AskAiQueryLog[]
+  reminderDigests ReminderDigest[]
+  aiRunLogs AiRunLog[]
 }
 
 model Meeting {
   id            String       @id @default(cuid())
   projectId     String
   title         String
+  agenda        String?
   sessionAt     DateTime
+  timezone      String?
+  status        MeetingStatus @default(SCHEDULED)
   summary       String
   transcript    String?
   createdById   String
@@ -84,6 +214,208 @@ model Meeting {
   minutes       MinuteEntry[]
   actionItems   ActionItem[]
   embeddings    EmbeddingChunk[]
+  participants  MeetingParticipant[]
+  artifacts     MeetingArtifact[]
+  minuteDrafts  MinuteDraft[]
+  minuteVersions MinuteVersion[]
+  decisions     Decision[]
+  knowledgeChunks MeetingKnowledgeChunk[]
+  askAiQueryLogs AskAiQueryLog[]
+  aiRunLogs AiRunLog[]
+
+  @@index([projectId, sessionAt])
+}
+
+model AiRunLog {
+  id                String         @id @default(cuid())
+  operation         AiRunOperation
+  status            AiRunStatus
+  userId            String?
+  projectId         String?
+  meetingId         String?
+  model             String?
+  promptVersion     String?
+  durationMs        Int?
+  retrievedIdsJson  Json?
+  traceJson         Json?
+  errorMessage      String?
+  createdAt         DateTime       @default(now())
+
+  user              User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  project           Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  meeting           Meeting?       @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  @@index([operation, createdAt])
+  @@index([projectId, createdAt])
+  @@index([meetingId, createdAt])
+}
+
+model AskAiQueryLog {
+  id                   String    @id @default(cuid())
+  userId               String
+  projectId            String?
+  meetingId            String?
+  question             String
+  answer               String
+  confidence           String
+  model                String?
+  retrievedEvidenceIds Json
+  usedEvidenceJson     Json
+  retrievalDebugJson   Json?
+  createdAt            DateTime  @default(now())
+
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project              Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  meeting              Meeting?  @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([meetingId, createdAt])
+}
+
+model MeetingParticipant {
+  id           String                 @id @default(cuid())
+  meetingId    String
+  userId       String?
+  displayName  String?
+  email        String?
+  role         MeetingParticipantRole @default(ATTENDEE)
+  roleLabel    String?
+  attended     Boolean                @default(true)
+  attendanceStatus MeetingAttendanceStatus?
+  createdAt    DateTime               @default(now())
+
+  meeting      Meeting                @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user         User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([meetingId, role])
+  @@index([userId])
+}
+
+model MeetingArtifact {
+  id           String            @id @default(cuid())
+  meetingId    String
+  type         MeetingArtifactType
+  sourceType   MeetingArtifactSourceType @default(OTHER)
+  title        String?
+  contentText  String?
+  fileUrl      String?
+  mimeType     String?
+  sourceRef    String?
+  createdById  String?
+  createdAt    DateTime          @default(now())
+
+  meeting      Meeting           @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  createdBy    User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  minuteDrafts MinuteDraft[]
+
+  @@index([meetingId, type])
+  @@index([createdById])
+}
+
+model MinuteDraft {
+  id                 String           @id @default(cuid())
+  meetingId          String
+  sourceArtifactId   String?
+  status             MinuteDraftStatus @default(DRAFT)
+  summary            String?
+  keyPointsJson      Json?
+  decisionsJson      Json?
+  actionItemsJson    Json?
+  risksJson          Json?
+  openQuestionsJson  Json?
+  generatedBy        MinuteDraftGeneratedBy @default(AI)
+  generationMetaJson Json?
+  rawModelOutputJson Json?
+  parseErrorsJson    Json?
+  llmModel           String?
+  extractionRunId    String?
+  createdById        String?
+  generatedAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  meeting            Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  sourceArtifact     MeetingArtifact? @relation(fields: [sourceArtifactId], references: [id], onDelete: SetNull)
+  createdBy          User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  minuteVersions     MinuteVersion[]
+  actionItems        ActionItem[]
+
+  @@index([meetingId, status])
+  @@index([generatedAt])
+  @@index([createdById])
+}
+
+model MinuteVersion {
+  id              String             @id @default(cuid())
+  meetingId       String
+  draftId         String?
+  versionNo       Int
+  status          MinuteVersionStatus @default(APPROVED)
+  summary         String
+  keyPointsJson   Json?
+  decisionsJson   Json?
+  actionItemsJson Json?
+  risksJson       Json?
+  snapshotJson    Json
+  approvedById    String
+  approvedAt      DateTime           @default(now())
+  createdAt       DateTime           @default(now())
+
+  meeting         Meeting            @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  draft           MinuteDraft?       @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  approvedBy      User               @relation("MinuteVersionApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  decisions       Decision[]
+  actionItems     ActionItem[]
+  knowledgeChunks MeetingKnowledgeChunk[]
+
+  @@unique([meetingId, versionNo])
+  @@index([meetingId, approvedAt])
+}
+
+model MeetingKnowledgeChunk {
+  id             String                   @id @default(cuid())
+  chunkKey       String                   @unique
+  projectId      String
+  meetingId      String
+  minuteVersionId String
+  sourceType     KnowledgeChunkSourceType
+  sourceRowId    String?
+  textContent    String
+  metadataJson   Json?
+  embeddingJson  Json?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  project        Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  meeting        Meeting                  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  minuteVersion  MinuteVersion            @relation(fields: [minuteVersionId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, sourceType])
+  @@index([meetingId, sourceType])
+  @@index([minuteVersionId])
+  @@index([sourceRowId])
+}
+
+model Decision {
+  id              String         @id @default(cuid())
+  meetingId       String
+  minuteVersionId String?
+  title           String
+  detail          String?
+  ownerId         String?
+  dueDate         DateTime?
+  status          DecisionStatus @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  meeting         Meeting        @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  minuteVersion   MinuteVersion? @relation(fields: [minuteVersionId], references: [id], onDelete: SetNull)
+  owner           User?          @relation("DecisionOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([meetingId, status])
+  @@index([ownerId])
+  @@index([dueDate])
 }
 
 model MinuteEntry {
@@ -99,18 +431,48 @@ model MinuteEntry {
 model ActionItem {
   id             String       @id @default(cuid())
   meetingId      String
+  minuteDraftId  String?
+  minuteVersionId String?
   task           String
   detail         String?
   assigneeId     String
+  ownerDisplayName String?
   dueDate        DateTime
+  priority       ActionItemPriority @default(MEDIUM)
   status         ActionStatus @default(TODO)
+  source         ActionItemSource @default(MANUAL)
+  sourceDraftItemRef String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   completedAt    DateTime?
 
   meeting        Meeting      @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  minuteDraft    MinuteDraft? @relation(fields: [minuteDraftId], references: [id], onDelete: SetNull)
+  minuteVersion  MinuteVersion? @relation(fields: [minuteVersionId], references: [id], onDelete: SetNull)
   assignee       User         @relation("ActionAssignee", fields: [assigneeId], references: [id])
   notifications  Notification[]
+  statusHistory  ActionItemStatusHistory[]
+  reminderLogs   ReminderLog[]
+
+  @@index([meetingId, status, dueDate])
+  @@index([assigneeId, status])
+  @@index([assigneeId, status, dueDate])
+}
+
+model ActionItemStatusHistory {
+  id             String       @id @default(cuid())
+  actionItemId   String
+  fromStatus     ActionStatus?
+  toStatus       ActionStatus
+  changedById    String?
+  note           String?
+  changedAt      DateTime     @default(now())
+
+  actionItem     ActionItem   @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
+  changedBy      User?        @relation("ActionItemStatusChangedBy", fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([actionItemId, changedAt])
+  @@index([changedById])
 }
 
 model Notification {
@@ -125,6 +487,43 @@ model Notification {
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([actionItemId, userId, type])
+}
+
+model ReminderLog {
+  id               String               @id @default(cuid())
+  actionItemId     String
+  reminderType     ReminderLogType
+  sentToUserId     String?
+  sentToDisplayName String?
+  message          String
+  deliveryStatus   ReminderDeliveryStatus
+  channelMetaJson  Json?
+  sentAt           DateTime             @default(now())
+
+  actionItem       ActionItem           @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
+  sentToUser       User?                @relation(fields: [sentToUserId], references: [id], onDelete: SetNull)
+
+  @@index([actionItemId, reminderType, sentAt])
+  @@index([sentToUserId, sentAt])
+}
+
+model ReminderDigest {
+  id                 String   @id @default(cuid())
+  projectId          String
+  windowStart        DateTime
+  windowEnd          DateTime
+  totalOpen          Int
+  totalDueSoon       Int
+  totalOverdue       Int
+  totalEscalated     Int
+  overdueByOwnerJson Json?
+  itemsJson          Json?
+  createdAt          DateTime @default(now())
+
+  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([createdAt])
 }
 
 model NotificationSetting {

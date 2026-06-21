@@ -34,6 +34,566 @@ paths:
       summary: List meeting minutes
       responses:
         '200': { description: OK }
+  /projects/{projectId}/meetings:
+    post:
+      summary: Create meeting under project
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, meetingDate]
+              properties:
+                title: { type: string }
+                agenda: { type: string }
+                meetingDate: { type: string, format: date-time }
+      responses:
+        '201': { description: Created }
+        '404': { description: Project not found }
+  /meetings/{meetingId}:
+    get:
+      summary: Get meeting detail with artifacts and participants
+      parameters:
+        - in: path
+          name: meetingId
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '404': { description: Meeting not found }
+  /meetings/{meetingId}/artifacts:
+    post:
+      summary: Add transcript/raw note/file artifact to meeting
+      parameters:
+        - in: path
+          name: meetingId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [artifactType, sourceType]
+              properties:
+                artifactType:
+                  type: string
+                  enum: [TRANSCRIPT, RAW_NOTE, AUDIO, FILE, OTHER]
+                sourceType:
+                  type: string
+                  enum: [VOICE_CAPTURE, MANUAL_PASTE, FILE_UPLOAD, IMPORT, OTHER]
+                textContent: { type: string }
+                fileUrlOrStorageKey: { type: string }
+                mimeType: { type: string }
+      responses:
+        '201': { description: Created }
+        '404': { description: Meeting not found }
+  /meetings/{meetingId}/minute-drafts/extract:
+    post:
+      summary: Extract structured minute draft from meeting artifacts
+      parameters:
+        - in: path
+          name: meetingId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                artifactIds:
+                  type: array
+                  items: { type: string }
+                supersedeExistingDrafts: { type: boolean }
+                model: { type: string }
+      responses:
+        '201': { description: Draft extraction result }
+        '400': { description: Missing valid source artifacts }
+        '404': { description: Meeting not found }
+        '500': { description: Unexpected extraction error }
+  /minute-drafts/{draftId}:
+    get:
+      summary: Get minute draft detail for review
+      parameters:
+        - in: path
+          name: draftId
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '404': { description: Minute draft not found }
+    patch:
+      summary: Edit minute draft before approval
+      parameters:
+        - in: path
+          name: draftId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                summary: { type: string }
+                keyPoints:
+                  type: array
+                  items: { type: string }
+                decisions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      text: { type: string }
+                      ownerName: { type: string }
+                      dueDate: { type: string, format: date-time }
+                actionItems:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title: { type: string }
+                      description: { type: string }
+                      ownerName: { type: string }
+                      dueDate: { type: string, format: date-time }
+                      priority: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+      responses:
+        '200': { description: Updated }
+        '400': { description: Invalid payload }
+        '404': { description: Minute draft not found }
+  /minute-drafts/{draftId}/approve:
+    post:
+      summary: Approve minute draft and create approved minute version
+      parameters:
+        - in: path
+          name: draftId
+          required: true
+          schema: { type: string }
+      responses:
+        '201': { description: Approved }
+        '404': { description: Minute draft not found }
+  /action-items:
+    get:
+      summary: List action items with filters
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: projectId
+          schema: { type: string }
+        - in: query
+          name: meetingId
+          schema: { type: string }
+        - in: query
+          name: ownerUserId
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [OPEN, TODO, IN_PROGRESS, BLOCKED, DONE, CANCELLED] }
+        - in: query
+          name: overdueOnly
+          schema: { type: boolean }
+        - in: query
+          name: dueFrom
+          schema: { type: string, format: date-time }
+        - in: query
+          name: dueTo
+          schema: { type: string, format: date-time }
+      responses:
+        '200': { description: OK }
+        '400': { description: Invalid query }
+  /action-items/{id}:
+    get:
+      summary: Get action item detail with status history
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+        '404': { description: Action item not found }
+    patch:
+      summary: Update action item quick fields
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description: { type: string }
+                dueDate: { type: string, format: date-time }
+                priority: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+                ownerDisplayName: { type: string }
+      responses:
+        '200': { description: Updated }
+        '400': { description: Invalid payload }
+        '403': { description: Forbidden }
+        '404': { description: Action item not found }
+  /action-items/{id}/reassign:
+    post:
+      summary: Reassign action item owner
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ownerUserId]
+              properties:
+                ownerUserId: { type: string }
+                note: { type: string }
+      responses:
+        '200': { description: Reassigned }
+        '400': { description: Invalid payload }
+        '404': { description: Action item or owner not found }
+  /action-items/{id}/status:
+    post:
+      summary: Change action item status and write history
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [OPEN, TODO, IN_PROGRESS, BLOCKED, DONE, CANCELLED] }
+                note: { type: string }
+      responses:
+        '200': { description: Updated }
+        '400': { description: Invalid payload or transition }
+        '403': { description: Forbidden }
+        '404': { description: Action item not found }
+  /ask-ai:
+    post:
+      summary: Ask AI grounded on approved minutes and action tracking data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string }
+                projectId: { type: string }
+                meetingId: { type: string }
+                model: { type: string }
+                includeRetrievalDebug: { type: boolean, description: Admin-only retrieval trace output }
+      responses:
+        '200':
+          description: Grounded answer with citations and used evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [answer, confidence, citations, usedEvidence]
+                properties:
+                  answer: { type: string }
+                  confidence: { type: string, enum: [low, medium, high] }
+                  uncertainties:
+                    type: array
+                    items: { type: string }
+                  citations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        chunkId: { type: string }
+                        sourceType: { type: string }
+                        sourceRowId: { type: string, nullable: true }
+                        projectId: { type: string }
+                        meetingId: { type: string }
+                        meetingTitle: { type: string }
+                        meetingDate: { type: string }
+                        minuteVersionId: { type: string }
+                        minuteApprovedAt: { type: string }
+                        snippet: { type: string }
+                        hybridScore: { type: number }
+                  usedEvidence:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        chunkId: { type: string }
+                        sourceType: { type: string }
+                        sourceRowId: { type: string, nullable: true }
+                        projectId: { type: string }
+                        meetingId: { type: string }
+                        meetingTitle: { type: string }
+                        meetingDate: { type: string }
+                        minuteVersionId: { type: string }
+                        minuteApprovedAt: { type: string }
+                        snippet: { type: string }
+                        vectorScore: { type: number }
+                        lexicalScore: { type: number }
+                        sourceBoost: { type: number }
+                        recencyBoost: { type: number }
+                        hybridScore: { type: number }
+                  usedMeetingIds:
+                    type: array
+                    items: { type: string }
+                  usedActionItemIds:
+                    type: array
+                    items: { type: string }
+                  usedDecisionIds:
+                    type: array
+                    items: { type: string }
+                  retrievalDebug:
+                    type: object
+                    nullable: true
+        '400': { description: Invalid payload }
+        '502': { description: Ask-AI failed }
+  /ask-ai/logs:
+    get:
+      summary: List Ask-AI query logs (admin)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 20, maximum: 100 }
+        - in: query
+          name: projectId
+          schema: { type: string }
+        - in: query
+          name: meetingId
+          schema: { type: string }
+        - in: query
+          name: userId
+          schema: { type: string }
+      responses:
+        '200': { description: Paginated Ask-AI logs }
+        '400': { description: Invalid query }
+        '403': { description: Forbidden }
+  /retrieval/search:
+    post:
+      summary: Hybrid retrieval across approved knowledge chunks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string }
+                projectId: { type: string }
+                meetingId: { type: string }
+                limit: { type: integer }
+      responses:
+        '200': { description: Hybrid retrieval result }
+        '400': { description: Invalid payload }
+  /retrieval/backfill:
+    post:
+      summary: Backfill or refresh retrieval chunks for approved minute versions (admin)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                limit: { type: integer }
+      responses:
+        '200': { description: Backfill completed }
+        '400': { description: Invalid payload }
+        '403': { description: Forbidden }
+  /reminders/run-now:
+    post:
+      summary: Run reminder worker immediately (admin)
+      responses:
+        '200': { description: Reminder run summary }
+        '403': { description: Forbidden }
+  /reminders/digests:
+    get:
+      summary: List reminder digest snapshots by project (admin/pm)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 20, maximum: 100 }
+        - in: query
+          name: projectId
+          schema: { type: string }
+      responses:
+        '200': { description: Paginated reminder digests }
+        '400': { description: Invalid query }
+        '403': { description: Forbidden }
+  /reminders/logs:
+    get:
+      summary: List reminder logs including escalation records (admin/pm)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 20, maximum: 100 }
+        - in: query
+          name: projectId
+          schema: { type: string }
+        - in: query
+          name: reminderType
+          schema:
+            type: string
+            enum: [DUE_SOON, OVERDUE, OVERDUE_SHORT, OVERDUE_ESCALATE]
+        - in: query
+          name: actionItemId
+          schema: { type: string }
+      responses:
+        '200': { description: Paginated reminder logs }
+        '400': { description: Invalid query }
+        '403': { description: Forbidden }
+  /continuity/summary:
+    get:
+      summary: Project continuity summary metrics
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 20, maximum: 100 }
+        - in: query
+          name: projectId
+          schema: { type: string }
+        - in: query
+          name: staleAfterDays
+          schema: { type: integer, minimum: 1, maximum: 365 }
+      responses:
+        '200': { description: Continuity summary list }
+        '400': { description: Invalid query }
+  /continuity/overdue/by-owner:
+    get:
+      summary: Overdue action items grouped by owner
+      parameters:
+        - in: query
+          name: projectId
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        '200': { description: Grouped overdue items by owner }
+        '400': { description: Invalid query }
+  /continuity/overdue/by-project:
+    get:
+      summary: Overdue action items grouped by project
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        '200': { description: Grouped overdue items by project }
+        '400': { description: Invalid query }
+  /continuity/action-items/missing-owner-or-due-date:
+    get:
+      summary: Action items with missing owner label or due date metadata
+      parameters:
+        - in: query
+          name: projectId
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100, maximum: 200 }
+      responses:
+        '200': { description: Missing ownership or due date audit }
+        '400': { description: Invalid query }
+  /continuity/meetings/recent-approved:
+    get:
+      summary: Recent approved meetings with action counts
+      parameters:
+        - in: query
+          name: projectId
+          schema: { type: string }
+        - in: query
+          name: days
+          schema: { type: integer, default: 30, maximum: 365 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        '200': { description: Recent approved meetings }
+        '400': { description: Invalid query }
+  /continuity/projects/{projectId}/memory-snapshot:
+    get:
+      summary: Project memory snapshot panel data
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Project continuity memory snapshot }
+        '404': { description: Project not found }
+  /observability/ai-runs:
+    get:
+      summary: List AI run traces for operations (admin/pm)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, default: 20, maximum: 100 }
+        - in: query
+          name: operation
+          schema:
+            type: string
+            enum: [MINUTE_EXTRACTION, RETRIEVAL_QUERY, ASK_AI_ANSWER, REMINDER_RUN]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [SUCCESS, FAILED]
+        - in: query
+          name: projectId
+          schema: { type: string }
+        - in: query
+          name: meetingId
+          schema: { type: string }
+        - in: query
+          name: userId
+          schema: { type: string }
+      responses:
+        '200': { description: Paginated AI run traces }
+        '400': { description: Invalid query }
+        '403': { description: Forbidden }
   /ai/ask:
     post:
       summary: Ask question against stored minutes

@@ -12,8 +12,45 @@ type AskResult = {
   }>;
 };
 
+type LocalGenerateInput = {
+  prompt: string;
+  model?: string;
+};
+
+type LocalGenerateResult = {
+  model: string;
+  output: string;
+};
+
+const DEFAULT_LOCAL_MODEL = "qwen2.5:7b";
+
 function normalize(text: string): string {
   return text.toLowerCase().trim();
+}
+
+export async function generateWithLocalModel(input: LocalGenerateInput): Promise<LocalGenerateResult> {
+  const model = input.model?.trim() || DEFAULT_LOCAL_MODEL;
+
+  const ollamaRes = await fetch("http://127.0.0.1:11434/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      prompt: input.prompt,
+      stream: false
+    })
+  });
+
+  if (!ollamaRes.ok) {
+    const text = await ollamaRes.text();
+    throw new Error(`Ollama request failed: ${text}`);
+  }
+
+  const data = await ollamaRes.json() as { response?: string };
+  return {
+    model,
+    output: data.response ?? ""
+  };
 }
 
 export async function askMinutes(question: string): Promise<AskResult> {

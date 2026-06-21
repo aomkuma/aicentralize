@@ -6,11 +6,18 @@ import swaggerUi from "swagger-ui-express";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  actionItemRouter,
   aiRouter,
+  askAiRouter,
   authRouter,
   meetingRouter,
+  minuteDraftRouter,
   notificationRouter,
-  projectRouter
+  continuityRouter,
+  observabilityRouter,
+  projectRouter,
+  reminderRouter,
+  retrievalRouter
 } from "./routes";
 
 export function createApp() {
@@ -286,6 +293,13 @@ export function createApp() {
   app.use("/auth", authRouter);
   app.use("/projects", projectRouter);
   app.use("/meetings", meetingRouter);
+  app.use("/minute-drafts", minuteDraftRouter);
+  app.use("/action-items", actionItemRouter);
+  app.use("/ask-ai", askAiRouter);
+  app.use("/retrieval", retrievalRouter);
+  app.use("/reminders", reminderRouter);
+  app.use("/continuity", continuityRouter);
+  app.use("/observability", observabilityRouter);
   app.use("/ai", aiRouter);
   app.use("/notifications", notificationRouter);
 
