@@ -7,6 +7,7 @@ interface AuthState {
   refreshToken: string | null
   isAuthenticated: boolean
   setAuth: (auth: AuthResponse) => void
+  setTokens: (tokens: { accessToken: string; refreshToken: string }) => void
   clearAuth: () => void
   updateUser: (user: Partial<User>) => void
   loadFromLocalStorage: () => void
@@ -33,6 +34,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       refreshToken: auth.refreshToken,
       isAuthenticated: true,
     })
+  },
+
+  setTokens: ({ accessToken, refreshToken }) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('accessToken', accessToken)
+      localStorage.setItem('refreshToken', refreshToken)
+    }
+
+    set((state) => ({
+      accessToken,
+      refreshToken,
+      isAuthenticated: Boolean(state.user),
+    }))
   },
 
   clearAuth: () => {
@@ -63,13 +77,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   loadFromLocalStorage: () => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('accessToken')
+      const refreshToken = localStorage.getItem('refreshToken')
       const userJson = localStorage.getItem('user')
-      if (token) {
+      const parsedUser = userJson ? JSON.parse(userJson) : null
+
+      if (token || refreshToken) {
         set({
           accessToken: token,
-          refreshToken: localStorage.getItem('refreshToken'),
-          user: userJson ? JSON.parse(userJson) : null,
-          isAuthenticated: true,
+          refreshToken,
+          user: parsedUser,
+          isAuthenticated: Boolean(parsedUser),
         })
       }
     }

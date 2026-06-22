@@ -22,6 +22,14 @@ function DashboardIcon() {
   )
 }
 
+function ProjectsIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+    </svg>
+  )
+}
+
 function SetupIcon() {
   return (
     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,6 +84,10 @@ function iconFor(type: NavigationIcon) {
     return <AiIcon />
   }
 
+  if (type === 'projects') {
+    return <ProjectsIcon />
+  }
+
   if (type === 'setup') {
     return <SetupIcon />
   }
@@ -115,6 +127,10 @@ export default function Sidebar({
 
   const isCollapsed = isDesktopCollapsed
   const navItems = PRIMARY_NAVIGATION.filter((item) => {
+    if (item.id === 'projects') {
+      return user?.systemRole !== 'SUPER_ADMIN'
+    }
+
     if (item.id === 'settings' || item.id === 'setup') {
       return user?.systemRole === 'SUPER_ADMIN'
     }

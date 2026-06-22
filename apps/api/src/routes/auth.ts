@@ -332,7 +332,7 @@ authRouter.post("/refresh", async (req, res) => {
     email: item.user.email
   });
 
-  return res.json({ token, refreshToken: newRefreshToken });
+  return res.json({ accessToken: token, token, refreshToken: newRefreshToken });
 });
 
 authRouter.post("/logout", async (req, res) => {

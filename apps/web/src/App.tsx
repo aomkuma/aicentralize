@@ -8,6 +8,7 @@ import TenantSetupPage from './pages/TenantSetupPage'
 import DashboardPage from './pages/DashboardPage'
 import ContinuityPage from './pages/ContinuityPage'
 import RemindersPage from './pages/RemindersPage'
+import ProjectsPage from './pages/ProjectsPage'
 import AiTracePage from './pages/AiTracePage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
 
@@ -88,6 +89,10 @@ function AppContent() {
           <Route path="/continuity" element={<ContinuityPage />} />
           <Route path="/continuity/:projectId" element={<ContinuityPage />} />
           <Route path="/reminders" element={<RemindersPage />} />
+          <Route
+            path="/projects"
+            element={<ProjectsPage />}
+          />
           <Route path="/reminders/:projectId" element={<RemindersPage />} />
           <Route path="/ai-trace" element={<AiTracePage />} />
           <Route path="/ai-trace/:projectId" element={<AiTracePage />} />

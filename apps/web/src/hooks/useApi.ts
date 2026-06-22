@@ -8,10 +8,54 @@ interface ApiError {
   data?: unknown
 }
 
+let refreshPromise: Promise<string | null> | null = null
+
+async function refreshAccessToken(baseURL: string): Promise<string | null> {
+  const refreshToken = localStorage.getItem('refreshToken')
+  if (!refreshToken) {
+    return null
+  }
+
+  if (refreshPromise) {
+    return refreshPromise
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const response = await axios.post<{ accessToken?: string; token?: string; refreshToken?: string }>(
+        `${baseURL}/auth/refresh`,
+        { refreshToken }
+      )
+
+      const nextAccessToken = response.data.accessToken || response.data.token
+      const nextRefreshToken = response.data.refreshToken || refreshToken
+
+      if (!nextAccessToken) {
+        throw new Error('Missing access token from refresh endpoint')
+      }
+
+      useAuthStore.getState().setTokens({
+        accessToken: nextAccessToken,
+        refreshToken: nextRefreshToken,
+      })
+
+      return nextAccessToken
+    } catch {
+      useAuthStore.getState().clearAuth()
+      return null
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
 export const useApi = () => {
   const apiRef = useRef<AxiosInstance | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
   
   // Watch accessToken changes
   const accessToken = useAuthStore((state) => state.accessToken)
@@ -19,7 +63,7 @@ export const useApi = () => {
   // Reinitialize API instance when token changes
   useEffect(() => {
     apiRef.current = axios.create({
-      baseURL: import.meta.env.VITE_API_URL || 'http://localhost:4000',
+      baseURL,
       withCredentials: false,
     })
 
@@ -36,16 +80,28 @@ export const useApi = () => {
     // Add response interceptor for error handling
     apiRef.current.interceptors.response.use(
       (response) => response,
-      (error: AxiosError) => {
-        if (error.response?.status === 401) {
-          localStorage.removeItem('accessToken')
-          localStorage.removeItem('refreshToken')
+      async (error: AxiosError) => {
+        const originalRequest = error.config as (typeof error.config & { _retry?: boolean })
+        const isUnauthorized = error.response?.status === 401
+        const isRefreshEndpoint = originalRequest?.url?.includes('/auth/refresh')
+
+        if (isUnauthorized && originalRequest && !originalRequest._retry && !isRefreshEndpoint) {
+          originalRequest._retry = true
+          const nextAccessToken = await refreshAccessToken(baseURL)
+
+          if (nextAccessToken && apiRef.current) {
+            originalRequest.headers = originalRequest.headers ?? {}
+            originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`
+            return apiRef.current.request(originalRequest)
+          }
+
           window.location.href = '/auth/login'
         }
+
         return Promise.reject(error)
       }
     )
-  }, [accessToken])
+  }, [accessToken, baseURL])
 
   const request = useCallback(
     async <T,>(

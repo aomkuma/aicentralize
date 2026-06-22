@@ -1,4 +1,4 @@
-export type NavigationIcon = 'dashboard' | 'setup' | 'ai' | 'continuity' | 'reminders' | 'trace' | 'settings'
+export type NavigationIcon = 'dashboard' | 'projects' | 'setup' | 'ai' | 'continuity' | 'reminders' | 'trace' | 'settings'
 
 export interface NavigationItemConfig {
   id: string
@@ -14,6 +14,12 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
     to: '/dashboard',
     labelKey: 'dashboard.home',
     icon: 'dashboard',
+  },
+  {
+    id: 'projects',
+    to: '/projects',
+    labelKey: 'navigation.projects',
+    icon: 'projects',
   },
   {
     id: 'continuity',

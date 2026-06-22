@@ -46,8 +46,6 @@
   },
   "dashboard": {
     "home": "Dashboard",
-    "welcomeMessage": "Welcome, {{name}}! 👋",
-    "setupComplete": "You're all set up. Start by selecting an organization or create a new one.",
     "currentOrganization": "Current Organization",
     "yourOrganizations": "Your Organizations",
     "noOrganizations": "No organizations yet. Create one to get started!",
@@ -87,6 +85,7 @@
     "viewer": "VIEWER"
   },
   "navigation": {
+    "projects": "Projects",
     "aiPlayground": "AI Playground",
     "systemSettings": "System Settings"
   },

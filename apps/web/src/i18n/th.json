@@ -46,8 +46,6 @@
   },
   "dashboard": {
     "home": "แดชบอร์ด",
-    "welcomeMessage": "ยินดีต้อนรับ {{name}}! 👋",
-    "setupComplete": "คุณพร้อมแล้ว เริ่มต้นโดยเลือกองค์กรหรือสร้างองค์กรใหม่",
     "currentOrganization": "องค์กรปัจจุบัน",
     "yourOrganizations": "องค์กรของคุณ",
     "noOrganizations": "ยังไม่มีองค์กร สร้างองค์กรเพื่อเริ่มต้น!",
@@ -87,6 +85,7 @@
     "viewer": "ผู้ชม"
   },
   "navigation": {
+    "projects": "โปรเจค",
     "aiPlayground": "AI เพลย์กราวด์",
     "systemSettings": "ตั้งค่าระบบ"
   },
