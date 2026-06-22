@@ -1,0 +1,1 @@
+-- No-op migration (kept to preserve migration history generated during local interactive command)

@@ -20,7 +20,7 @@ services:
 
   postgres:
     profiles: ["production"]
-    image: postgres:16
+    image: pgvector/pgvector:0.8.3-pg16
     container_name: aicentralize-postgres
     restart: unless-stopped
     environment:

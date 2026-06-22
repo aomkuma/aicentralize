@@ -161,3 +161,66 @@ New model and enum changes include:
 2. Observability is persisted and queryable but not wired to external monitoring/alerting systems.
 3. Dashboard remains backend-first with no dedicated continuity UI page.
 4. Integration tests for cross-module Sprint 2 behavior are still limited.
+
+## Post-Handover UI Update (2026-06-22)
+
+Implemented after Sprint 2 handover:
+- Dashboard now embeds AI Chat with parity to AI Playground core functions.
+- Added in-app prompt generation, recording workflow, transcript editing, and analyze flow.
+- Sidebar/top navigation consistency for AI surface has been improved.
+
+Primary files:
+- apps/web/src/components/AIChatPanel.tsx
+- apps/web/src/pages/DashboardPage.tsx
+- apps/api/src/routes/ai-route.ts
+
+Verification completed:
+1. `pnpm --filter=web build` passed.
+2. `pnpm --filter=api build` passed.
+3. Manual browser check on `/dashboard` confirms AI Chat component rendered and tab switching works.
+
+Known follow-up (recommended next step):
+1. Extract shared AI Playground logic to reusable client module to reduce duplicated logic between standalone page JS and React component.
+2. Add i18n strings for all AI Chat labels and status messages.
+3. Add end-to-end tests for record/analyze flow.
+
+## Post-Handover UI and Access Update (2026-06-23)
+
+Implemented:
+1. Role-gated navigation and route hardening
+- `setup` is SUPER_ADMIN only in sidebar and route guard.
+- `settings` remains SUPER_ADMIN only.
+
+2. Dashboard workflow split by role
+- SUPER_ADMIN: organization-focused cards.
+- PM/non-super-admin: `Projects On Hand` cards with direct links to project-level continuity/reminders/ai-trace pages.
+
+3. PM project creation workflow on dashboard
+- Inline create form with code/name/description.
+- Submit to `/projects` with tenant context.
+- Project list refresh after success.
+
+4. Validation hardening for project creation
+- Frontend duplicate check by code (case-insensitive).
+- Backend duplicate check by code (case-insensitive) returns 409.
+
+5. Whisper setting enforcement in runtime path
+- `/ai/playground/transcribe` now checks global system settings before Whisper execution.
+- Returns 403 when Whisper disabled; frontend falls back to browser transcript messaging.
+
+Primary files:
+- apps/web/src/App.tsx
+- apps/web/src/components/Sidebar.tsx
+- apps/web/src/pages/DashboardPage.tsx
+- apps/web/src/config/navigation.ts
+- apps/web/src/components/AIChatPanel.tsx
+- apps/web/src/i18n/en.json
+- apps/web/src/i18n/th.json
+- apps/api/src/routes/projects.ts
+- apps/api/src/routes/ai-route.ts
+
+Verification completed:
+1. PM cannot access `/setup` or `/settings`.
+2. PM sees project-focused dashboard and can create projects.
+3. Duplicate project code is blocked in UI and API.
+4. Whisper disabled path is enforced in backend endpoint.

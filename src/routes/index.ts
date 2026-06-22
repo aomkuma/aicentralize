@@ -10,3 +10,4 @@ export { retrievalRouter } from "./retrieval";
 export { reminderRouter } from "./reminders";
 export { continuityRouter } from "./continuity";
 export { observabilityRouter } from "./observability";
+export { tenantRouter } from "./tenants";

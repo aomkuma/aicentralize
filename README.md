@@ -105,43 +105,68 @@ pg_ctl -D "<your_pg_data_dir>" start
 psql -U postgres -c "CREATE DATABASE aicentralize;"
 ```
 
-4. Configure environment
+4. Install and enable pgvector (Windows, one-time)
+
+Build extension (run in x64 Native Tools Command Prompt as administrator):
+
+```bash
+set "PGROOT=C:\Program Files\PostgreSQL\16"
+cd %TEMP%
+git clone --branch v0.8.3 https://github.com/pgvector/pgvector.git
+cd pgvector
+nmake /F Makefile.win
+nmake /F Makefile.win install
+```
+
+Enable extension in app database:
+
+```bash
+psql -h localhost -U postgres -d aicentralize -c "CREATE EXTENSION IF NOT EXISTS vector;"
+psql -h localhost -U postgres -d aicentralize -c "SELECT extname, extversion FROM pg_extension WHERE extname='vector';"
+```
+
+5. Configure environment
 
 ```bash
 copy .env.example .env
 ```
 
-5. Generate Prisma client
+6. Generate Prisma client
 
 ```bash
 npm run prisma:generate
 ```
 
-6. Apply migrations
+7. Apply migrations
 
 ```bash
 npm run prisma:migrate -- --name local_init
 ```
 
-7. Seed sample data
+8. Seed sample data
 
 ```bash
 npm run prisma:seed
 ```
 
-8. Run API
+9. Run API
 
 ```bash
 npm run dev
 ```
 
-9. Build validation
+10. Build validation
 
 ```bash
 npm run build
 ```
 
 ## Deployment Runbook (Docker)
+
+Note:
+- Production Docker uses a pgvector-enabled Postgres image (`pgvector/pgvector:0.8.3-pg16`).
+- `vector` and `pg_trgm` extensions are initialized automatically via `docker/init/01_extensions.sql`.
+- Manual pgvector build/install is only needed for local host PostgreSQL setup.
 
 1. Create deployment env file
 
@@ -208,6 +233,7 @@ Notification channels (optional):
 - Manual acceptance checklist: `docs/sprint1-acceptance-checklist.md`
 - Open TODOs and Sprint 2 recommendations: `docs/sprint1-open-todos.md`
 - Sprint 2 handover: `docs/sprint2-handover.md`
+- Next-day handover (latest UI/AI integration): `docs/next-day-handover-2026-06-22.md`
 - Sprint 2 manual acceptance checklist: `docs/sprint2-acceptance-checklist.md`
 - Retrieval and AI run runbook: `docs/sprint2-retrieval-ai-run-runbook.md`
 - Sprint 3 recommendations: `docs/sprint3-recommendations.md`
@@ -218,11 +244,12 @@ Notification channels (optional):
 - Owner mapping from free-text draft fields is heuristic.
 - Tenant model is currently project/meeting membership based; no dedicated organization entity yet.
 - Integration tests for cross-module Sprint 2 behavior still need expansion.
-- Sprint workflow UI pages are still backend-first and not fully implemented.
+- Some dashboard areas are now role-aware, but full end-to-end UI coverage for all modules is still in progress.
+- Global project code is currently unique across all tenants by schema; if tenant-scoped code uniqueness is required, schema and validation should be adjusted.
 
 ## Next Recommended Modules
 
 1. Sprint 3 Productization (billing, plan controls, admin pricing backend)
 2. Enterprise identity (SSO/SCIM) and stronger org-level access controls
 3. Full integration and regression test suite for core workflow
-4. Dashboard/UI surfaces for continuity and reminder operations
+4. Complete UI test coverage for role-gated navigation, dashboard project workflows, and AI settings behavior

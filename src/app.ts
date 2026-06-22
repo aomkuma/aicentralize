@@ -17,7 +17,8 @@ import {
   observabilityRouter,
   projectRouter,
   reminderRouter,
-  retrievalRouter
+  retrievalRouter,
+  tenantRouter
 } from "./routes";
 
 export function createApp() {
@@ -300,6 +301,7 @@ export function createApp() {
   app.use("/reminders", reminderRouter);
   app.use("/continuity", continuityRouter);
   app.use("/observability", observabilityRouter);
+  app.use("/tenants", tenantRouter);
   app.use("/ai", aiRouter);
   app.use("/notifications", notificationRouter);
 

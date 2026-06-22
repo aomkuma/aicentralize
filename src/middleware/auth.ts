@@ -1,4 +1,4 @@
-import { UserRole } from "@prisma/client";
+import { SystemRole, UserRole } from "@prisma/client";
 import { NextFunction, Request, Response } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { env } from "../config/env";
@@ -6,6 +6,7 @@ import { env } from "../config/env";
 type AuthPayload = JwtPayload & {
   sub: string;
   role: UserRole;
+  systemRole?: SystemRole;
   email: string;
 };
 
@@ -22,6 +23,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     req.user = {
       id: payload.sub,
       role: payload.role,
+      systemRole: payload.systemRole ?? SystemRole.USER,
       email: payload.email
     };
     next();

@@ -1,0 +1,63 @@
+import { useState } from 'react'
+import { useApi } from './useApi'
+import type { AiRunLog, AiRunOperation, AiRunStatus } from '../types'
+
+export const useAiRunLogs = () => {
+  const { get, isLoading, error } = useApi()
+  const [logs, setLogs] = useState<AiRunLog[]>([])
+  const [currentLog, setCurrentLog] = useState<AiRunLog | null>(null)
+
+  const fetchLogs = async (options?: {
+    operation?: AiRunOperation
+    status?: AiRunStatus
+    projectId?: string
+    meetingId?: string
+    limit?: number
+    offset?: number
+  }) => {
+    const params = new URLSearchParams()
+    if (options?.operation) params.append('operation', options.operation)
+    if (options?.status) params.append('status', options.status)
+    if (options?.projectId) params.append('projectId', options.projectId)
+    if (options?.meetingId) params.append('meetingId', options.meetingId)
+    if (options?.limit) params.append('limit', options.limit.toString())
+    if (options?.offset) params.append('offset', options.offset.toString())
+
+    const data = await get<AiRunLog[]>(
+      `/observability/ai-runs?${params.toString()}`
+    )
+    if (data) setLogs(data)
+    return data
+  }
+
+  const fetchLogDetail = async (logId: string) => {
+    const data = await get<AiRunLog>(`/observability/ai-runs/${logId}`)
+    if (data) setCurrentLog(data)
+    return data
+  }
+
+  const fetchLogsByOperation = async (
+    operation: AiRunOperation,
+    limit?: number
+  ) => {
+    const params = new URLSearchParams()
+    params.append('operation', operation)
+    if (limit) params.append('limit', limit.toString())
+
+    const data = await get<AiRunLog[]>(
+      `/observability/ai-runs?${params.toString()}`
+    )
+    if (data) setLogs(data)
+    return data
+  }
+
+  return {
+    logs,
+    currentLog,
+    isLoading,
+    error,
+    fetchLogs,
+    fetchLogDetail,
+    fetchLogsByOperation,
+  }
+}

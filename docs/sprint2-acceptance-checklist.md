@@ -2,6 +2,13 @@
 
 Use this checklist to verify implemented Sprint 2 modules (Prompt 01 to Prompt 07).
 
+## 0. pgvector Prerequisite Validation
+
+1. Connect to app database (`aicentralize`) with postgres user.
+2. Run `CREATE EXTENSION IF NOT EXISTS vector;`.
+3. Run `SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';`.
+4. Verify one row is returned for `vector` (expected version in this setup: `0.8.3`).
+
 ## A. Hybrid Retrieval Foundation
 
 1. Ensure approved minute versions exist with decisions and action items.

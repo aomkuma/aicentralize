@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="AICentralize - Meeting Intelligence Platform with AI-powered analysis and action tracking." />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AICentralize" />
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <script>
+      (function () {
+        var storageKey = 'theme-preference'
+        var stored = localStorage.getItem(storageKey)
+        var preference = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system'
+        var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        var resolvedDark = preference === 'dark' || (preference === 'system' && systemDark)
+
+        document.documentElement.classList.toggle('dark', resolvedDark)
+        document.documentElement.style.colorScheme = resolvedDark ? 'dark' : 'light'
+      })()
+    </script>
+    
+    <title>AICentralize - Meeting Intelligence Platform</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Service worker disabled for debugging
+      // if ('serviceWorker' in navigator) {
+      //   window.addEventListener('load', () => {
+      //     navigator.serviceWorker.register('/service-worker.js').catch(err => {
+      //       console.log('ServiceWorker registration failed: ', err)
+      //     })
+      //   })
+      // }
+    </script>
+  </body>
+</html>

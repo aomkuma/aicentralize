@@ -1,4 +1,4 @@
-import { UserRole } from "@prisma/client";
+import { SystemRole, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { Router } from "express";
@@ -18,9 +18,14 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(20)
 });
 
-function signAccessToken(user: { id: string; email: string; role: UserRole }) {
+function signAccessToken(user: {
+  id: string;
+  email: string;
+  role: UserRole;
+  systemRole: SystemRole;
+}) {
   return jwt.sign(
-    { role: user.role, email: user.email },
+    { role: user.role, systemRole: user.systemRole, email: user.email },
     env.jwtSecret,
     {
       subject: user.id,
@@ -273,6 +278,7 @@ authRouter.post("/login", async (req, res) => {
   const token = signAccessToken({
     id: user.id,
     role: user.role as UserRole,
+    systemRole: user.systemRole as SystemRole,
     email: user.email
   });
   const refreshToken = await issueRefreshToken({
@@ -287,7 +293,8 @@ authRouter.post("/login", async (req, res) => {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role as UserRole
+      role: user.role as UserRole,
+      systemRole: user.systemRole as SystemRole
     }
   });
 });
@@ -321,6 +328,7 @@ authRouter.post("/refresh", async (req, res) => {
   const token = signAccessToken({
     id: item.user.id,
     role: item.user.role as UserRole,
+    systemRole: item.user.systemRole as SystemRole,
     email: item.user.email
   });
 

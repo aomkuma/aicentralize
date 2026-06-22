@@ -2,6 +2,19 @@
 
 This runbook focuses on retrieval quality checks and AI run trace diagnostics.
 
+## 0. pgvector Prerequisite Check
+
+Before running retrieval diagnostics, ensure extension is active in the same database used by the app:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';
+```
+
+Expected result:
+- `vector` exists in `pg_extension`
+- version should be visible (for this setup: `0.8.3`)
+
 ## 1. Retrieval and Indexing Overview
 
 Retrieval is based on approved knowledge chunks:

@@ -30,6 +30,48 @@ const analyzeSpeakerSchema = z.object({
   segments: z.array(speakerSegmentSchema).default([])
 });
 
+function detectLanguageHint(text: string): string {
+  if (/[\u0E00-\u0E7F]/.test(text)) {
+    return "Thai";
+  }
+
+  if (/[\u4E00-\u9FFF]/.test(text)) {
+    return "Chinese";
+  }
+
+  if (/[\u3040-\u30FF]/.test(text)) {
+    return "Japanese";
+  }
+
+  if (/[\uAC00-\uD7AF]/.test(text)) {
+    return "Korean";
+  }
+
+  if (/[\u0600-\u06FF]/.test(text)) {
+    return "Arabic";
+  }
+
+  if (/[\u0400-\u04FF]/.test(text)) {
+    return "Cyrillic-language";
+  }
+
+  return "English";
+}
+
+function buildLanguagePolicy(prompt: string): string {
+  const preferredLanguage = detectLanguageHint(prompt);
+
+  return [
+    "Response policy:",
+    `- Detected user language: ${preferredLanguage}`,
+    `- Respond primarily in ${preferredLanguage}.`,
+    "- Keep technical terms in other languages only when necessary for clarity.",
+    "- Do not ask the user to switch language.",
+    "- Do not switch to another language unless the user explicitly asks.",
+    "- Keep the answer natural and concise."
+  ].join("\n");
+}
+
 const recordingDir = path.join(process.cwd(), "uploads", "recordings");
 fs.mkdirSync(recordingDir, { recursive: true });
 
@@ -64,9 +106,11 @@ aiRouter.post("/playground/generate", async (req, res) => {
   }
 
   try {
+    const guidedPrompt = `${buildLanguagePolicy(parsed.data.prompt)}\n\nUser question:\n${parsed.data.prompt}`;
+
     const data = await generateWithLocalModel({
       model: parsed.data.model,
-      prompt: parsed.data.prompt
+      prompt: guidedPrompt
     });
 
     return res.json({

@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-50;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/10 backdrop-blur-md border border-white/20 rounded-lg;
+  }
+
+  .glass-card {
+    @apply glass p-6;
+  }
+
+  .btn-primary {
+    @apply px-6 py-2 rounded-lg font-semibold bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition-all;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-2 rounded-lg font-semibold bg-white/10 hover:bg-white/20 border border-white/20 transition-all;
+  }
+
+  .input-field {
+    @apply w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-slate-50 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50;
+  }
+
+  .coach-mark {
+    @apply absolute bg-yellow-400 text-slate-900 text-xs font-semibold px-3 py-1 rounded-full shadow-lg z-50;
+  }
+}
