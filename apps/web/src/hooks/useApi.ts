@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosError } from 'axios'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAuthStore } from '../stores/authStore'
 
-interface ApiError {
+export interface ApiError {
   message: string
   status?: number
   data?: unknown

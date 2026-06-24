@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useApi } from './useApi'
+import { useApi, type ApiError } from './useApi'
 import type {
   ProjectContinuitySummary,
   OverdueByOwner,
@@ -9,7 +9,24 @@ import type {
   ProjectMemorySnapshot,
 } from '../types'
 
-export const useContinuity = () => {
+type UseContinuityResult = {
+  summary: ProjectContinuitySummary | null
+  overdueByOwner: OverdueByOwner[]
+  overdueByProject: OverdueByProject[]
+  missingOwnerItems: MissingOwnerItem[]
+  recentMeetings: RecentApprovedMeeting[]
+  memorySnapshot: ProjectMemorySnapshot | null
+  isLoading: boolean
+  error: ApiError | null
+  fetchSummary: (projectId?: string) => Promise<{ items: Array<{ project: { id: string; name: string; code: string }; summary: { totalOpenActionItems: number; overdueActionItems: number; dueSoonActionItems: number; staleProject: boolean; lastMeetingDate: string | null } }> } | null>
+  fetchOverdueByOwner: (projectId?: string) => Promise<{ items: Array<{ owner?: { id: string; name: string; email: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> } | null>
+  fetchOverdueByProject: () => Promise<{ items: Array<{ project: { id: string; name: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> } | null>
+  fetchMissingOwnerItems: (projectId?: string) => Promise<{ missingOwner: Array<{ id: string; task: string; status: string; dueDate: string; meeting?: { project?: { id: string } } }>; missingDueDate: Array<{ id: string; task: string; status: string }> } | null>
+  fetchRecentMeetings: (projectId?: string, days?: number) => Promise<RecentApprovedMeeting[] | null>
+  fetchMemorySnapshot: (projectId: string) => Promise<ProjectMemorySnapshot | null>
+}
+
+export const useContinuity = (): UseContinuityResult => {
   const { get, isLoading, error } = useApi()
   const [summary, setSummary] = useState<ProjectContinuitySummary | null>(null)
   const [overdueByOwner, setOverdueByOwner] = useState<OverdueByOwner[]>([])
