@@ -50,6 +50,12 @@ export default function Breadcrumb() {
           label: t('reminders.project') || 'Project',
         })
       }
+
+      if (pathParts[0] === 'meetings' && pathParts[1]) {
+        breadcrumbs.push({
+          label: t('meetings.project') || 'Project',
+        })
+      }
       
       if (pathParts[0] === 'ai-trace') {
         if (pathParts[1]) {

@@ -1,11 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useTenantStore } from '../stores/tenantStore'
 import { useApi } from '../hooks/useApi'
 import Layout from '../components/Layout'
 import AIChatPanel from '../components/AIChatPanel'
 import type { TenantMembership } from '../types'
+
+type DashboardProject = {
+  id: string
+  name: string
+  code?: string
+  description?: string | null
+  tenant?: { name: string } | null
+  _count?: { meetings: number }
+}
 
 export default function DashboardPage() {
   const { t } = useTranslation()
@@ -17,8 +27,14 @@ export default function DashboardPage() {
     isLoading: isMembershipLoading,
     error: membershipError,
   } = useApi()
+  const {
+    get: getProjects,
+    isLoading: isProjectLoading,
+    error: projectError,
+  } = useApi()
 
   const [memberships, setMemberships] = useState<TenantMembership[]>([])
+  const [projects, setProjects] = useState<DashboardProject[]>([])
   const isSuperAdmin = user?.systemRole === 'SUPER_ADMIN'
 
   useEffect(() => {
@@ -34,6 +50,15 @@ export default function DashboardPage() {
 
     fetchMemberships()
   }, [getMemberships, currentTenant, setCurrentTenant])
+
+  const fetchProjects = useCallback(async () => {
+    const data = await getProjects<DashboardProject[]>('/projects')
+    if (Array.isArray(data)) setProjects(data)
+  }, [getProjects])
+
+  useEffect(() => {
+    if (!isSuperAdmin) fetchProjects()
+  }, [isSuperAdmin, fetchProjects])
 
   const handleSelectTenant = (membership: TenantMembership) => {
     if (membership.tenant) {
@@ -107,6 +132,97 @@ export default function DashboardPage() {
                       {t('common.joined')}{' '}
                       {new Date(membership.createdAt).toLocaleDateString()}
                     </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PM: Projects On Hand */}
+        {!isSuperAdmin && (
+          <div className="mb-10">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+                  {t('dashboard.projectsOnHand')}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
+                  {t('dashboard.projectsOnHandDesc')}
+                </p>
+              </div>
+              <Link
+                to="/projects"
+                className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+              >
+                {t('dashboard.createProject')}
+              </Link>
+            </div>
+
+            {isProjectLoading ? (
+              <div className="flex items-center justify-center p-8 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+                <p className="text-sm text-gray-600 dark:text-slate-400">{t('common.loading')}</p>
+              </div>
+            ) : projectError ? (
+              <div className="p-6 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/10">
+                <p className="text-sm text-red-600 dark:text-red-400 font-semibold">
+                  {t('dashboard.errorLoadingProjects')}
+                </p>
+                <p className="text-xs text-red-500 dark:text-red-300 mt-1">{projectError.message}</p>
+              </div>
+            ) : projects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-8 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800">
+                <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">
+                  {t('dashboard.noProjectsOnHand')}
+                </p>
+                <Link
+                  to="/projects"
+                  className="text-sm px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  {t('dashboard.createProject')}
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {projects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="p-4 sm:p-5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
+                  >
+                    <div className="mb-3">
+                      <h3 className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                        {project.name}
+                      </h3>
+                      {project.code && (
+                        <p className="text-xs text-gray-400 dark:text-slate-500 font-mono mt-0.5">
+                          {project.code}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                        {t('dashboard.meetingsCount', { count: project._count?.meetings ?? 0 })}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      <Link
+                        to={`/continuity/${project.id}`}
+                        className="text-xs px-2 py-1 rounded bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                      >
+                        {t('continuity.shortLabel')}
+                      </Link>
+                      <Link
+                        to={`/reminders/${project.id}`}
+                        className="text-xs px-2 py-1 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                      >
+                        {t('reminders.shortLabel')}
+                      </Link>
+                      <Link
+                        to={`/ai-trace/${project.id}`}
+                        className="text-xs px-2 py-1 rounded bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors"
+                      >
+                        {t('aiTrace.shortLabel')}
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>

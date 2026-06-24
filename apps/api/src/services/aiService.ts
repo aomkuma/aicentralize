@@ -47,6 +47,7 @@ type WhisperTranscribeResult = {
 };
 
 const DEFAULT_LOCAL_MODEL = "qwen2.5:7b";
+const OLLAMA_GENERATE_PATH = "/api/generate";
 const DEFAULT_WHISPER_MODEL = "tiny";
 const execFileAsync = promisify(execFile);
 const DEFAULT_PYTHON_EXECUTABLE = "C:\\Users\\korap\\AppData\\Local\\Programs\\Python\\Python311\\python.exe";
@@ -57,8 +58,9 @@ function normalize(text: string): string {
 
 export async function generateWithLocalModel(input: LocalGenerateInput): Promise<LocalGenerateResult> {
   const model = input.model?.trim() || DEFAULT_LOCAL_MODEL;
+  const baseUrl = env.ollamaBaseUrl.replace(/\/$/, "");
 
-  const ollamaRes = await fetch("http://127.0.0.1:11434/api/generate", {
+  const ollamaRes = await fetch(`${baseUrl}${OLLAMA_GENERATE_PATH}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -70,7 +72,7 @@ export async function generateWithLocalModel(input: LocalGenerateInput): Promise
 
   if (!ollamaRes.ok) {
     const text = await ollamaRes.text();
-    throw new Error(`Ollama request failed: ${text}`);
+    throw new Error(`Ollama request failed (${baseUrl}${OLLAMA_GENERATE_PATH}): ${text}`);
   }
 
   const data = await ollamaRes.json() as { response?: string };

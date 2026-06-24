@@ -23,11 +23,12 @@ export const useAiRunLogs = () => {
     if (options?.limit) params.append('limit', options.limit.toString())
     if (options?.offset) params.append('offset', options.offset.toString())
 
-    const data = await get<AiRunLog[]>(
+    const raw = await get<{ items: AiRunLog[] }>(
       `/observability/ai-runs?${params.toString()}`
     )
-    if (data) setLogs(data)
-    return data
+    const items = raw?.items ?? []
+    setLogs(items)
+    return items
   }
 
   const fetchLogDetail = async (logId: string) => {
@@ -44,11 +45,12 @@ export const useAiRunLogs = () => {
     params.append('operation', operation)
     if (limit) params.append('limit', limit.toString())
 
-    const data = await get<AiRunLog[]>(
+    const raw = await get<{ items: AiRunLog[] }>(
       `/observability/ai-runs?${params.toString()}`
     )
-    if (data) setLogs(data)
-    return data
+    const items = raw?.items ?? []
+    setLogs(items)
+    return items
   }
 
   return {

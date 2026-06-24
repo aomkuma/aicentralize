@@ -180,6 +180,8 @@ copy .env.production.example .env.production
 docker compose --profile production --env-file .env.production up -d --build
 ```
 
+The stack now includes an Ollama service by default. The API resolves it through `OLLAMA_BASE_URL`, which defaults to `http://ollama:11434` in Docker.
+
 3. Check service health
 
 ```bash
@@ -206,6 +208,7 @@ Core:
 
 AI and Reminder:
 - `AI_SIMILARITY_THRESHOLD` (optional)
+- `OLLAMA_BASE_URL` (optional, defaults to `http://127.0.0.1:11434` locally and `http://ollama:11434` in Docker)
 - `REMINDER_CRON` (optional)
 - `REMINDER_LOOKAHEAD_HOURS` (optional)
 - `REMINDER_DEDUPE_HOURS` (optional)

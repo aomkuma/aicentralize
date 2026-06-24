@@ -38,3 +38,10 @@ This note outlines practical next steps after Sprint 2 completion.
 1. Improve chunking strategy and ranking tuning by data profile.
 2. Add evaluation harness for retrieval precision and answer grounding quality.
 3. Add model routing and fallback strategy for resilience.
+
+## 7. AI Provider Abstraction
+
+1. Introduce a provider layer that can route between local LLM, OpenAI, Anthropic, and future models.
+2. Add provider selection and defaults per workflow, such as Meeting Studio, Ask-AI, and transcript processing.
+3. Keep Ollama as the local fallback provider when on-device or LAN inference is preferred.
+4. Store provider configuration centrally so admins can switch models without code changes.

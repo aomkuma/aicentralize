@@ -10,6 +10,7 @@ import ContinuityPage from './pages/ContinuityPage'
 import RemindersPage from './pages/RemindersPage'
 import ProjectsPage from './pages/ProjectsPage'
 import AiTracePage from './pages/AiTracePage'
+import MeetingStudioPage from './pages/MeetingStudioPage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
 
 // Load auth state immediately before rendering
@@ -89,6 +90,8 @@ function AppContent() {
           <Route path="/continuity" element={<ContinuityPage />} />
           <Route path="/continuity/:projectId" element={<ContinuityPage />} />
           <Route path="/reminders" element={<RemindersPage />} />
+          <Route path="/meetings" element={<MeetingStudioPage />} />
+          <Route path="/meetings/:projectId" element={<MeetingStudioPage />} />
           <Route
             path="/projects"
             element={<ProjectsPage />}

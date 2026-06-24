@@ -5,9 +5,7 @@ import { FEATURE_ENTITLEMENTS } from '../types/features'
 
 interface FeatureFlagState {
   plan: BillingPlan
-  enabledFeatures: Set<FeatureKey>
-  
-  // Actions
+  // enabledFeatures is always derived from plan at runtime — not stored
   setPlan: (plan: BillingPlan) => void
   isFeatureEnabled: (feature: FeatureKey) => boolean
   canAccessFeature: (feature: FeatureKey) => boolean
@@ -15,52 +13,32 @@ interface FeatureFlagState {
   reset: () => void
 }
 
+function featuresForPlan(plan: BillingPlan): Set<string> {
+  return FEATURE_ENTITLEMENTS[plan] ?? new Set()
+}
+
 export const useFeatureFlagStore = create<FeatureFlagState>()(
   persist(
     (set, get) => ({
       plan: 'FREE',
-      enabledFeatures: new Set(),
 
-      setPlan: (plan: BillingPlan) => {
-        set({
-          plan,
-          enabledFeatures: FEATURE_ENTITLEMENTS[plan] as Set<FeatureKey>,
-        })
-      },
+      setPlan: (plan: BillingPlan) => set({ plan }),
 
-      isFeatureEnabled: (feature: FeatureKey) => {
-        return get().enabledFeatures.has(feature)
-      },
+      isFeatureEnabled: (feature: FeatureKey) =>
+        featuresForPlan(get().plan).has(feature),
 
-      canAccessFeature: (feature: FeatureKey) => {
-        return get().enabledFeatures.has(feature)
-      },
+      canAccessFeature: (feature: FeatureKey) =>
+        featuresForPlan(get().plan).has(feature),
 
-      getEnabledFeatures: () => {
-        return Array.from(get().enabledFeatures)
-      },
+      getEnabledFeatures: () =>
+        Array.from(featuresForPlan(get().plan)) as FeatureKey[],
 
-      reset: () => {
-        set({
-          plan: 'FREE',
-          enabledFeatures: FEATURE_ENTITLEMENTS.FREE as Set<FeatureKey>,
-        })
-      },
+      reset: () => set({ plan: 'FREE' }),
     }),
     {
       name: 'feature-flag-store',
-      // Custom serialization for Set
-      serialize: (state) => JSON.stringify({
-        ...state,
-        enabledFeatures: state.enabledFeatures ? Array.from(state.enabledFeatures) : [],
-      }),
-      deserialize: (str) => {
-        const parsed = JSON.parse(str)
-        return {
-          ...parsed,
-          enabledFeatures: new Set(parsed.enabledFeatures || []),
-        }
-      },
+      // Persist only plan; features are derived at runtime
+      partialize: (state) => ({ plan: state.plan }),
     }
   )
 )

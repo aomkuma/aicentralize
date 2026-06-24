@@ -8,15 +8,17 @@ export const useReminders = () => {
   const [currentDigest, setCurrentDigest] = useState<ReminderDigestDetail | null>(null)
 
   const fetchDigests = async (projectId?: string, limit?: number) => {
+    // API returns { items: [...], page, pageSize, total }
     const params = new URLSearchParams()
     if (projectId) params.append('projectId', projectId)
-    if (limit) params.append('limit', limit.toString())
-    
-    const data = await get<ReminderDigest[]>(
+    if (limit) params.append('pageSize', limit.toString())
+
+    const raw = await get<{ items: ReminderDigest[] }>(
       `/reminders/digests?${params.toString()}`
     )
-    if (data) setDigests(data)
-    return data
+    const items = raw?.items ?? []
+    setDigests(items)
+    return items
   }
 
   const fetchDigestDetail = async (digestId: string) => {

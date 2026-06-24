@@ -19,39 +19,107 @@ export const useContinuity = () => {
   const [memorySnapshot, setMemorySnapshot] = useState<ProjectMemorySnapshot | null>(null)
 
   const fetchSummary = async (projectId?: string) => {
+    // API returns { page, pageSize, total, items: [{ project, summary }] }
     const params = new URLSearchParams()
     if (projectId) params.append('projectId', projectId)
-    const data = await get<ProjectContinuitySummary[]>(
+    const raw = await get<{ items: Array<{ project: { id: string; name: string; code: string }; summary: { totalOpenActionItems: number; overdueActionItems: number; dueSoonActionItems: number; staleProject: boolean; lastMeetingDate: string | null } }> }>(
       `/continuity/summary?${params.toString()}`
     )
-    if (data && data.length > 0) setSummary(data[0])
-    return data
+    if (raw?.items?.length) {
+      const item = raw.items[0]
+      setSummary({
+        projectId: item.project.id,
+        projectName: item.project.name,
+        totalOpenItems: item.summary.totalOpenActionItems,
+        totalOverdueItems: item.summary.overdueActionItems,
+        totalDueSoonItems: item.summary.dueSoonActionItems,
+        lastUpdated: item.summary.lastMeetingDate ?? new Date().toISOString(),
+        riskLevel: item.summary.overdueActionItems >= 3
+          ? 'high'
+          : item.summary.overdueActionItems >= 1 ? 'medium' : 'low',
+      })
+    }
+    return raw
   }
 
   const fetchOverdueByOwner = async (projectId?: string) => {
+    // API returns { items: [{ owner: { id, name, email }, overdueCount, items: [...] }] }
     const params = new URLSearchParams()
     if (projectId) params.append('projectId', projectId)
-    const data = await get<OverdueByOwner[]>(
-      `/continuity/overdue-by-owner?${params.toString()}`
+    const raw = await get<{ items: Array<{ owner?: { id: string; name: string; email: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> }>(
+      `/continuity/overdue/by-owner?${params.toString()}`
     )
-    if (data) setOverdueByOwner(data)
-    return data
+    if (raw?.items) {
+      setOverdueByOwner(
+        raw.items.map((r) => ({
+          ownerId: r.owner?.id,
+          ownerName: r.owner?.name,
+          ownerEmail: r.owner?.email,
+          count: r.overdueCount,
+          items: r.items.map((i) => ({
+            id: i.id,
+            title: i.task,
+            dueDate: i.dueDate,
+            status: i.status,
+            projectId: projectId ?? '',
+          })),
+        }))
+      )
+    }
+    return raw
   }
 
   const fetchOverdueByProject = async () => {
-    const data = await get<OverdueByProject[]>('/continuity/overdue-by-project')
-    if (data) setOverdueByProject(data)
-    return data
+    // API returns { items: [{ project: { id, name }, overdueCount, items: [...] }] }
+    const raw = await get<{ items: Array<{ project: { id: string; name: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> }>(
+      '/continuity/overdue/by-project'
+    )
+    if (raw?.items) {
+      setOverdueByProject(
+        raw.items.map((r) => ({
+          projectId: r.project.id,
+          projectName: r.project.name,
+          count: r.overdueCount,
+          items: r.items.map((i) => ({
+            id: i.id,
+            title: i.task,
+            dueDate: i.dueDate,
+            status: i.status,
+            projectId: r.project.id,
+          })),
+        }))
+      )
+    }
+    return raw
   }
 
   const fetchMissingOwnerItems = async (projectId?: string) => {
+    // API returns { missingOwner: [...], missingDueDate: [...] }
     const params = new URLSearchParams()
     if (projectId) params.append('projectId', projectId)
-    const data = await get<MissingOwnerItem[]>(
-      `/continuity/missing-owner-or-due-date?${params.toString()}`
+    const raw = await get<{ missingOwner: Array<{ id: string; task: string; status: string; dueDate: string; meeting?: { project?: { id: string } } }>; missingDueDate: Array<{ id: string; task: string; status: string }> }>(
+      `/continuity/action-items/missing-owner-or-due-date?${params.toString()}`
     )
-    if (data) setMissingOwnerItems(data)
-    return data
+    if (raw) {
+      const combined = [
+        ...(raw.missingOwner ?? []).map((i) => ({
+          id: i.id,
+          title: i.task,
+          status: i.status,
+          type: 'ACTION_ITEM' as const,
+          projectId: i.meeting?.project?.id ?? projectId ?? '',
+        })),
+        ...(raw.missingDueDate ?? []).map((i) => ({
+          id: i.id,
+          title: i.task,
+          status: i.status,
+          type: 'ACTION_ITEM' as const,
+          projectId: projectId ?? '',
+        })),
+      ]
+      setMissingOwnerItems(combined)
+    }
+    return raw
   }
 
   const fetchRecentMeetings = async (projectId?: string, days?: number) => {
@@ -59,7 +127,7 @@ export const useContinuity = () => {
     if (projectId) params.append('projectId', projectId)
     if (days) params.append('days', days.toString())
     const data = await get<RecentApprovedMeeting[]>(
-      `/continuity/recent-approved-meetings?${params.toString()}`
+      `/continuity/meetings/recent-approved?${params.toString()}`
     )
     if (data) setRecentMeetings(data)
     return data
@@ -67,7 +135,7 @@ export const useContinuity = () => {
 
   const fetchMemorySnapshot = async (projectId: string) => {
     const data = await get<ProjectMemorySnapshot>(
-      `/continuity/project-memory/${projectId}`
+      `/continuity/projects/${projectId}/memory-snapshot`
     )
     if (data) setMemorySnapshot(data)
     return data

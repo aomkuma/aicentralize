@@ -86,6 +86,7 @@
   },
   "navigation": {
     "projects": "Projects",
+    "meetings": "Meetings",
     "aiPlayground": "AI Playground",
     "systemSettings": "System Settings"
   },
@@ -94,6 +95,8 @@
   },
   "continuity": {
     "title": "Project Continuity Dashboard",
+    "shortLabel": "Continuity",
+    "project": "Project",
     "description": "Monitor project health, overdue items, and action item progress",
     "tabs": {
       "summary": "Summary",
@@ -123,6 +126,8 @@
   },
   "reminders": {
     "title": "Reminder Operations",
+    "shortLabel": "Reminders",
+    "project": "Project",
     "description": "View reminder digests and escalation metrics",
     "open": "Open",
     "dueSoon": "Due Soon",
@@ -144,6 +149,9 @@
   },
   "aiTrace": {
     "title": "Ask-AI Trace Panel",
+    "shortLabel": "AI Trace",
+    "project": "Project",
+    "meeting": "Meeting",
     "description": "Inspect AI run traces, evidence, and debugging information",
     "operations": {
       "minute_extraction": "Minute Extraction",
@@ -259,6 +267,92 @@
       "enterPromptFirst": "Please enter a prompt first.",
       "requestFailed": "Request failed",
       "generateFailed": "Failed to generate response"
+    }
+  },
+  "meetings": {
+    "title": "Meeting Studio",
+    "description": "Upload a meeting recording, transcribe it, and publish a structured minute template in one flow.",
+    "startHereLabel": "Suggested flow",
+    "startHereTitle": "Start here: what to do first",
+    "startHereHelp": "New users usually get stuck on where to begin. Follow this order once, then reuse it for later meetings.",
+    "startHereBadge": "3 steps",
+    "startHereStep1Title": "Pick the meeting context",
+    "startHereStep1": "Choose the project and set the meeting date/time first so the note is stored in the right place.",
+    "startHereStep2Title": "Bring in the content",
+    "startHereStep2": "Upload the recording or paste a transcript if you already have one. If transcription is disabled, you can still continue manually.",
+    "startHereStep3Title": "Fill the minute template",
+    "startHereStep3": "Use the template fields to capture the summary, decisions, risks, actions, and next steps before saving.",
+    "startHereTip": "Tip: when you're not sure, start with Objective and Executive Summary. The rest can be refined later.",
+    "guide": {
+      "label": "Guided flow",
+      "hoverHint": "Hover or focus a step to see the tip. You can still skip steps when your organization does not use them.",
+      "recommended": "Recommended",
+      "optional": "Optional for some organizations",
+      "steps": {
+        "step1": {
+          "title": "Set the meeting context",
+          "description": "Pick the project and meeting time first so the note lands in the right place."
+        },
+        "step2": {
+          "title": "Add content",
+          "description": "Upload a recording or paste a transcript, then transcribe if available."
+        },
+        "step3": {
+          "title": "Review and save",
+          "description": "Fill the minute template, review the preview, and save the meeting."
+        }
+      }
+    },
+    "tabs": {
+      "upload": "Upload Recording",
+      "template": "Minute Template"
+    },
+    "project": "Project",
+    "selectProject": "Select a project",
+    "titleField": "Meeting title",
+    "sessionAt": "Meeting date and time",
+    "recordingFile": "Recording file",
+    "transcript": "Transcript",
+    "transcriptPlaceholder": "Upload a file to transcribe or paste transcript text here.",
+    "uploadHelp": "Use a local audio/video recording, then refine the transcript before saving the meeting.",
+    "templateHelp": "Fill the steering update template sections. The preview updates live.",
+    "preview": "Preview",
+    "previewHelp": "This is the meeting note that will be saved into the system.",
+    "noProjectSelected": "No project selected",
+    "actions": {
+      "transcribe": "Transcribe recording",
+      "clearTranscript": "Clear transcript",
+      "saveMeeting": "Save meeting",
+      "resetTemplate": "Reset template"
+    },
+    "template": {
+      "objective": "Objective",
+      "summary": "Executive summary",
+      "decisions": "Key decisions",
+      "risks": "Risks / issues",
+      "actions": "Action items",
+      "nextSteps": "Next steps"
+    },
+    "status": {
+      "transcribing": "Transcribing recording...",
+      "transcribed": "Recording transcribed.",
+      "documentProcessed": "Document processed",
+      "analyzingDocument": "Analyzing document...",
+      "documentAnalyzed": "Document analyzed",
+      "saving": "Saving meeting...",
+      "saved": "Meeting saved successfully.",
+      "uploadedOnly": "Recording uploaded. Transcription is disabled, so you can paste the transcript manually."
+    },
+    "errors": {
+      "selectProject": "Please select a project.",
+      "titleRequired": "Meeting title is required.",
+      "summaryRequired": "Executive summary is required.",
+      "selectRecording": "Please choose a recording file first.",
+      "transcriptionFailed": "Transcription failed.",
+      "documentExtractionFailed": "Document extraction failed.",
+      "documentAnalysisFailed": "Document analysis failed.",
+      "saveFailed": "Unable to save the meeting.",
+      "uploadFailed": "Audio upload failed"
     }
   }
 }

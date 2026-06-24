@@ -25,6 +25,7 @@ export const env = {
   port: Number(process.env.PORT ?? 4000),
   databaseUrl: required("DATABASE_URL", "postgresql://test:test@localhost:5432/test"),
   jwtSecret: required("JWT_SECRET", "test-secret"),
+  ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
   jwtAccessTokenTtl: process.env.JWT_ACCESS_TOKEN_TTL ?? "12h",
   jwtRefreshTokenDays: Number(process.env.JWT_REFRESH_TOKEN_DAYS ?? 365),
   reminderCron: process.env.REMINDER_CRON ?? "*/30 * * * *",

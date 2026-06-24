@@ -86,6 +86,7 @@
   },
   "navigation": {
     "projects": "โปรเจค",
+    "meetings": "การประชุม",
     "aiPlayground": "AI เพลย์กราวด์",
     "systemSettings": "ตั้งค่าระบบ"
   },
@@ -93,6 +94,8 @@
     "notAvailable": "คุณลักษณะนี้ไม่พร้อมใช้งานกับแผนปัจจุบันของคุณ อัปเกรดเพื่อเข้าถึงคุณลักษณะนี้"
   },
   "continuity": {
+    "shortLabel": "สถานะโปรเจค",
+    "project": "โปรเจค",
     "title": "แดชบอร์ดความต่อเนื่องของโครงการ",
     "description": "ติดตามสุขภาพโครงการ รายการที่เกินกำหนด และความก้าวหน้าของรายการปฏิบัติการ",
     "tabs": {
@@ -122,6 +125,8 @@
     "unassigned": "ยังไม่ได้มอบหมาย"
   },
   "reminders": {
+    "shortLabel": "Reminders",
+    "project": "โปรเจค",
     "title": "การจัดการการเตือนความจำ",
     "description": "ดูข้อมูลสรุปการเตือนความจำและเมตริกการเพิ่มระดับ",
     "open": "เปิด",
@@ -143,6 +148,9 @@
     "unassigned": "ยังไม่ได้มอบหมาย"
   },
   "aiTrace": {
+    "shortLabel": "AI Trace",
+    "project": "โปรเจค",
+    "meeting": "การประชุม",
     "title": "แผงการติดตาม Ask-AI",
     "description": "ตรวจสอบการติดตาม AI ที่เรียกใช้ หลักฐาน และข้อมูลการแก้ปัญหา",
     "operations": {
@@ -168,6 +176,91 @@
     "success": "สำเร็จ",
     "failed": "ล้มเหลว",
     "limit": "ขีดจำกัด"
+  },
+  "meetings": {
+    "title": "Meeting Studio",
+    "description": "อัปโหลดบันทึกการประชุม ถอดข้อความ และบันทึก minute template แบบมีโครงสร้างใน flow เดียว",
+    "startHereLabel": "ลำดับที่แนะนำ",
+    "startHereTitle": "เริ่มตรงนี้: ควรทำอะไรเป็นอันดับแรก",
+    "startHereHelp": "ผู้ใช้ใหม่มักงงว่าควรเริ่มจากไหน ให้ทำตามลำดับนี้หนึ่งครั้ง แล้วค่อยใช้ซ้ำในประชุมถัดไป",
+    "startHereBadge": "3 ขั้นตอน",
+    "startHereStep1Title": "เลือกบริบทของการประชุม",
+    "startHereStep1": "เลือกโปรเจคและกำหนดวันเวลาให้ถูกก่อน เพื่อให้บันทึกไปอยู่ในที่ที่ถูกต้อง",
+    "startHereStep2Title": "นำเนื้อหาเข้าระบบ",
+    "startHereStep2": "อัปโหลดไฟล์ประชุมหรือวาง transcript ถ้ามีอยู่แล้ว ถ้าถอดเสียงไม่ได้ก็ยังทำต่อแบบ manual ได้",
+    "startHereStep3Title": "กรอก minute template",
+    "startHereStep3": "ใช้ฟิลด์ของ template เก็บสรุป ประเด็นตัดสินใจ ความเสี่ยง งานที่ต้องทำ และ next steps ก่อนบันทึก",
+    "startHereTip": "คำแนะนำ: ถ้ายังไม่แน่ใจ ให้เริ่มจาก Objective กับ Executive Summary ก่อน ส่วนอื่นค่อยเก็บรายละเอียดทีหลัง",
+    "guide": {
+      "label": "ลำดับการทำงาน",
+      "hoverHint": "ชี้เมาส์หรือโฟกัสแต่ละขั้นเพื่อดูคำแนะนำ และยังข้ามได้ถ้าองค์กรนั้นไม่ได้ใช้ขั้นนั้น",
+      "recommended": "แนะนำ",
+      "optional": "เป็นตัวเลือกเสริมสำหรับบางองค์กร",
+      "steps": {
+        "step1": {
+          "title": "กำหนดบริบทการประชุม",
+          "description": "เลือกโปรเจคและเวลาให้เรียบร้อยก่อน เพื่อให้บันทึกไปอยู่ถูกที่"
+        },
+        "step2": {
+          "title": "เพิ่มเนื้อหา",
+          "description": "อัปโหลดไฟล์หรือวาง transcript แล้วถอดเสียงต่อถ้ามี"
+        },
+        "step3": {
+          "title": "ตรวจทานและบันทึก",
+          "description": "กรอก template ตรวจ preview แล้วบันทึกการประชุม"
+        }
+      }
+    },
+    "tabs": {
+      "upload": "อัปโหลดไฟล์ประชุม",
+      "template": "Minute Template"
+    },
+    "project": "โปรเจค",
+    "selectProject": "เลือกโปรเจค",
+    "titleField": "ชื่อการประชุม",
+    "sessionAt": "วันและเวลาประชุม",
+    "recordingFile": "ไฟล์บันทึกการประชุม",
+    "transcript": "Transcript",
+    "transcriptPlaceholder": "อัปโหลดไฟล์เพื่อถอดข้อความ หรือวางข้อความ transcript ที่นี่",
+    "uploadHelp": "ใช้ไฟล์เสียง/วิดีโอจริง แล้วปรับ transcript ก่อนบันทึก meeting",
+    "templateHelp": "กรอกหัวข้อ steering update template แล้วดู preview แบบเรียลไทม์",
+    "preview": "Preview",
+    "previewHelp": "นี่คือ minute note ที่จะถูกบันทึกลงระบบ",
+    "noProjectSelected": "ยังไม่ได้เลือกโปรเจค",
+    "actions": {
+      "transcribe": "ถอดข้อความจากไฟล์",
+      "clearTranscript": "ล้าง transcript",
+      "saveMeeting": "บันทึกการประชุม",
+      "resetTemplate": "รีเซ็ต template"
+    },
+    "template": {
+      "objective": "Objective",
+      "summary": "Executive summary",
+      "decisions": "Key decisions",
+      "risks": "Risks / issues",
+      "actions": "Action items",
+      "nextSteps": "Next steps"
+    },
+    "status": {
+      "transcribing": "กำลังถอดข้อความ...",
+      "transcribed": "ถอดข้อความเรียบร้อย",
+      "documentProcessed": "ประมวลผลเอกสารเรียบร้อย",
+      "analyzingDocument": "กำลังวิเคราะห์เอกสาร...",
+      "documentAnalyzed": "วิเคราะห์เอกสารเรียบร้อย",
+      "saving": "กำลังบันทึกการประชุม...",
+      "saved": "บันทึกการประชุมสำเร็จ",
+      "uploadedOnly": "อัปโหลดไฟล์การประชุมแล้ว แต่ปิดการถอดเสียงไว้ จึงให้วาง transcript เองได้"
+    },
+    "errors": {
+      "selectProject": "กรุณาเลือกโปรเจคก่อน",
+      "titleRequired": "กรุณาระบุชื่อการประชุม",
+      "summaryRequired": "กรุณาระบุ executive summary",
+      "selectRecording": "กรุณาเลือกไฟล์บันทึกก่อน",
+      "transcriptionFailed": "ถอดข้อความไม่สำเร็จ",
+      "documentExtractionFailed": "อ่านเอกสารไม่สำเร็จ",
+      "documentAnalysisFailed": "วิเคราะห์เอกสารไม่สำเร็จ",
+      "saveFailed": "บันทึกการประชุมไม่สำเร็จ"
+    }
   },
   "settings": {
     "title": "ตั้งค่าระบบ",

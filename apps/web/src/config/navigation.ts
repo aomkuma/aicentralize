@@ -1,4 +1,4 @@
-export type NavigationIcon = 'dashboard' | 'projects' | 'setup' | 'ai' | 'continuity' | 'reminders' | 'trace' | 'settings'
+export type NavigationIcon = 'dashboard' | 'projects' | 'setup' | 'ai' | 'continuity' | 'reminders' | 'meetings' | 'trace' | 'settings'
 
 export interface NavigationItemConfig {
   id: string
@@ -32,6 +32,12 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
     to: '/reminders',
     labelKey: 'reminders.title',
     icon: 'reminders',
+  },
+  {
+    id: 'meetings',
+    to: '/meetings',
+    labelKey: 'meetings.title',
+    icon: 'meetings',
   },
   {
     id: 'ai-trace',
