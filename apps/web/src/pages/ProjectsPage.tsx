@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useTenantStore } from '../stores/tenantStore'
 import { useApi } from '../hooks/useApi'
 import Layout from '../components/Layout'
-import type { TenantMembership } from '../types'
+import type { MemberOnboardRequest, TenantMembership } from '../types'
 
 type DashboardProject = {
   id: string
@@ -37,6 +37,16 @@ export default function ProjectsPage() {
     isLoading: isCreatingProject,
     error: createProjectError,
   } = useApi()
+  const {
+    get: getTenantMembers,
+    isLoading: isTeamLoading,
+    error: teamError,
+  } = useApi()
+  const {
+    post: onboardTeamMember,
+    isLoading: isOnboardingMember,
+    error: onboardMemberError,
+  } = useApi()
 
   const [memberships, setMemberships] = useState<TenantMembership[]>([])
   const [projects, setProjects] = useState<DashboardProject[]>([])
@@ -45,9 +55,27 @@ export default function ProjectsPage() {
   const [projectName, setProjectName] = useState('')
   const [projectDescription, setProjectDescription] = useState('')
   const [createProjectNotice, setCreateProjectNotice] = useState<string | null>(null)
+  const [teamMembers, setTeamMembers] = useState<TenantMembership[]>([])
+  const [showCreateMember, setShowCreateMember] = useState(false)
+  const [memberName, setMemberName] = useState('')
+  const [memberEmail, setMemberEmail] = useState('')
+  const [memberPhone, setMemberPhone] = useState('')
+  const [memberJobTitle, setMemberJobTitle] = useState('')
+  const [memberDepartment, setMemberDepartment] = useState('')
+  const [memberRole, setMemberRole] = useState<'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'>('MEMBER')
+  const [memberNotice, setMemberNotice] = useState<string | null>(null)
+
+  const activeTenantId = currentTenant?.id ?? memberships[0]?.tenantId
 
   if (user?.systemRole === 'SUPER_ADMIN') {
     return <Navigate to="/dashboard" replace />
+  }
+
+  const tenantRoleLabelKey: Record<'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER', string> = {
+    TENANT_ADMIN: 'tenant.tenantAdmin',
+    MANAGER: 'tenant.manager',
+    MEMBER: 'tenant.member',
+    VIEWER: 'tenant.viewer',
   }
 
   const fetchProjects = useCallback(async () => {
@@ -74,6 +102,22 @@ export default function ProjectsPage() {
   useEffect(() => {
     fetchProjects()
   }, [fetchProjects])
+
+  const fetchTenantTeam = useCallback(async () => {
+    if (!activeTenantId) {
+      setTeamMembers([])
+      return
+    }
+
+    const data = await getTenantMembers<TenantMembership[]>(`/tenants/${activeTenantId}/members`)
+    if (Array.isArray(data)) {
+      setTeamMembers(data)
+    }
+  }, [activeTenantId, getTenantMembers])
+
+  useEffect(() => {
+    fetchTenantTeam()
+  }, [fetchTenantTeam])
 
   const handleCreateProject = async () => {
     const code = projectCode.trim()
@@ -115,6 +159,41 @@ export default function ProjectsPage() {
     }
   }
 
+  const handleCreateTeamMember = async () => {
+    if (!activeTenantId) {
+      setMemberNotice(t('dashboard.selectOrganizationFirst'))
+      return
+    }
+
+    const payload: MemberOnboardRequest = {
+      name: memberName.trim(),
+      email: memberEmail.trim().toLowerCase(),
+      phone: memberPhone.trim(),
+      tenantRole: memberRole,
+      jobTitle: memberJobTitle.trim(),
+      department: memberDepartment.trim() || undefined,
+    }
+
+    if (!payload.name || !payload.email || !payload.phone || !payload.jobTitle) {
+      setMemberNotice(t('dashboard.memberValidation'))
+      return
+    }
+
+    setMemberNotice(null)
+    const created = await onboardTeamMember(`/tenants/${activeTenantId}/members/create`, payload)
+    if (created) {
+      setMemberName('')
+      setMemberEmail('')
+      setMemberPhone('')
+      setMemberJobTitle('')
+      setMemberDepartment('')
+      setMemberRole('MEMBER')
+      setShowCreateMember(false)
+      setMemberNotice(t('dashboard.memberCreated'))
+      await fetchTenantTeam()
+    }
+  }
+
   return (
     <Layout currentTenantName={currentTenant?.name}>
       <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -128,6 +207,156 @@ export default function ProjectsPage() {
         </div>
 
         <div className="mb-12">
+          <div className="mb-10 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+                  {t('dashboard.teamManagement')}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
+                  {t('dashboard.teamManagementDesc')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateMember((prev) => !prev)
+                  setMemberNotice(null)
+                }}
+                className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+              >
+                {t('dashboard.addTeamMember')}
+              </button>
+            </div>
+
+            {showCreateMember && (
+              <div className="mb-4 mt-4 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 p-4">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">
+                  {t('dashboard.addTeamMemberTitle')}
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{t('dashboard.memberName')}</span>
+                    <input
+                      value={memberName}
+                      onChange={(e) => setMemberName(e.target.value)}
+                      placeholder={t('dashboard.memberNamePlaceholder')}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{t('dashboard.memberEmail')}</span>
+                    <input
+                      type="email"
+                      value={memberEmail}
+                      onChange={(e) => setMemberEmail(e.target.value)}
+                      placeholder={t('dashboard.memberEmailPlaceholder')}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{t('dashboard.memberPhone')}</span>
+                    <input
+                      value={memberPhone}
+                      onChange={(e) => setMemberPhone(e.target.value)}
+                      placeholder={t('dashboard.memberPhonePlaceholder')}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{t('dashboard.memberJobTitle')}</span>
+                    <input
+                      value={memberJobTitle}
+                      onChange={(e) => setMemberJobTitle(e.target.value)}
+                      placeholder={t('dashboard.memberJobTitlePlaceholder')}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{t('dashboard.memberDepartment')}</span>
+                    <input
+                      value={memberDepartment}
+                      onChange={(e) => setMemberDepartment(e.target.value)}
+                      placeholder={t('dashboard.memberDepartmentPlaceholder')}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{t('dashboard.memberRole')}</span>
+                    <select
+                      value={memberRole}
+                      onChange={(e) => setMemberRole(e.target.value as 'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER')}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                    >
+                      <option value="TENANT_ADMIN">{t('tenant.tenantAdmin')}</option>
+                      <option value="MANAGER">{t('tenant.manager')}</option>
+                      <option value="MEMBER">{t('tenant.member')}</option>
+                      <option value="VIEWER">{t('tenant.viewer')}</option>
+                    </select>
+                  </label>
+                </div>
+
+                {memberNotice && (
+                  <p className="mt-3 text-sm text-blue-700 dark:text-blue-300">{memberNotice}</p>
+                )}
+                {onboardMemberError && (
+                  <p className="mt-3 text-sm text-red-600 dark:text-red-400">{onboardMemberError.message}</p>
+                )}
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCreateTeamMember}
+                    disabled={isOnboardingMember}
+                    className="px-3 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {isOnboardingMember ? t('dashboard.memberCreating') : t('dashboard.memberCreateSubmit')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateMember(false)}
+                    className="px-3 py-2 rounded-md bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-slate-600"
+                  >
+                    {t('dashboard.cancel')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {isTeamLoading ? (
+              <p className="text-sm text-gray-600 dark:text-slate-400">{t('common.loading')}</p>
+            ) : teamError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">{teamError.message}</p>
+            ) : teamMembers.length === 0 ? (
+              <p className="text-sm text-gray-600 dark:text-slate-400">{t('dashboard.teamEmpty')}</p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b border-gray-200 dark:border-slate-700">
+                      <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberName')}</th>
+                      <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberEmail')}</th>
+                      <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberPhone')}</th>
+                      <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberRole')}</th>
+                      <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberJobTitle')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamMembers.map((member) => (
+                      <tr key={member.id} className="border-b border-gray-100 dark:border-slate-800">
+                        <td className="py-2 pr-3 text-gray-800 dark:text-slate-200">{member.user?.name || '-'}</td>
+                        <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{member.user?.email || '-'}</td>
+                        <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{member.user?.phone || '-'}</td>
+                        <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{t(tenantRoleLabelKey[member.role])}</td>
+                        <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{member.jobTitle || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
               {t('dashboard.projectsOnHand')}

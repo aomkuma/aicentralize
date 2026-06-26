@@ -1,4 +1,5 @@
 import { SystemRole, TenantRole, UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
@@ -25,6 +26,17 @@ const updateMemberRoleSchema = z.object({
   department: z.string().min(1).max(120).optional()
 });
 
+const onboardMemberSchema = z.object({
+  name: z.string().min(2).max(120),
+  email: z.string().email(),
+  phone: z.string().min(7).max(30),
+  tenantRole: z.nativeEnum(TenantRole).default(TenantRole.MEMBER),
+  userRole: z.nativeEnum(UserRole).optional().default(UserRole.MEMBER),
+  jobTitle: z.string().min(1).max(120),
+  department: z.string().min(1).max(120).optional(),
+  password: z.string().min(8).max(72).optional()
+});
+
 function slugifyName(name: string): string {
   return name
     .trim()
@@ -36,6 +48,10 @@ function slugifyName(name: string): string {
 
 function canCreateTenant(user: TenantAuthUser): boolean {
   return isSuperAdmin(user) || user.role === UserRole.ADMIN;
+}
+
+function createTemporaryPassword() {
+  return `Temp${Math.random().toString(36).slice(2, 10)}!`;
 }
 
 tenantRouter.get("/me", requireAuth, async (req, res) => {
@@ -106,6 +122,7 @@ tenantRouter.get("/:tenantId/members", requireAuth, async (req, res) => {
           id: true,
           email: true,
           name: true,
+          phone: true,
           role: true,
           systemRole: true
         }
@@ -117,13 +134,40 @@ tenantRouter.get("/:tenantId/members", requireAuth, async (req, res) => {
   res.json(members);
 });
 
+tenantRouter.get("/:tenantId/users", requireAuth, async (req, res) => {
+  const hasAccess = await ensureTenantMembership(req.user!, req.params.tenantId);
+  if (!hasAccess) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      tenantMemberships: {
+        some: {
+          tenantId: req.params.tenantId
+        }
+      }
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true
+    },
+    orderBy: {
+      name: "asc"
+    }
+  });
+
+  res.json(users);
+});
+
 tenantRouter.post("/:tenantId/members", requireAuth, async (req, res) => {
   const parsed = addMemberSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
   }
 
-  const canManage = await ensureTenantRole(req.user!, req.params.tenantId, [TenantRole.TENANT_ADMIN]);
+  const canManage = await ensureTenantRole(req.user!, req.params.tenantId, [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]);
   if (!canManage) {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -157,13 +201,112 @@ tenantRouter.post("/:tenantId/members", requireAuth, async (req, res) => {
   res.status(201).json(membership);
 });
 
+tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => {
+  const parsed = onboardMemberSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  const canManage = await ensureTenantRole(req.user!, req.params.tenantId, [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]);
+  if (!canManage) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const email = parsed.data.email.trim().toLowerCase();
+  const name = parsed.data.name.trim();
+  const phone = parsed.data.phone.trim();
+  const department = parsed.data.department?.trim();
+  const passwordHash = await bcrypt.hash(parsed.data.password ?? createTemporaryPassword(), 10);
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      role: true,
+      systemRole: true
+    }
+  });
+
+  const user = existingUser
+    ? await prisma.user.update({
+      where: { id: existingUser.id },
+      data: {
+        name,
+        phone,
+        role: existingUser.role === UserRole.ADMIN ? existingUser.role : parsed.data.userRole,
+        systemRole: existingUser.systemRole
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        systemRole: true
+      }
+    })
+    : await prisma.user.create({
+      data: {
+        email,
+        name,
+        phone,
+        role: parsed.data.userRole,
+        passwordHash,
+        systemRole: SystemRole.USER
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        systemRole: true
+      }
+    });
+
+  const membership = await prisma.tenantMembership.upsert({
+    where: {
+      tenantId_userId: {
+        tenantId: req.params.tenantId,
+        userId: user.id
+      }
+    },
+    create: {
+      tenantId: req.params.tenantId,
+      userId: user.id,
+      role: parsed.data.tenantRole,
+      jobTitle: parsed.data.jobTitle,
+      department
+    },
+    update: {
+      role: parsed.data.tenantRole,
+      jobTitle: parsed.data.jobTitle,
+      department
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          role: true,
+          systemRole: true
+        }
+      }
+    }
+  });
+
+  return res.status(existingUser ? 200 : 201).json(membership);
+});
+
 tenantRouter.patch("/:tenantId/members/:userId", requireAuth, async (req, res) => {
   const parsed = updateMemberRoleSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
   }
 
-  const canManage = await ensureTenantRole(req.user!, req.params.tenantId, [TenantRole.TENANT_ADMIN]);
+  const canManage = await ensureTenantRole(req.user!, req.params.tenantId, [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]);
   if (!canManage) {
     return res.status(403).json({ message: "Forbidden" });
   }

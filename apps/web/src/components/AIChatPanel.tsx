@@ -147,7 +147,11 @@ function parseEditedTranscript(rawText: string): Array<{ speaker: SpeakerLabel; 
   return parsed.filter((item) => item.text)
 }
 
-export default function AIChatPanel() {
+type AIChatPanelProps = {
+  projectId?: string
+}
+
+export default function AIChatPanel({ projectId }: AIChatPanelProps) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<'prompt' | 'record'>('prompt')
   const [prompt, setPrompt] = useState('')
@@ -163,9 +167,11 @@ export default function AIChatPanel() {
   const [isTranscriptDirty, setIsTranscriptDirty] = useState(false)
   const [liveTranscriptText, setLiveTranscriptText] = useState('')
   const [notesText, setNotesText] = useState('')
+  const [copyNotice, setCopyNotice] = useState('')
 
   const statusTimerRef = useRef<number | null>(null)
   const typingTimerRef = useRef<number | null>(null)
+  const copyNoticeTimerRef = useRef<number | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null)
@@ -220,6 +226,9 @@ export default function AIChatPanel() {
       }
       if (analysisTimerRef.current) {
         window.clearInterval(analysisTimerRef.current)
+      }
+      if (copyNoticeTimerRef.current) {
+        window.clearTimeout(copyNoticeTimerRef.current)
       }
 
       const recognition = recognitionRef.current
@@ -841,12 +850,17 @@ export default function AIChatPanel() {
     setResult('')
 
     try {
+      const accessToken = localStorage.getItem('accessToken')
       const response = await fetch('/ai/playground/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+        },
         body: JSON.stringify({
           prompt: cleanPrompt,
-          model: DEFAULT_MODEL
+          model: DEFAULT_MODEL,
+          ...(projectId ? { projectId } : {})
         })
       })
 
@@ -864,6 +878,46 @@ export default function AIChatPanel() {
     }
   }
 
+  const copyText = async (value: string) => {
+    const text = (value || '').trim()
+    if (!text) {
+      return false
+    }
+
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+
+    const temp = document.createElement('textarea')
+    temp.value = text
+    temp.setAttribute('readonly', '')
+    temp.style.position = 'absolute'
+    temp.style.left = '-9999px'
+    document.body.appendChild(temp)
+    temp.select()
+    const copied = document.execCommand('copy')
+    document.body.removeChild(temp)
+    return copied
+  }
+
+  const copyResultAnswer = async () => {
+    try {
+      const copied = await copyText(result)
+      setCopyNotice(copied ? t('aiChat.status.copied') : t('aiChat.errors.copyFailed'))
+    } catch {
+      setCopyNotice(t('aiChat.errors.copyFailed'))
+    }
+
+    if (copyNoticeTimerRef.current) {
+      window.clearTimeout(copyNoticeTimerRef.current)
+    }
+    copyNoticeTimerRef.current = window.setTimeout(() => {
+      setCopyNotice('')
+      copyNoticeTimerRef.current = null
+    }, 2200)
+  }
+
   const clearAll = () => {
     stopTyping()
     stopStatusPulse('')
@@ -877,9 +931,12 @@ export default function AIChatPanel() {
     setIsTranscriptDirty(false)
     setLiveTranscriptText('')
     setNotesText('')
+    setCopyNotice('')
     resetDiarizationState()
     setTranscriptText('')
   }
+
+  const canCopyResult = !!result.trim() && result !== t('aiChat.status.ready')
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6">
@@ -915,17 +972,16 @@ export default function AIChatPanel() {
       </div>
 
       {activeTab === 'prompt' ? (
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div className="mt-5 space-y-4">
           <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-            <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-slate-300" htmlFor="dashboard-ai-prompt">
-              {t('aiChat.labels.prompt')}
-            </label>
             <textarea
               id="dashboard-ai-prompt"
+              aria-label={t('aiChat.labels.prompt')}
+              rows={3}
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               placeholder={t('aiChat.placeholders.askAnything')}
-              className="min-h-[260px] w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-relaxed text-gray-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-relaxed text-gray-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               onKeyDown={(event) => {
                 if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                   void generate()
@@ -951,10 +1007,21 @@ export default function AIChatPanel() {
           </div>
 
           <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-            <label className="mb-2 block text-sm font-semibold text-gray-700 dark:text-slate-300">{t('aiChat.labels.result')}</label>
-            <div className={`max-h-[62vh] min-h-[360px] overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-sm leading-relaxed text-gray-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 ${isBusy ? 'animate-pulse' : ''}`}>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300">{t('aiChat.labels.result')}</label>
+              <button
+                type="button"
+                onClick={() => void copyResultAnswer()}
+                disabled={!canCopyResult}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                {t('aiChat.actions.copyAnswer')}
+              </button>
+            </div>
+            <div className={`max-h-[62vh] min-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-sm leading-relaxed text-gray-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 ${isBusy ? 'animate-pulse' : ''}`}>
               {result}
             </div>
+            <div className="mt-2 min-h-[1.2em] text-xs text-gray-500 dark:text-slate-400">{copyNotice}</div>
             <div className="mt-2 min-h-[1.2em] text-sm text-gray-500 dark:text-slate-400">{status}</div>
           </div>
         </div>

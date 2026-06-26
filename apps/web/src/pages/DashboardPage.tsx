@@ -35,6 +35,7 @@ export default function DashboardPage() {
 
   const [memberships, setMemberships] = useState<TenantMembership[]>([])
   const [projects, setProjects] = useState<DashboardProject[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const isSuperAdmin = user?.systemRole === 'SUPER_ADMIN'
 
   useEffect(() => {
@@ -59,6 +60,18 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isSuperAdmin) fetchProjects()
   }, [isSuperAdmin, fetchProjects])
+
+  useEffect(() => {
+    if (!projects.length) {
+      if (selectedProjectId) setSelectedProjectId('')
+      return
+    }
+
+    const stillExists = projects.some((project) => project.id === selectedProjectId)
+    if (!stillExists) {
+      setSelectedProjectId(projects[0].id)
+    }
+  }, [projects, selectedProjectId])
 
   const handleSelectTenant = (membership: TenantMembership) => {
     if (membership.tenant) {
@@ -187,7 +200,12 @@ export default function DashboardPage() {
                 {projects.map((project) => (
                   <div
                     key={project.id}
-                    className="p-4 sm:p-5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
+                    onClick={() => setSelectedProjectId(project.id)}
+                    className={`p-4 sm:p-5 rounded-lg border bg-white dark:bg-slate-800 shadow-sm cursor-pointer transition-colors ${
+                      selectedProjectId === project.id
+                        ? 'border-blue-500 dark:border-blue-500 ring-1 ring-blue-500/40'
+                        : 'border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600'
+                    }`}
                   >
                     <div className="mb-3">
                       <h3 className="text-sm font-bold text-gray-900 dark:text-white truncate">
@@ -265,7 +283,7 @@ export default function DashboardPage() {
         */}
 
         <div>
-          <AIChatPanel />
+          <AIChatPanel projectId={selectedProjectId || undefined} />
         </div>
       </div>
     </Layout>

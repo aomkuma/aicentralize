@@ -71,6 +71,26 @@
     "selectOrganizationFirst": "กรุณาเลือกองค์กรก่อน",
     "projectValidation": "รหัสและชื่อโปรเจคต้องมีอย่างน้อย 2 ตัวอักษร",
     "projectCodeDuplicate": "รหัสโปรเจคนี้มีอยู่แล้ว",
+    "teamManagement": "จัดการทีมองค์กร",
+    "teamManagementDesc": "เพิ่มสมาชิกในองค์กรและเก็บข้อมูลติดต่อที่จำเป็นให้ครบ",
+    "addTeamMember": "เพิ่มสมาชิกทีม",
+    "addTeamMemberTitle": "เพิ่มสมาชิกใหม่",
+    "memberName": "ชื่อ-นามสกุล",
+    "memberEmail": "อีเมล",
+    "memberPhone": "เบอร์โทร",
+    "memberJobTitle": "ตำแหน่งงาน",
+    "memberDepartment": "แผนก",
+    "memberRole": "บทบาทในองค์กร",
+    "memberNamePlaceholder": "เช่น มึน ยัง งง",
+    "memberEmailPlaceholder": "เช่น min.young@org.local",
+    "memberPhonePlaceholder": "เช่น +82-10-1234-5678",
+    "memberJobTitlePlaceholder": "เช่น Business Analyst",
+    "memberDepartmentPlaceholder": "แผนก (ไม่บังคับ)",
+    "memberValidation": "กรุณากรอกชื่อ อีเมล เบอร์โทร และตำแหน่งงานให้ครบ",
+    "memberCreateSubmit": "สร้างสมาชิก",
+    "memberCreating": "กำลังสร้างสมาชิก...",
+    "memberCreated": "บันทึกสมาชิกทีมเรียบร้อยแล้ว",
+    "teamEmpty": "ยังไม่มีสมาชิกทีมในองค์กรนี้",
     "recordMeetings": "บันทึกการประชุม",
     "recordMeetingsDesc": "จับและแปลงการประชุมของคุณโดยอัตโนมัติ",
     "aiAnalysis": "การวิเคราะห์ AI",
@@ -175,11 +195,24 @@
     "allStatuses": "สถานะทั้งหมด",
     "success": "สำเร็จ",
     "failed": "ล้มเหลว",
-    "limit": "ขีดจำกัด"
+    "limit": "ขีดจำกัด",
+    "tabs": {
+      "runLogs": "ประวัติการรัน",
+      "conversations": "ประวัติการสนทนา"
+    },
+    "conversationHistory": "ประวัติการสนทนา",
+    "selectConversation": "เลือกบทสนทนาเพื่อดูรายละเอียดคำถามและคำตอบ",
+    "noConversations": "ยังไม่พบประวัติการสนทนา",
+    "question": "คำถาม",
+    "answer": "คำตอบ",
+    "confidence": "ความมั่นใจ",
+    "copyAnswer": "คัดลอกคำตอบ",
+    "copySuccess": "คัดลอกแล้ว",
+    "copyFailed": "คัดลอกไม่สำเร็จ"
   },
   "meetings": {
-    "title": "Meeting Studio",
-    "description": "อัปโหลดบันทึกการประชุม ถอดข้อความ และบันทึก minute template แบบมีโครงสร้างใน flow เดียว",
+    "title": "สตูดิโอบันทึกการประชุม",
+    "description": "อัปโหลดบันทึกการประชุม ถอดข้อความ และบันทึกแบบฟอร์มรายงานการประชุมที่มีโครงสร้างครบในขั้นตอนเดียว",
     "startHereLabel": "ลำดับที่แนะนำ",
     "startHereTitle": "เริ่มตรงนี้: ควรทำอะไรเป็นอันดับแรก",
     "startHereHelp": "ผู้ใช้ใหม่มักงงว่าควรเริ่มจากไหน ให้ทำตามลำดับนี้หนึ่งครั้ง แล้วค่อยใช้ซ้ำในประชุมถัดไป",
@@ -187,10 +220,10 @@
     "startHereStep1Title": "เลือกบริบทของการประชุม",
     "startHereStep1": "เลือกโปรเจคและกำหนดวันเวลาให้ถูกก่อน เพื่อให้บันทึกไปอยู่ในที่ที่ถูกต้อง",
     "startHereStep2Title": "นำเนื้อหาเข้าระบบ",
-    "startHereStep2": "อัปโหลดไฟล์ประชุมหรือวาง transcript ถ้ามีอยู่แล้ว ถ้าถอดเสียงไม่ได้ก็ยังทำต่อแบบ manual ได้",
-    "startHereStep3Title": "กรอก minute template",
-    "startHereStep3": "ใช้ฟิลด์ของ template เก็บสรุป ประเด็นตัดสินใจ ความเสี่ยง งานที่ต้องทำ และ next steps ก่อนบันทึก",
-    "startHereTip": "คำแนะนำ: ถ้ายังไม่แน่ใจ ให้เริ่มจาก Objective กับ Executive Summary ก่อน ส่วนอื่นค่อยเก็บรายละเอียดทีหลัง",
+    "startHereStep2": "อัปโหลดไฟล์ประชุมหรือวางข้อความถอดเสียง ถ้าถอดเสียงไม่ได้ก็ยังทำต่อแบบกรอกเองได้",
+    "startHereStep3Title": "กรอกแบบฟอร์มรายงานการประชุม",
+    "startHereStep3": "ใช้ช่องในแบบฟอร์มเก็บสรุป ประเด็นตัดสินใจ ความเสี่ยง งานที่ต้องทำ และขั้นตอนถัดไปก่อนบันทึก",
+    "startHereTip": "คำแนะนำ: ถ้ายังไม่แน่ใจ ให้เริ่มจากวัตถุประสงค์กับสรุปผู้บริหารก่อน แล้วค่อยเติมรายละเอียดส่วนอื่น",
     "guide": {
       "label": "ลำดับการทำงาน",
       "hoverHint": "ชี้เมาส์หรือโฟกัสแต่ละขั้นเพื่อดูคำแนะนำ และยังข้ามได้ถ้าองค์กรนั้นไม่ได้ใช้ขั้นนั้น",
@@ -203,63 +236,103 @@
         },
         "step2": {
           "title": "เพิ่มเนื้อหา",
-          "description": "อัปโหลดไฟล์หรือวาง transcript แล้วถอดเสียงต่อถ้ามี"
+          "description": "อัปโหลดไฟล์หรือวางข้อความถอดเสียง แล้วถอดเสียงต่อถ้ามี"
         },
         "step3": {
           "title": "ตรวจทานและบันทึก",
-          "description": "กรอก template ตรวจ preview แล้วบันทึกการประชุม"
+          "description": "กรอกแบบฟอร์ม ตรวจตัวอย่าง แล้วบันทึกการประชุม"
         }
       }
     },
     "tabs": {
       "upload": "อัปโหลดไฟล์ประชุม",
-      "template": "Minute Template"
+      "template": "แบบฟอร์มรายงานการประชุม"
     },
     "project": "โปรเจค",
     "selectProject": "เลือกโปรเจค",
     "titleField": "ชื่อการประชุม",
     "sessionAt": "วันและเวลาประชุม",
     "recordingFile": "ไฟล์บันทึกการประชุม",
-    "transcript": "Transcript",
-    "transcriptPlaceholder": "อัปโหลดไฟล์เพื่อถอดข้อความ หรือวางข้อความ transcript ที่นี่",
-    "uploadHelp": "ใช้ไฟล์เสียง/วิดีโอจริง แล้วปรับ transcript ก่อนบันทึก meeting",
-    "templateHelp": "กรอกหัวข้อ steering update template แล้วดู preview แบบเรียลไทม์",
-    "preview": "Preview",
-    "previewHelp": "นี่คือ minute note ที่จะถูกบันทึกลงระบบ",
+    "transcript": "ข้อความถอดเสียง",
+    "transcriptPlaceholder": "อัปโหลดไฟล์เพื่อถอดข้อความ หรือวางข้อความถอดเสียงที่นี่",
+    "detectedMetaLabel": "ข้อมูลการประชุมที่ระบบตรวจพบ",
+    "detectedMetaHint": "หลังอัปโหลดและประมวลผลไฟล์บันทึกการประชุม ระบบจะเติมชื่อประชุมและวันเวลาให้อัตโนมัติ โดยคุณยังแก้ไขเองได้",
+    "titleAutoPlaceholder": "ระบบเติมจากไฟล์บันทึกการประชุมอัตโนมัติ",
+    "uploadHelp": "ใช้ไฟล์เสียงหรือวิดีโอจริง แล้วปรับข้อความถอดเสียงก่อนบันทึกการประชุม",
+    "templateHelp": "กรอกหัวข้อในแบบฟอร์มรายงานการประชุม แล้วดูตัวอย่างแบบเรียลไทม์",
+    "preview": "ตัวอย่างก่อนบันทึก",
+    "previewHelp": "นี่คือรายงานการประชุมที่จะถูกบันทึกลงระบบ",
     "noProjectSelected": "ยังไม่ได้เลือกโปรเจค",
     "actions": {
       "transcribe": "ถอดข้อความจากไฟล์",
-      "clearTranscript": "ล้าง transcript",
+      "clearTranscript": "ล้างข้อความถอดเสียง",
       "saveMeeting": "บันทึกการประชุม",
-      "resetTemplate": "รีเซ็ต template"
+      "resetTemplate": "รีเซ็ตแบบฟอร์ม"
     },
     "template": {
-      "objective": "Objective",
-      "summary": "Executive summary",
-      "decisions": "Key decisions",
-      "risks": "Risks / issues",
-      "actions": "Action items",
-      "nextSteps": "Next steps"
+      "objective": "วัตถุประสงค์",
+      "summary": "สรุปผู้บริหาร",
+      "decisions": "ประเด็นตัดสินใจสำคัญ",
+      "risks": "ความเสี่ยง / ประเด็นปัญหา",
+      "actions": "งานที่ต้องดำเนินการ",
+      "nextSteps": "ขั้นตอนถัดไป"
+    },
+    "checklist": {
+      "add": "เพิ่มข้อในเช็กลิสต์",
+      "remap": "สร้างเช็กลิสต์จากข้อความงานอีกครั้ง",
+      "remove": "ลบ",
+      "empty": "ยังไม่มีรายการเช็กลิสต์ สามารถให้ AI map จากเอกสารหรือเพิ่มเองได้",
+      "placeholder": "ข้อความงาน",
+      "detailPlaceholder": "รายละเอียด (ไม่บังคับ)",
+      "selectOwner": "เลือกเจ้าของงาน",
+      "itemLabel": "รายการ {{index}}"
+    },
+    "previewLabels": {
+      "meetingTitle": "ชื่อการประชุม",
+      "project": "โปรเจค",
+      "transcriptAttached": "แนบข้อความถอดเสียงไว้ด้านล่าง",
+      "noTranscript": "ยังไม่มีข้อความถอดเสียง"
     },
     "status": {
       "transcribing": "กำลังถอดข้อความ...",
       "transcribed": "ถอดข้อความเรียบร้อย",
       "documentProcessed": "ประมวลผลเอกสารเรียบร้อย",
       "analyzingDocument": "กำลังวิเคราะห์เอกสาร...",
+      "analysisTakingLong": "AI กำลังวิเคราะห์เอกสารต่อ ใช้เวลานานกว่าปกติเล็กน้อย...",
+      "analysisTimedOutFallback": "ขั้นวิเคราะห์ใช้เวลานานเกินกำหนด ระบบจะใช้ข้อมูลที่อ่านจากเอกสารเพื่อให้ทำงานต่อได้ทันที",
       "documentAnalyzed": "วิเคราะห์เอกสารเรียบร้อย",
       "saving": "กำลังบันทึกการประชุม...",
       "saved": "บันทึกการประชุมสำเร็จ",
+      "savedRedirecting": "บันทึกการประชุมสำเร็จ กำลังพาไปหน้าติดตามโครงการ...",
       "uploadedOnly": "อัปโหลดไฟล์การประชุมแล้ว แต่ปิดการถอดเสียงไว้ จึงให้วาง transcript เองได้"
+    },
+    "progress": {
+      "title": "สถานะการประมวลผลตอนนี้",
+      "subtitle": "อาจใช้เวลาสักครู่",
+      "failedHint": "มีบางขั้นตอนล้มเหลว กรุณาดูข้อความผิดพลาดด้านบนแล้วลองอีกครั้ง",
+      "steps": {
+        "validatingInput": "ตรวจสอบไฟล์และข้อมูลการประชุม",
+        "extractingDocumentText": "อ่านข้อความจากไฟล์ DOCX",
+        "analyzingDocumentWithAI": "วิเคราะห์เนื้อหาเอกสารด้วย AI",
+        "mappingToTemplate": "เติมข้อมูลลงในแบบฟอร์มรายงานการประชุม",
+        "uploadingRecording": "อัปโหลดไฟล์บันทึกการประชุม",
+        "transcribingRecording": "ถอดเสียงเป็นข้อความ",
+        "savingMeeting": "บันทึกข้อมูลการประชุมเข้าระบบ",
+        "completed": "เสร็จเรียบร้อย"
+      }
     },
     "errors": {
       "selectProject": "กรุณาเลือกโปรเจคก่อน",
       "titleRequired": "กรุณาระบุชื่อการประชุม",
-      "summaryRequired": "กรุณาระบุ executive summary",
+      "sessionAtRequired": "กรุณาระบุวันและเวลาประชุม",
+      "summaryRequired": "กรุณาระบุสรุปผู้บริหาร",
       "selectRecording": "กรุณาเลือกไฟล์บันทึกก่อน",
       "transcriptionFailed": "ถอดข้อความไม่สำเร็จ",
       "documentExtractionFailed": "อ่านเอกสารไม่สำเร็จ",
       "documentAnalysisFailed": "วิเคราะห์เอกสารไม่สำเร็จ",
-      "saveFailed": "บันทึกการประชุมไม่สำเร็จ"
+      "saveFailed": "บันทึกการประชุมไม่สำเร็จ",
+      "ownerRequiredForChecklist": "กรุณาเลือกเจ้าของงานให้ครบทุกข้อก่อนบันทึก",
+      "dueDateRequiredForChecklist": "กรุณาระบุวันครบกำหนดที่ถูกต้องให้ครบทุกข้อก่อนบันทึก"
     }
   },
   "settings": {
@@ -274,6 +347,33 @@
       "integrations": "การเชื่อมต่อ"
     },
     "asrMode": "โหมด ASR",
+    "generationProvider": "ผู้ให้บริการสร้างข้อความเริ่มต้น",
+    "defaultGenerationModel": "โมเดลสร้างข้อความเริ่มต้น",
+    "maxPromptChars": "จำนวนอักขระสูงสุดของ prompt",
+    "fallbackProviders": "ผู้ให้บริการสำรอง",
+    "fallbackProvidersHint": "เลือก provider สำรองที่จะลองใช้งานต่อเมื่อ provider หลักล้มเหลว",
+    "aiKeysTitle": "AI Keys",
+    "aiKeyProvider": "Provider",
+    "aiKeyAccountName": "ชื่อบัญชี",
+    "aiKeyLabel": "ป้ายกำกับ",
+    "aiKeyModel": "ชื่อโมเดล",
+    "aiKeyBaseUrl": "Base URL",
+    "aiKeyOrganization": "Organization",
+    "aiKeySecret": "Access key / token",
+    "aiKeySetActiveOnSave": "ตั้งคีย์นี้เป็น active ทันทีหลังบันทึก",
+    "aiKeySave": "บันทึกคีย์",
+    "aiKeySetActive": "ตั้งเป็น Active",
+    "aiKeyTest": "ทดสอบ",
+    "aiKeyDelete": "ลบ",
+    "aiKeyEmpty": "ยังไม่มีคีย์ที่บันทึกไว้",
+    "aiKeySaved": "บันทึกคีย์เรียบร้อย",
+    "aiKeySaveFailed": "บันทึกคีย์ไม่สำเร็จ",
+    "aiKeyActivated": "ตั้งคีย์เป็น active แล้ว",
+    "aiKeyActivateFailed": "ตั้งคีย์ active ไม่สำเร็จ",
+    "aiKeyDeleted": "ลบคีย์แล้ว",
+    "aiKeyDeleteFailed": "ลบคีย์ไม่สำเร็จ",
+    "aiKeyTestOk": "ทดสอบการเชื่อมต่อสำเร็จ",
+    "aiKeyTestFailed": "ทดสอบการเชื่อมต่อล้มเหลว",
     "whisperEnabled": "เปิดใช้งานการถอดเสียง Whisper",
     "whisperModel": "โมเดล Whisper",
     "whisperLanguage": "ภาษาตั้งต้นของ Whisper",
@@ -287,14 +387,15 @@
     "whisperIntegrationEnabled": "เปิดใช้งานการเชื่อมต่อ Whisper"
   },
   "aiChat": {
-    "title": "AI Chat",
-    "description": "พิมพ์คำสั่ง อัดเสียง แยกผู้พูด และวิเคราะห์ได้จากแดชบอร์ด",
+    "title": "ผู้ช่วย AI สำหรับ PM",
+    "description": "ถามสถานะโปรเจค งานเกินกำหนด และสิ่งที่ต้องทำต่อได้ในที่เดียว",
     "tabs": {
       "textPrompt": "พิมพ์คำสั่ง",
       "recordTranscript": "อัดเสียงและถอดข้อความ"
     },
     "actions": {
-      "generate": "สร้างคำตอบ",
+      "generate": "ถาม AI",
+      "copyAnswer": "คัดลอกคำตอบ",
       "clear": "ล้าง",
       "startRecording": "เริ่มอัดเสียง",
       "stopRecording": "หยุดอัดเสียง",
@@ -316,6 +417,7 @@
     "status": {
       "ready": "พร้อมใช้งาน",
       "generating": "กำลังสร้างคำตอบ",
+      "copied": "คัดลอกแล้ว",
       "done": "เสร็จแล้ว",
       "noOutput": "(ไม่มีผลลัพธ์)",
       "waitingTranscript": "กำลังรอข้อความถอดเสียง...",
@@ -350,6 +452,7 @@
       "processRecordingFailed": "ประมวลผลเสียงไม่สำเร็จ",
       "addTranscriptBeforeAnalyze": "กรุณาใส่ข้อความถอดเสียงก่อนวิเคราะห์",
       "enterPromptFirst": "กรุณากรอกคำสั่งก่อน",
+      "copyFailed": "คัดลอกไม่สำเร็จ",
       "requestFailed": "คำขอล้มเหลว",
       "generateFailed": "สร้างคำตอบไม่สำเร็จ"
     }

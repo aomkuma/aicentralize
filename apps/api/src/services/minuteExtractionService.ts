@@ -26,14 +26,14 @@ const extractedMinuteSchema = z.object({
   keyPoints: z.array(z.string().trim().min(1)).default([]),
   decisions: z.array(z.object({
     text: z.string().trim().min(1),
-    ownerName: z.string().trim().min(1).optional(),
-    dueDate: z.string().trim().datetime().optional()
+    ownerName: z.string().trim().min(1).nullish().transform(v => v ?? undefined),
+    dueDate: z.string().trim().nullish().transform(v => v ?? undefined)
   })).default([]),
   actionItems: z.array(z.object({
     title: z.string().trim().min(1),
-    description: z.string().trim().min(1).optional(),
-    ownerName: z.string().trim().min(1).optional(),
-    dueDate: z.string().trim().datetime().optional(),
+    description: z.string().trim().min(1).nullish().transform(v => v ?? undefined),
+    ownerName: z.string().trim().min(1).nullish().transform(v => v ?? undefined),
+    dueDate: z.string().trim().nullish().transform(v => v ?? undefined),
     priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).default("MEDIUM")
   })).default([]),
   risks: z.array(z.object({

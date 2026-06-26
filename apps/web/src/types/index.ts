@@ -2,6 +2,7 @@ export interface User {
   id: string
   email: string
   name: string
+  phone?: string
   systemRole: 'SUPER_ADMIN' | 'USER'
   createdAt: string
 }
@@ -55,15 +56,17 @@ export interface AuthResponse {
 export interface SystemSettings {
   ai: {
     asrMode: 'whisper' | 'browser' | 'hybrid'
+    generation: {
+      defaultModel: string
+      maxPromptChars: number
+      provider: 'ollama' | 'openai' | 'anthropic' | 'gemini'
+      fallbackProviders: Array<'ollama' | 'openai' | 'anthropic' | 'gemini'>
+    }
     whisper: {
       enabled: boolean
       model: string
       language: string
       timeoutMs: number
-    }
-    generation: {
-      defaultModel: string
-      maxPromptChars: number
     }
   }
   security: {
@@ -79,6 +82,23 @@ export interface SystemSettings {
     ollamaEnabled: boolean
     whisperEnabled: boolean
   }
+  aiProviders: {
+    accounts: AiProviderAccount[]
+  }
+}
+
+export interface AiProviderAccount {
+  id: string
+  provider: 'ollama' | 'openai' | 'anthropic' | 'gemini'
+  accountName: string
+  label?: string
+  model?: string
+  baseUrl?: string
+  organization?: string
+  apiKeyMasked: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 export interface TenantCreateRequest {
@@ -89,6 +109,16 @@ export interface MemberAddRequest {
   userId: string
   role: 'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'
   jobTitle?: string
+  department?: string
+}
+
+export interface MemberOnboardRequest {
+  name: string
+  email: string
+  phone: string
+  tenantRole: 'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'
+  userRole?: 'ADMIN' | 'PM' | 'MEMBER'
+  jobTitle: string
   department?: string
 }
 
@@ -201,4 +231,34 @@ export interface AiRunLogWithContext extends AiRunLog {
   userName?: string
   projectName?: string
   meetingTitle?: string
+}
+
+export interface AskAiQueryLog {
+  id: string
+  userId: string
+  projectId?: string
+  meetingId?: string
+  question: string
+  answer: string
+  confidence: string
+  model?: string
+  retrievedEvidenceIds?: unknown
+  usedEvidenceJson?: unknown
+  retrievalDebugJson?: unknown
+  createdAt: string
+  user?: {
+    id: string
+    name?: string
+    email?: string
+  }
+  project?: {
+    id: string
+    code?: string
+    name?: string
+  }
+  meeting?: {
+    id: string
+    title?: string
+    sessionAt?: string
+  }
 }

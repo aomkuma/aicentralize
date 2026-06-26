@@ -2,13 +2,14 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const devPort = Number(process.env.PORT || process.env.VITE_PORT || 5175)
+
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5175,
+    port: devPort,
     hmr: {
       host: 'localhost',
-      port: 5175,
       protocol: 'ws'
     },
     proxy: {

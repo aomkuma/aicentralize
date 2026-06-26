@@ -12,6 +12,8 @@ export const useAiRunLogs = () => {
     status?: AiRunStatus
     projectId?: string
     meetingId?: string
+    page?: number
+    pageSize?: number
     limit?: number
     offset?: number
   }) => {
@@ -20,8 +22,12 @@ export const useAiRunLogs = () => {
     if (options?.status) params.append('status', options.status)
     if (options?.projectId) params.append('projectId', options.projectId)
     if (options?.meetingId) params.append('meetingId', options.meetingId)
-    if (options?.limit) params.append('limit', options.limit.toString())
-    if (options?.offset) params.append('offset', options.offset.toString())
+    if (options?.page) params.append('page', options.page.toString())
+    if (options?.pageSize) params.append('pageSize', options.pageSize.toString())
+    if (!options?.pageSize && options?.limit) params.append('pageSize', options.limit.toString())
+    if (!options?.page && typeof options?.offset === 'number') {
+      params.append('page', (Math.floor(options.offset / (options.limit || 20)) + 1).toString())
+    }
 
     const raw = await get<{ items: AiRunLog[] }>(
       `/observability/ai-runs?${params.toString()}`
@@ -43,7 +49,7 @@ export const useAiRunLogs = () => {
   ) => {
     const params = new URLSearchParams()
     params.append('operation', operation)
-    if (limit) params.append('limit', limit.toString())
+    if (limit) params.append('pageSize', limit.toString())
 
     const raw = await get<{ items: AiRunLog[] }>(
       `/observability/ai-runs?${params.toString()}`

@@ -224,3 +224,43 @@ Verification completed:
 2. PM sees project-focused dashboard and can create projects.
 3. Duplicate project code is blocked in UI and API.
 4. Whisper disabled path is enforced in backend endpoint.
+
+## Critical UX Rule (2026-06-26)
+
+Important handover note for all future workflow changes:
+
+1. For any action that has a natural next step in the user journey (save, approve, submit, generate, complete step), the UI must do both:
+- Show a clear success/result message.
+- Navigate the user to the next recommended screen or state automatically.
+
+2. If an action is truly terminal (no next step needed), staying on the same screen is acceptable, but the completion state must be explicit.
+
+3. Current implementation status:
+- Meeting Studio `Save meeting` now shows success and auto-navigates to project continuity (`/continuity/:projectId`) so PM users can continue follow-up work immediately.
+
+## Post-Handover AI Trace and Chat Update (2026-06-26)
+
+Implemented:
+1. AI Trace conversation history UI is now live
+- Added tabbed mode in AI Trace: Run Logs / Conversation History.
+- Conversation list and detail are wired to query-log endpoints.
+
+2. Ask-AI history flow is now visible to PM users
+- Dashboard Ask-AI interactions persist and appear in AI Trace history.
+- Detail view shows question, answer, model, and confidence.
+
+3. Dashboard wording and utility updates
+- Thai action text changed from `สร้างคำตอบ` to `ถาม AI`.
+- Copy-answer button added to dashboard result section.
+- Copy-answer button added to AI Trace conversation detail section.
+
+4. i18n updates completed
+- EN/TH strings added for copy button labels and copy feedback messages.
+- EN/TH strings added for conversation-history view labels.
+
+Operational finding:
+1. Ollama connectivity is up, but generation failed in this environment due to Vulkan/GPU OOM.
+2. Provider fallback routed failed local requests to Gemini, which is why model entries in AI Trace appeared as Gemini.
+
+Recommended next action:
+1. Stabilize local Ollama generation path (CPU mode or smaller model) and then re-validate provider output in AI Trace.

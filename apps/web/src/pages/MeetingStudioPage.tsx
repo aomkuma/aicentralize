@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
 import { useApi } from '../hooks/useApi'
@@ -18,18 +18,52 @@ type DocxMinuteSummary = {
   objective: string
   decisions: string[]
   risks: string[]
-  actionItems: string[]
+  actionItems: Array<{
+    task: string
+    detail?: string
+    ownerName?: string
+    dueDate?: string
+  }>
   nextSteps: string
+}
+
+type DocxMeetingMeta = {
+  title?: string
+  sessionAt?: string
 }
 
 type StudioProject = Project & {
   code?: string
-  tenant?: { name: string } | null
+  tenant?: { id: string; name: string } | null
 }
 
 type MinuteSectionKey = 'objective' | 'summary' | 'decisions' | 'risks' | 'actions' | 'nextSteps'
+type ProgressMode = 'docx' | 'audio' | 'save' | null
+type ProgressKey =
+  | 'validatingInput'
+  | 'extractingDocumentText'
+  | 'analyzingDocumentWithAI'
+  | 'mappingToTemplate'
+  | 'uploadingRecording'
+  | 'transcribingRecording'
+  | 'savingMeeting'
+  | 'completed'
+  | 'failed'
 
 type MinuteTemplate = Record<MinuteSectionKey, string>
+type ChecklistItem = {
+  id: string
+  text: string
+  ownerUserId: string
+  dueDate: string
+  detail: string
+}
+
+type OwnerOption = {
+  id: string
+  name: string
+  email: string
+}
 
 const defaultTemplate = (): MinuteTemplate => ({
   objective: '',
@@ -40,25 +74,324 @@ const defaultTemplate = (): MinuteTemplate => ({
   nextSteps: '',
 })
 
+const clip = (value: string, max = 220) => value.trim().slice(0, max)
+
+const normalizeSpaces = (value: string) => value.replace(/\s+/g, ' ').trim()
+
+const uniqueNonEmpty = (values: string[], limit = 5) => {
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const raw of values) {
+    const item = normalizeSpaces(raw)
+    if (!item) {
+      continue
+    }
+    if (seen.has(item)) {
+      continue
+    }
+    seen.add(item)
+    result.push(item)
+    if (result.length >= limit) {
+      break
+    }
+  }
+
+  return result
+}
+
+const extractSentenceMatches = (text: string, pattern: RegExp, limit = 5) => {
+  const matches = [...text.matchAll(pattern)].map((m) => clip(m[0]))
+  return uniqueNonEmpty(matches, limit)
+}
+
+const checklistId = () => `check-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+const normalizeOwnerToken = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim()
+
+const defaultChecklistDueDate = (sessionAt?: string) => {
+  const base = sessionAt ? new Date(sessionAt) : new Date()
+  const safeBase = Number.isNaN(base.getTime()) ? new Date() : base
+  safeBase.setDate(safeBase.getDate() + 7)
+  return toDateTimeLocalString(safeBase)
+}
+
+const resolveOwnerUserId = (ownerName: string | undefined, owners: OwnerOption[]) => {
+  if (!ownerName) {
+    return ''
+  }
+
+  const token = normalizeOwnerToken(ownerName)
+  if (!token) {
+    return ''
+  }
+
+  const exactName = owners.find((owner) => normalizeOwnerToken(owner.name) === token)
+  if (exactName) {
+    return exactName.id
+  }
+
+  const exactEmail = owners.find((owner) => owner.email.toLowerCase() === ownerName.toLowerCase())
+  if (exactEmail) {
+    return exactEmail.id
+  }
+
+  const fuzzy = owners.find((owner) => {
+    const ownerToken = normalizeOwnerToken(owner.name)
+    return ownerToken.includes(token) || token.includes(ownerToken)
+  })
+
+  return fuzzy?.id ?? ''
+}
+
+const toChecklistItems = (
+  items: Array<{ task: string; detail?: string; ownerName?: string; dueDate?: string }>,
+  owners: OwnerOption[],
+  sessionAt?: string
+): ChecklistItem[] =>
+  uniqueNonEmpty(items.map((item) => item.task), 12).map((text, index) => {
+    const source = items[index]
+    const dueDateRaw = source?.dueDate ? new Date(source.dueDate) : null
+
+    return {
+      id: checklistId(),
+      text,
+      ownerUserId: resolveOwnerUserId(source?.ownerName, owners),
+      dueDate: dueDateRaw && !Number.isNaN(dueDateRaw.getTime())
+        ? toDateTimeLocalString(dueDateRaw)
+        : defaultChecklistDueDate(sessionAt),
+      detail: source?.detail?.trim() ?? ''
+    }
+  })
+
+const parseChecklistFromText = (raw: string, sessionAt?: string): ChecklistItem[] => {
+  const lines = raw
+    .split('\n')
+    .map((line) => line.replace(/^[-*\d.\s\[\]xX]+/, '').trim())
+    .filter(Boolean)
+
+  return lines.map((text) => ({
+    id: checklistId(),
+    text,
+    ownerUserId: '',
+    dueDate: defaultChecklistDueDate(sessionAt),
+    detail: ''
+  }))
+}
+
+const checklistToTemplateText = (items: ChecklistItem[]) =>
+  items
+    .filter((item) => item.text.trim())
+    .map((item) => item.text.trim())
+    .join('\n')
+
+const normalizeAiActionItems = (raw: unknown): Array<{ task: string; detail?: string; ownerName?: string; dueDate?: string }> => {
+  if (!Array.isArray(raw)) {
+    return []
+  }
+
+  return raw
+    .map((item) => {
+      if (typeof item === 'string') {
+        return { task: item.trim() }
+      }
+
+      if (!item || typeof item !== 'object') {
+        return { task: '' }
+      }
+
+      const value = item as {
+        task?: unknown
+        title?: unknown
+        detail?: unknown
+        description?: unknown
+        ownerName?: unknown
+        owner?: unknown
+        dueDate?: unknown
+      }
+
+      const task = typeof value.task === 'string'
+        ? value.task
+        : typeof value.title === 'string'
+          ? value.title
+          : ''
+
+      return {
+        task: task.trim(),
+        detail: typeof value.detail === 'string'
+          ? value.detail.trim()
+          : typeof value.description === 'string'
+            ? value.description.trim()
+            : undefined,
+        ownerName: typeof value.ownerName === 'string'
+          ? value.ownerName.trim()
+          : typeof value.owner === 'string'
+            ? value.owner.trim()
+            : undefined,
+        dueDate: typeof value.dueDate === 'string' ? value.dueDate : undefined
+      }
+    })
+    .filter((item) => Boolean(item.task))
+}
+
+const toDateTimeLocalString = (date: Date) => {
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mi = String(date.getMinutes()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`
+}
+
+const deriveMeetingMetaFromDocx = (raw: string, fileName: string): DocxMeetingMeta => {
+  const text = raw.replace(/\r/g, '\n')
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
+
+  let title = ''
+
+  const titleFromLabel = text.match(/(?:ชื่อการประชุม|หัวข้อการประชุม)\s*[:：]?\s*([^\n]{4,140})/i)?.[1]?.trim()
+  if (titleFromLabel) {
+    title = titleFromLabel
+  }
+
+  if (!title) {
+    const idx = lines.findIndex((line) => /หัวข้อในการประชุม/i.test(line))
+    if (idx > -1) {
+      const nextLine = lines.slice(idx + 1).find((line) => line.length > 4 && !/^[-•\d.\s]+$/.test(line))
+      if (nextLine) {
+        title = clip(nextLine, 90)
+      }
+    }
+  }
+
+  if (!title) {
+    const fileTitle = fileName
+      .replace(/\.[^.]+$/, '')
+      .replace(/[._]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    title = clip(fileTitle, 90)
+  }
+
+  const dateRaw = text.match(/วันที่ประชุม\s*[:：]?\s*([0-3]?\d[\/-][0-1]?\d[\/-](?:\d{4}|\d{2}))/i)?.[1]
+    ?? text.match(/\b([0-3]?\d[\/-][0-1]?\d[\/-](?:\d{4}|\d{2}))\b/)?.[1]
+
+  if (!dateRaw) {
+    return { title }
+  }
+
+  const [dRaw, mRaw, yRaw] = dateRaw.split(/[\/-]/)
+  const day = Number(dRaw)
+  const month = Number(mRaw)
+  let year = Number(yRaw)
+  if (year < 100) {
+    year += 2000
+  }
+
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) {
+    return { title }
+  }
+
+  const timeRaw = text.match(/(?:เวลา(?:ประชุม)?|time)\s*[:：]?\s*([0-2]?\d[:.][0-5]\d)\s*(AM|PM)?/i)
+  let hours = 9
+  let minutes = 0
+
+  if (timeRaw?.[1]) {
+    const [hRaw, minRaw] = timeRaw[1].replace('.', ':').split(':')
+    hours = Number(hRaw)
+    minutes = Number(minRaw)
+    if (timeRaw[2]) {
+      const meridiem = timeRaw[2].toUpperCase()
+      if (meridiem === 'PM' && hours < 12) {
+        hours += 12
+      }
+      if (meridiem === 'AM' && hours === 12) {
+        hours = 0
+      }
+    }
+  }
+
+  const date = new Date(year, Math.max(0, month - 1), day, hours, minutes)
+  if (Number.isNaN(date.getTime())) {
+    return { title }
+  }
+
+  return {
+    title,
+    sessionAt: toDateTimeLocalString(date)
+  }
+}
+
+const deriveDocxSummaryHeuristic = (raw: string): DocxMinuteSummary => {
+  const text = raw.replace(/\r/g, '\n')
+  const compact = normalizeSpaces(raw)
+
+  const objectiveBlock = text.match(/วัตถุประสงค์ของการประชุม([\s\S]{0,800}?)(รายชื่อผู้เข้าร่วมประชุม|รายละเอียดการประชุม|$)/i)?.[1] ?? ''
+  const objective = clip(normalizeSpaces(objectiveBlock), 260)
+
+  const decisions = extractSentenceMatches(
+    text,
+    /(ที่ประชุม[^\n]{0,140}(?:เห็นชอบ|รับทราบ|อนุมัติ|ตกลง|มีมติ)[^\n]{0,140})/gi,
+    4
+  )
+
+  const risks = uniqueNonEmpty([
+    ...extractSentenceMatches(text, /(ความเสี่ยง[^\n]{0,160})/gi, 4),
+    ...extractSentenceMatches(text, /(ปัญหา[^\n]{0,160})/gi, 3)
+  ], 4)
+
+  const actionItems = extractSentenceMatches(
+    text,
+    /(มอบหมาย[^\n]{0,160}|ติดตาม[^\n]{0,160}|ดำเนินการ[^\n]{0,160}|ต้อง[^\n]{0,140})/gi,
+    5
+  ).map((task) => ({ task }))
+
+  const nextSteps = extractSentenceMatches(
+    text,
+    /(ระยะถัดไป[^\n]{0,160}|ขั้นตอนถัดไป[^\n]{0,160}|ถัดไป[^\n]{0,160}|next steps?[^\n]{0,160})/gi,
+    3
+  ).join('\n')
+
+  return {
+    summary: clip(compact, 320),
+    objective,
+    decisions,
+    risks,
+    actionItems,
+    nextSteps
+  }
+}
+
+const progressFlowByMode: Record<Exclude<ProgressMode, null>, ProgressKey[]> = {
+  docx: ['validatingInput', 'extractingDocumentText', 'analyzingDocumentWithAI', 'mappingToTemplate', 'completed'],
+  audio: ['validatingInput', 'uploadingRecording', 'transcribingRecording', 'completed'],
+  save: ['savingMeeting', 'completed']
+}
+
 export default function MeetingStudioPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { projectId: projectIdParam } = useParams<{ projectId?: string }>()
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const { get, post, isLoading } = useApi()
 
   const [projects, setProjects] = useState<StudioProject[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState(projectIdParam ?? '')
-  const [meetingTitle, setMeetingTitle] = useState('Steering Update')
-  const [sessionAt, setSessionAt] = useState(() => new Date().toISOString().slice(0, 16))
+  const [meetingTitle, setMeetingTitle] = useState('')
+  const [sessionAt, setSessionAt] = useState('')
   const [recordingFile, setRecordingFile] = useState<File | null>(null)
   const [transcript, setTranscript] = useState('')
   const [summary, setSummary] = useState('')
   const [template, setTemplate] = useState<MinuteTemplate>(defaultTemplate)
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([])
+  const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([])
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [recordingInfo, setRecordingInfo] = useState('')
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [progressMode, setProgressMode] = useState<ProgressMode>(null)
+  const [progressKey, setProgressKey] = useState<ProgressKey>('validatingInput')
   const [guidedStep, setGuidedStep] = useState(1)
   const [hoveredGuideStep, setHoveredGuideStep] = useState<number | null>(null)
 
@@ -87,6 +420,31 @@ export default function MeetingStudioPage() {
     [projects, selectedProjectId]
   )
 
+  useEffect(() => {
+    const tenantId = selectedProject?.tenant?.id
+    if (!tenantId) {
+      setOwnerOptions([])
+      return
+    }
+
+    const fetchOwnerOptions = async () => {
+      const members = await get<Array<{ user?: { id: string; name: string; email: string } }>>(`/tenants/${tenantId}/members`)
+      if (!Array.isArray(members)) {
+        setOwnerOptions([])
+        return
+      }
+
+      const owners = members
+        .map((item) => item.user)
+        .filter((user): user is { id: string; name: string; email: string } => Boolean(user?.id && user?.name && user?.email))
+        .map((user) => ({ id: user.id, name: user.name, email: user.email }))
+
+      setOwnerOptions(owners)
+    }
+
+    fetchOwnerOptions()
+  }, [get, selectedProject?.tenant?.id])
+
   const guidedSteps = [
     {
       title: t('meetings.guide.steps.step1.title'),
@@ -105,9 +463,14 @@ export default function MeetingStudioPage() {
   const currentGuidedStep = guidedSteps[guidedStep - 1]
   const activeGuideStep = hoveredGuideStep ?? guidedStep
   const activeGuideStepData = guidedSteps[activeGuideStep - 1]
-  const stepOneComplete = Boolean(selectedProjectId) && Boolean(meetingTitle.trim()) && Boolean(sessionAt.trim())
+  const stepOneComplete = Boolean(selectedProjectId)
   const stepTwoComplete = Boolean(recordingFile) || Boolean(transcript.trim())
   const stepThreeComplete = Boolean(summary.trim()) || Boolean(template.objective.trim()) || Boolean(template.decisions.trim()) || Boolean(template.risks.trim()) || Boolean(template.actions.trim()) || Boolean(template.nextSteps.trim())
+
+  const updateProgress = (mode: Exclude<ProgressMode, null>, key: ProgressKey) => {
+    setProgressMode(mode)
+    setProgressKey(key)
+  }
 
   useEffect(() => {
     if (stepOneComplete && guidedStep === 1) {
@@ -119,6 +482,20 @@ export default function MeetingStudioPage() {
       setGuidedStep(3)
     }
   }, [guidedStep, stepOneComplete, stepTwoComplete])
+
+  useEffect(() => {
+    const nextActions = checklistToTemplateText(checklistItems)
+    setTemplate((current) => {
+      if (current.actions === nextActions) {
+        return current
+      }
+
+      return {
+        ...current,
+        actions: nextActions
+      }
+    })
+  }, [checklistItems])
 
   const isDocxFile = (file: File | null) => {
     if (!file) {
@@ -161,7 +538,7 @@ export default function MeetingStudioPage() {
         objective: typeof parsed.objective === 'string' ? parsed.objective.trim() : '',
         decisions: Array.isArray(parsed.decisions) ? parsed.decisions.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean) : [],
         risks: Array.isArray(parsed.risks) ? parsed.risks.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean) : [],
-        actionItems: Array.isArray(parsed.actionItems) ? parsed.actionItems.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean) : [],
+        actionItems: normalizeAiActionItems(parsed.actionItems),
         nextSteps: typeof parsed.nextSteps === 'string' ? parsed.nextSteps.trim() : ''
       }
     } catch {
@@ -179,7 +556,7 @@ export default function MeetingStudioPage() {
     '  "objective": "string",',
     '  "decisions": ["string"],',
     '  "risks": ["string"],',
-    '  "actionItems": ["string"],',
+    '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime"}],',
     '  "nextSteps": "string"',
     '}',
     'Respond in Thai for all text values.',
@@ -190,32 +567,32 @@ export default function MeetingStudioPage() {
 
   const preview = useMemo(() => {
     const parts = [
-      `Meeting Title: ${meetingTitle}`,
-      `Project: ${selectedProject?.name ?? currentTenant?.name ?? '—'}`,
+      `${t('meetings.previewLabels.meetingTitle')}: ${meetingTitle}`,
+      `${t('meetings.previewLabels.project')}: ${selectedProject?.name ?? currentTenant?.name ?? '—'}`,
       '',
-      '1. Objective',
+      `1. ${t('meetings.template.objective')}`,
       template.objective,
       '',
-      '2. Executive Summary',
+      `2. ${t('meetings.template.summary')}`,
       summary || template.summary,
       '',
-      '3. Key Decisions',
+      `3. ${t('meetings.template.decisions')}`,
       template.decisions,
       '',
-      '4. Risks / Issues',
+      `4. ${t('meetings.template.risks')}`,
       template.risks,
       '',
-      '5. Action Items',
+      `5. ${t('meetings.template.actions')}`,
       template.actions,
       '',
-      '6. Next Steps',
+      `6. ${t('meetings.template.nextSteps')}`,
       template.nextSteps,
       '',
-      transcript ? 'Transcript attached below.' : 'No transcript attached yet.'
+      transcript ? t('meetings.previewLabels.transcriptAttached') : t('meetings.previewLabels.noTranscript')
     ]
 
     return parts.filter(Boolean).join('\n')
-  }, [meetingTitle, selectedProject?.name, currentTenant?.name, template, summary, transcript])
+  }, [meetingTitle, selectedProject?.name, currentTenant?.name, template, summary, transcript, t])
 
   const handleTranscribe = async () => {
     if (!recordingFile) {
@@ -226,9 +603,11 @@ export default function MeetingStudioPage() {
     setError('')
     setStatus(t('meetings.status.transcribing'))
     setIsTranscribing(true)
+    updateProgress(isDocxFile(recordingFile) ? 'docx' : 'audio', 'validatingInput')
 
     try {
       if (isDocxFile(recordingFile)) {
+        updateProgress('docx', 'extractingDocumentText')
         const mammothModule = (await import('mammoth/mammoth.browser')) as DocxTextExtractor
         const extractRawText = mammothModule.extractRawText ?? mammothModule.default?.extractRawText
 
@@ -238,15 +617,36 @@ export default function MeetingStudioPage() {
 
         const extracted = await extractRawText({ arrayBuffer: await recordingFile.arrayBuffer() })
         const extractedText = extracted.value.trim()
+        const heuristicSummary = deriveDocxSummaryHeuristic(extractedText)
+        const inferredMeta = deriveMeetingMetaFromDocx(extractedText, recordingFile.name)
 
         setTranscript(extractedText)
+        if (inferredMeta.title) {
+          setMeetingTitle(inferredMeta.title)
+        }
+        if (inferredMeta.sessionAt) {
+          setSessionAt(inferredMeta.sessionAt)
+        }
         if (!summary.trim()) {
-          setSummary(extractedText.slice(0, 240))
+          setSummary(heuristicSummary.summary || extractedText.slice(0, 240))
         }
 
         setStatus(t('meetings.status.analyzingDocument'))
+        updateProgress('docx', 'analyzingDocumentWithAI')
+
+        let slowAnalysisTimer: ReturnType<typeof setTimeout> | null = null
+        let analysisTimeout: ReturnType<typeof setTimeout> | null = null
 
         try {
+          slowAnalysisTimer = setTimeout(() => {
+            setStatus(t('meetings.status.analysisTakingLong'))
+          }, 18000)
+
+          const analysisController = new AbortController()
+          analysisTimeout = setTimeout(() => {
+            analysisController.abort()
+          }, 30000)
+
           const analysisResponse = await fetch('/ai/playground/generate', {
             method: 'POST',
             headers: {
@@ -255,8 +655,13 @@ export default function MeetingStudioPage() {
             body: JSON.stringify({
               model: 'qwen2.5:7b',
               prompt: buildDocxAnalysisPrompt(extractedText)
-            })
+            }),
+            signal: analysisController.signal
           })
+
+          if (analysisTimeout) {
+            clearTimeout(analysisTimeout)
+          }
 
           const analysisData = await analysisResponse.json()
           if (!analysisResponse.ok) {
@@ -265,28 +670,61 @@ export default function MeetingStudioPage() {
 
           const parsedSummary = parseDocxSummary(analysisData.output || '')
           if (parsedSummary) {
+            updateProgress('docx', 'mappingToTemplate')
             setSummary(parsedSummary.summary || extractedText.slice(0, 240))
             setTemplate((current) => ({
               ...current,
               objective: parsedSummary.objective || current.objective,
               decisions: parsedSummary.decisions.join('\n'),
               risks: parsedSummary.risks.join('\n'),
-              actions: parsedSummary.actionItems.join('\n'),
               nextSteps: parsedSummary.nextSteps || current.nextSteps
             }))
+            setChecklistItems(toChecklistItems(parsedSummary.actionItems, ownerOptions, inferredMeta.sessionAt ?? sessionAt))
             setRecordingInfo(`${t('meetings.status.documentAnalyzed')}: ${recordingFile.name}`)
             setStatus(t('meetings.status.documentAnalyzed'))
           } else {
+            updateProgress('docx', 'mappingToTemplate')
+            setSummary(heuristicSummary.summary || extractedText.slice(0, 240))
+            setTemplate((current) => ({
+              ...current,
+              objective: heuristicSummary.objective || current.objective,
+              decisions: heuristicSummary.decisions.join('\n') || current.decisions,
+              risks: heuristicSummary.risks.join('\n') || current.risks,
+              nextSteps: heuristicSummary.nextSteps || current.nextSteps
+            }))
+            setChecklistItems(toChecklistItems(heuristicSummary.actionItems, ownerOptions, inferredMeta.sessionAt ?? sessionAt))
             setRecordingInfo(`${t('meetings.status.documentProcessed')}: ${recordingFile.name}`)
             setStatus(t('meetings.status.documentProcessed'))
           }
-        } catch {
+        } catch (analysisError) {
+          if (analysisError instanceof DOMException && analysisError.name === 'AbortError') {
+            setStatus(t('meetings.status.analysisTimedOutFallback'))
+          }
+          updateProgress('docx', 'mappingToTemplate')
+          setSummary(heuristicSummary.summary || extractedText.slice(0, 240))
+          setTemplate((current) => ({
+            ...current,
+            objective: heuristicSummary.objective || current.objective,
+            decisions: heuristicSummary.decisions.join('\n') || current.decisions,
+            risks: heuristicSummary.risks.join('\n') || current.risks,
+            nextSteps: heuristicSummary.nextSteps || current.nextSteps
+          }))
+          setChecklistItems(toChecklistItems(heuristicSummary.actionItems, ownerOptions, inferredMeta.sessionAt ?? sessionAt))
           setRecordingInfo(`${t('meetings.status.documentProcessed')}: ${recordingFile.name}`)
           setStatus(t('meetings.status.documentProcessed'))
+        } finally {
+          if (slowAnalysisTimer) {
+            clearTimeout(slowAnalysisTimer)
+          }
+          if (analysisTimeout) {
+            clearTimeout(analysisTimeout)
+          }
         }
+        updateProgress('docx', 'completed')
         return
       }
 
+      updateProgress('audio', 'uploadingRecording')
       const uploadForm = new FormData()
       uploadForm.append('audio', recordingFile)
 
@@ -308,6 +746,8 @@ export default function MeetingStudioPage() {
       formData.append('audio', recordingFile)
       formData.append('model', 'small')
       formData.append('language', 'th')
+
+      updateProgress('audio', 'transcribingRecording')
 
       const response = await fetch('/ai/playground/transcribe', {
         method: 'POST',
@@ -331,8 +771,10 @@ export default function MeetingStudioPage() {
       }
 
       setStatus(t('meetings.status.transcribed'))
+      updateProgress('audio', 'completed')
     } catch (transcribeError) {
       setError(transcribeError instanceof Error ? transcribeError.message : t('meetings.errors.transcriptionFailed'))
+      updateProgress(isDocxFile(recordingFile) ? 'docx' : 'audio', 'failed')
     } finally {
       setIsTranscribing(false)
     }
@@ -349,14 +791,39 @@ export default function MeetingStudioPage() {
       return
     }
 
+    if (!sessionAt.trim()) {
+      setError(t('meetings.errors.sessionAtRequired'))
+      return
+    }
+
     if (!summary.trim()) {
       setError(t('meetings.errors.summaryRequired'))
+      return
+    }
+
+    const actionItemsPayload = checklistItems
+      .map((item) => ({
+        task: item.text.trim(),
+        detail: item.detail.trim() || undefined,
+        assigneeId: item.ownerUserId,
+        dueDate: item.dueDate
+      }))
+      .filter((item) => item.task)
+
+    if (actionItemsPayload.some((item) => !item.assigneeId)) {
+      setError(t('meetings.errors.ownerRequiredForChecklist'))
+      return
+    }
+
+    if (actionItemsPayload.some((item) => Number.isNaN(new Date(item.dueDate).getTime()))) {
+      setError(t('meetings.errors.dueDateRequiredForChecklist'))
       return
     }
 
     setError('')
     setStatus(t('meetings.status.saving'))
     setIsSaving(true)
+    updateProgress('save', 'savingMeeting')
 
     try {
       const minutes = [
@@ -375,12 +842,22 @@ export default function MeetingStudioPage() {
         summary: summary.trim(),
         transcript: transcript.trim() || undefined,
         minutes,
-        actionItems: [],
+        actionItems: actionItemsPayload.map((item) => ({
+          task: item.task,
+          detail: item.detail,
+          assigneeId: item.assigneeId,
+          dueDate: new Date(item.dueDate).toISOString()
+        })),
       })
 
-      setStatus(t('meetings.status.saved'))
+      setStatus(t('meetings.status.savedRedirecting'))
+      updateProgress('save', 'completed')
+      window.setTimeout(() => {
+        navigate(`/continuity/${selectedProjectId}`)
+      }, 900)
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : t('meetings.errors.saveFailed'))
+      updateProgress('save', 'failed')
     } finally {
       setIsSaving(false)
     }
@@ -388,6 +865,31 @@ export default function MeetingStudioPage() {
 
   const updateTemplate = (key: MinuteSectionKey, value: string) => {
     setTemplate((current) => ({ ...current, [key]: value }))
+  }
+
+  const addChecklistItem = () => {
+    setChecklistItems((current) => ([
+      ...current,
+      {
+        id: checklistId(),
+        text: '',
+        ownerUserId: '',
+        dueDate: defaultChecklistDueDate(sessionAt),
+        detail: ''
+      }
+    ]))
+  }
+
+  const updateChecklistText = (id: string, text: string) => {
+    setChecklistItems((current) => current.map((item) => (item.id === id ? { ...item, text } : item)))
+  }
+
+  const removeChecklistItem = (id: string) => {
+    setChecklistItems((current) => current.filter((item) => item.id !== id))
+  }
+
+  const remapActionsToChecklist = () => {
+    setChecklistItems(parseChecklistFromText(template.actions, sessionAt))
   }
 
   return (
@@ -487,6 +989,40 @@ export default function MeetingStudioPage() {
           </div>
         )}
 
+        {progressMode && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">{t('meetings.progress.title')}</h3>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t('meetings.progress.subtitle')}</span>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {progressFlowByMode[progressMode].map((key, index) => {
+                const activeIndex = progressFlowByMode[progressMode].indexOf(progressKey)
+                const isActive = progressKey === key
+                const isCompleted = activeIndex > -1 && index < activeIndex
+                const isFinalCompleted = key === 'completed' && isActive
+
+                return (
+                  <div
+                    key={`${progressMode}-${key}`}
+                    className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm ${isFinalCompleted || isCompleted ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-200' : isActive ? 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-200' : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300'}`}
+                  >
+                    <span className="mt-0.5 font-bold">{isFinalCompleted || isCompleted ? '✓' : isActive ? '•' : String(index + 1)}</span>
+                    <span>{t(`meetings.progress.steps.${key}`)}</span>
+                  </div>
+                )
+              })}
+
+              {progressKey === 'failed' && (
+                <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/20 dark:text-red-200">
+                  {t('meetings.progress.failedHint')}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <section className={`rounded-2xl border bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-5 transition ${guidedStep === 1 ? 'border-sky-300 ring-2 ring-sky-100 dark:border-sky-700 dark:ring-sky-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
             <div>
@@ -494,46 +1030,20 @@ export default function MeetingStudioPage() {
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('meetings.uploadHelp')}</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.project')}</span>
-                <select
-                  value={selectedProjectId}
-                  onChange={(event) => setSelectedProjectId(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                >
-                  <option value="">{t('meetings.selectProject')}</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.code ? `${project.code} · ` : ''}{project.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.titleField')}</span>
-                <input
-                  value={meetingTitle}
-                  onChange={(event) => {
-                    setMeetingTitle(event.target.value)
-                    if (selectedProjectId && event.target.value.trim() && sessionAt.trim()) {
-                      setGuidedStep((current) => Math.max(current, 2))
-                    }
-                  }}
-                  className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                />
-              </label>
-            </div>
-
             <label className="block">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.sessionAt')}</span>
-              <input
-                type="datetime-local"
-                value={sessionAt}
-                onChange={(event) => setSessionAt(event.target.value)}
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.project')}</span>
+              <select
+                value={selectedProjectId}
+                onChange={(event) => setSelectedProjectId(event.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-              />
+              >
+                <option value="">{t('meetings.selectProject')}</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.code ? `${project.code} · ` : ''}{project.name}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label className="block">
@@ -591,6 +1101,35 @@ export default function MeetingStudioPage() {
                 placeholder={t('meetings.transcriptPlaceholder')}
               />
             </label>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                {t('meetings.detectedMetaLabel')}
+              </p>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t('meetings.detectedMetaHint')}</p>
+
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.titleField')}</span>
+                  <input
+                    value={meetingTitle}
+                    onChange={(event) => setMeetingTitle(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    placeholder={t('meetings.titleAutoPlaceholder')}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.sessionAt')}</span>
+                  <input
+                    type="datetime-local"
+                    value={sessionAt}
+                    onChange={(event) => setSessionAt(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                  />
+                </label>
+              </div>
+            </div>
           </section>
 
           <section className={`rounded-2xl border bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-5 transition ${guidedStep === 2 ? 'border-sky-300 ring-2 ring-sky-100 dark:border-sky-700 dark:ring-sky-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
@@ -661,17 +1200,97 @@ export default function MeetingStudioPage() {
 
             <label className="block">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.template.actions')}</span>
-              <textarea
-                value={template.actions}
-                onChange={(event) => {
-                  updateTemplate('actions', event.target.value)
-                  if (event.target.value.trim()) {
-                    setGuidedStep(3)
-                  }
-                }}
-                rows={3}
-                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-              />
+              <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40 space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={addChecklistItem}
+                    className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-white dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
+                  >
+                    {t('meetings.checklist.add')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={remapActionsToChecklist}
+                    className="rounded-lg border border-blue-300 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-950/30"
+                  >
+                    {t('meetings.checklist.remap')}
+                  </button>
+                </div>
+
+                {checklistItems.length === 0 && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{t('meetings.checklist.empty')}</p>
+                )}
+
+                {checklistItems.map((item, index) => (
+                  <div key={item.id} className="rounded-lg border border-slate-200 bg-white px-3 py-3 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                        {t('meetings.checklist.itemLabel', { index: index + 1 })}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeChecklistItem(item.id)}
+                        className="rounded-md border border-red-300 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-200 dark:hover:bg-red-950/30"
+                      >
+                        {t('meetings.checklist.remove')}
+                      </button>
+                    </div>
+
+                    <div className="mt-2 space-y-2">
+                      <input
+                        value={item.text}
+                        onChange={(event) => {
+                          updateChecklistText(item.id, event.target.value)
+                          if (event.target.value.trim()) {
+                            setGuidedStep(3)
+                          }
+                        }}
+                        placeholder={t('meetings.checklist.placeholder')}
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                      />
+
+                      <input
+                        value={item.detail}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          setChecklistItems((current) => current.map((row) => (row.id === item.id ? { ...row, detail: value } : row)))
+                        }}
+                        placeholder={t('meetings.checklist.detailPlaceholder')}
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                      />
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <select
+                          value={item.ownerUserId}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setChecklistItems((current) => current.map((row) => (row.id === item.id ? { ...row, ownerUserId: value } : row)))
+                          }}
+                          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                        >
+                          <option value="">{t('meetings.checklist.selectOwner')}</option>
+                          {ownerOptions.map((owner) => (
+                            <option key={owner.id} value={owner.id}>
+                              {owner.name} · {owner.email}
+                            </option>
+                          ))}
+                        </select>
+
+                        <input
+                          type="datetime-local"
+                          value={item.dueDate}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setChecklistItems((current) => current.map((row) => (row.id === item.id ? { ...row, dueDate: value } : row)))
+                          }}
+                          className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </label>
 
             <label className="block">
@@ -700,7 +1319,10 @@ export default function MeetingStudioPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setTemplate(defaultTemplate())}
+                onClick={() => {
+                  setTemplate(defaultTemplate())
+                  setChecklistItems([])
+                }}
                 className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 {t('meetings.actions.resetTemplate')}

@@ -119,10 +119,6 @@ export default function LoginPage() {
                 {isLoading ? `${t('common.loading')}...` : t('auth.signIn')}
               </button>
             </form>
-
-            <p className="text-center text-sm text-gray-600 dark:text-slate-400 mt-6 bg-gray-50 dark:bg-slate-800 rounded-lg p-3">
-              {t('auth.demoCredentials')}
-            </p>
         </div>
       </div>
     </div>

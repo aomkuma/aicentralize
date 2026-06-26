@@ -1,9 +1,14 @@
-import { Router } from "express";
+import { SystemRole, UserRole } from "@prisma/client";
+import { Request, Router } from "express";
 import fs from "node:fs";
 import path from "node:path";
 import multer from "multer";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import { z } from "zod";
+import { env } from "../config/env";
+import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
+import { ensureProjectScopeAccess } from "../services/accessScopeService";
 import { askMinutes, generateWithLocalModel, transcribeWithWhisper } from "../services/aiService";
 import { getSystemSettings } from "../services/systemSettingsService";
 
@@ -15,8 +20,138 @@ const askSchema = z.object({
 
 const promptPlaygroundSchema = z.object({
   prompt: z.string().min(1).max(4000),
-  model: z.string().min(1).default("qwen2.5:7b")
+  model: z.string().min(1).default("qwen2.5:7b"),
+  projectId: z.string().min(1).optional()
 });
+
+type AuthPayload = JwtPayload & {
+  sub: string;
+  role: UserRole;
+  systemRole?: SystemRole;
+  email: string;
+};
+
+type OptionalAuthUser = {
+  id: string;
+  role: UserRole;
+  systemRole: SystemRole;
+  email: string;
+};
+
+function parseOptionalAuthUser(req: Request): OptionalAuthUser | null {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = auth.slice("Bearer ".length);
+  try {
+    const payload = jwt.verify(token, env.jwtSecret) as AuthPayload;
+    return {
+      id: payload.sub,
+      role: payload.role,
+      systemRole: payload.systemRole ?? SystemRole.USER,
+      email: payload.email
+    };
+  } catch {
+    return null;
+  }
+}
+
+function formatDateOnly(input: Date): string {
+  return input.toISOString().slice(0, 10);
+}
+
+async function buildProjectContext(user: OptionalAuthUser, projectId: string): Promise<string | null> {
+  const access = await ensureProjectScopeAccess({ id: user.id, role: user.role }, projectId);
+  if (!access.allowed) {
+    return null;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      id: true,
+      code: true,
+      name: true
+    }
+  });
+
+  if (!project) {
+    return null;
+  }
+
+  const actionItems = await prisma.actionItem.findMany({
+    where: {
+      status: { notIn: ["DONE", "CANCELLED"] },
+      meeting: {
+        projectId
+      }
+    },
+    select: {
+      task: true,
+      detail: true,
+      status: true,
+      dueDate: true,
+      createdAt: true,
+      assignee: {
+        select: {
+          name: true,
+          email: true
+        }
+      }
+    },
+    orderBy: [
+      { dueDate: "asc" },
+      { createdAt: "desc" }
+    ],
+    take: 40
+  });
+
+  const now = new Date();
+  const openCount = actionItems.length;
+  const overdueItems = actionItems.filter((item) => item.dueDate.getTime() < now.getTime());
+  const overdueCount = overdueItems.length;
+
+  const owners = new Map<string, { open: number; overdue: number }>();
+  for (const item of actionItems) {
+    const key = `${item.assignee.name} <${item.assignee.email}>`;
+    const current = owners.get(key) ?? { open: 0, overdue: 0 };
+    current.open += 1;
+    if (item.dueDate.getTime() < now.getTime()) {
+      current.overdue += 1;
+    }
+    owners.set(key, current);
+  }
+
+  const ownerLines = Array.from(owners.entries())
+    .sort((a, b) => b[1].overdue - a[1].overdue || b[1].open - a[1].open)
+    .slice(0, 8)
+    .map(([owner, stats]) => `- ${owner}: open=${stats.open}, overdue=${stats.overdue}`)
+    .join("\n");
+
+  const itemLines = actionItems
+    .slice(0, 25)
+    .map((item) => {
+      const overdueFlag = item.dueDate.getTime() < now.getTime() ? "OVERDUE" : "NOT_OVERDUE";
+      const detail = item.detail?.trim() ? ` | detail=${item.detail.trim()}` : "";
+      return `- owner=${item.assignee.name} <${item.assignee.email}> | due=${formatDateOnly(item.dueDate)} | status=${item.status} | overdue=${overdueFlag} | task=${item.task}${detail}`;
+    })
+    .join("\n");
+
+  return [
+    "PROJECT_SNAPSHOT (authoritative app data):",
+    `- projectId: ${project.id}`,
+    `- projectCode: ${project.code}`,
+    `- projectName: ${project.name}`,
+    `- openActionItems: ${openCount}`,
+    `- overdueActionItems: ${overdueCount}`,
+    "- ownersSummary:",
+    ownerLines || "- (none)",
+    "- actionItems:",
+    itemLines || "- (none)"
+  ].join("\n");
+}
 
 const transcribePlaygroundSchema = z.object({
   model: z.string().min(1).default("small"),
@@ -71,6 +206,15 @@ function buildLanguagePolicy(prompt: string): string {
     "Response policy:",
     `- Detected user language: ${preferredLanguage}`,
     `- Respond primarily in ${preferredLanguage}.`,
+    "- Use a male assistant persona in wording and tone.",
+    "- For Thai responses, use the pronoun 'ผม' and polite ending 'ครับ' naturally.",
+    "- Keep tone friendly and practical for project managers in Meeting Intelligence workflow.",
+    "- Avoid overly formal openings (for example: avoid 'เรียนคุณลูกค้า').",
+    "- Prefer bullet-point summaries for key topics instead of long paragraphs.",
+    "- When summarizing tasks, issues, or recommendations, output concise bullets first.",
+    "- If details are needed, keep them short under each bullet.",
+    "- Do not use markdown emphasis syntax such as '**' or '###' in output text.",
+    "- Use simple Thai that non-technical users can understand quickly.",
     "- Keep technical terms in other languages only when necessary for clarity.",
     "- Do not ask the user to switch language.",
     "- Do not switch to another language unless the user explicitly asks.",
@@ -112,12 +256,57 @@ aiRouter.post("/playground/generate", async (req, res) => {
   }
 
   try {
-    const guidedPrompt = `${buildLanguagePolicy(parsed.data.prompt)}\n\nUser question:\n${parsed.data.prompt}`;
+    const authUser = parseOptionalAuthUser(req);
+    const projectContext = authUser && parsed.data.projectId
+      ? await buildProjectContext(authUser, parsed.data.projectId)
+      : null;
+
+    const groundedInstructions = [
+      "Grounding policy:",
+      "- If PROJECT_SNAPSHOT is provided, treat it as source of truth for project task status.",
+      "- Answer using the snapshot fields directly, especially overdue and owner-related counts.",
+      "- If a requested fact is not in snapshot, say it is unavailable instead of inventing.",
+      "- Structure the answer with concise bullets for each key point before any extra explanation.",
+      "- Preferred output order: (1) ภาพรวมสถานะ (2) งานเกินกำหนดแยกตามเจ้าของ (3) งานสำคัญที่ควรทำต่อ (4) ข้อเสนอแนะสั้น ๆ",
+      "- Keep each bullet short and actionable for PM follow-up.",
+      "- Keep the response concise and practical."
+    ].join("\n");
+
+    const guidedPrompt = [
+      buildLanguagePolicy(parsed.data.prompt),
+      groundedInstructions,
+      projectContext ? `${projectContext}` : "PROJECT_SNAPSHOT: (not provided)",
+      "User question:",
+      parsed.data.prompt
+    ].join("\n\n");
 
     const data = await generateWithLocalModel({
       model: parsed.data.model,
       prompt: guidedPrompt
     });
+
+    if (authUser) {
+      try {
+        await prisma.askAiQueryLog.create({
+          data: {
+            userId: authUser.id,
+            projectId: parsed.data.projectId,
+            question: parsed.data.prompt,
+            answer: data.output,
+            confidence: "medium",
+            model: data.model,
+            retrievedEvidenceIds: [],
+            usedEvidenceJson: [],
+            retrievalDebugJson: {
+              source: "PLAYGROUND_CHAT",
+              grounded: Boolean(projectContext)
+            }
+          }
+        });
+      } catch {
+        // Do not fail generate response when history log write fails.
+      }
+    }
 
     return res.json({
       model: data.model,

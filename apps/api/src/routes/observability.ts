@@ -16,6 +16,14 @@ const aiRunLogsQuerySchema = z.object({
   userId: z.string().min(1).optional()
 });
 
+const askAiQueriesQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  projectId: z.string().min(1).optional(),
+  meetingId: z.string().min(1).optional(),
+  userId: z.string().min(1).optional()
+});
+
 observabilityRouter.get("/ai-runs", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]), async (req, res) => {
   const parsed = aiRunLogsQuerySchema.safeParse(req.query);
   if (!parsed.success) {
@@ -52,4 +60,74 @@ observabilityRouter.get("/ai-runs", requireAuth, requireRole([UserRole.ADMIN, Us
     page: parsed.data.page,
     pageSize: parsed.data.pageSize
   });
+});
+
+observabilityRouter.get("/ai-runs/:id", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]), async (req, res) => {
+  const item = await prisma.aiRunLog.findUnique({
+    where: { id: req.params.id },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      project: { select: { id: true, code: true, name: true } },
+      meeting: { select: { id: true, title: true, sessionAt: true } }
+    }
+  });
+
+  if (!item) {
+    return res.status(404).json({ message: "AI run log not found" });
+  }
+
+  return res.json(item);
+});
+
+observabilityRouter.get("/ask-ai-queries", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]), async (req, res) => {
+  const parsed = askAiQueriesQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
+  }
+
+  const skip = (parsed.data.page - 1) * parsed.data.pageSize;
+  const where = {
+    projectId: parsed.data.projectId,
+    meetingId: parsed.data.meetingId,
+    userId: parsed.data.userId
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.askAiQueryLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: parsed.data.pageSize,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        project: { select: { id: true, code: true, name: true } },
+        meeting: { select: { id: true, title: true, sessionAt: true } }
+      }
+    }),
+    prisma.askAiQueryLog.count({ where })
+  ]);
+
+  return res.json({
+    items,
+    total,
+    page: parsed.data.page,
+    pageSize: parsed.data.pageSize
+  });
+});
+
+observabilityRouter.get("/ask-ai-queries/:id", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]), async (req, res) => {
+  const item = await prisma.askAiQueryLog.findUnique({
+    where: { id: req.params.id },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      project: { select: { id: true, code: true, name: true } },
+      meeting: { select: { id: true, title: true, sessionAt: true } }
+    }
+  });
+
+  if (!item) {
+    return res.status(404).json({ message: "Ask-AI query log not found" });
+  }
+
+  return res.json(item);
 });
