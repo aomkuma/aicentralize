@@ -348,7 +348,12 @@ aiRouter.post("/playground/transcribe", upload.single("audio"), async (req, res)
 
     if (!whisperAllowed) {
       return res.status(403).json({
-        message: "Whisper transcription is disabled by system settings"
+        message: "Whisper transcription is disabled by system settings",
+        detail: {
+          asrMode: settings.ai.asrMode,
+          whisperEnabled: settings.ai.whisper.enabled,
+          whisperIntegrationEnabled: settings.integrations.whisperEnabled
+        }
       });
     }
 

@@ -4,6 +4,57 @@ import Layout from '../components/Layout'
 import { useApi } from '../hooks/useApi'
 import type { AiProviderAccount, SystemSettings } from '../types'
 
+type AiProvider = AiProviderAccount['provider']
+
+const providerOptions: AiProvider[] = ['ollama', 'openai', 'anthropic', 'gemini']
+
+const providerBaseUrls: Record<AiProvider, string> = {
+  gemini: 'https://generativelanguage.googleapis.com',
+  openai: 'https://api.openai.com',
+  anthropic: 'https://api.anthropic.com',
+  ollama: 'http://localhost:11434'
+}
+
+const providerModelOptions: Record<AiProvider, string[]> = {
+  gemini: [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
+    'gemini-2.0-flash'
+  ],
+  openai: [
+    'gpt-4o-mini',
+    'gpt-4o',
+    'gpt-4.1-mini',
+    'gpt-4.1',
+    'o4-mini'
+  ],
+  anthropic: [
+    'claude-3-5-haiku-latest',
+    'claude-3-5-sonnet-latest',
+    'claude-3-7-sonnet-latest',
+    'claude-sonnet-4-5',
+    'claude-opus-4-1'
+  ],
+  ollama: [
+    'qwen2.5:7b',
+    'qwen3:8b',
+    'llama3.2:3b',
+    'llama3.1:8b',
+    'mistral:7b',
+    'gemma2:9b'
+  ]
+}
+
+const whisperModelOptions = ['tiny', 'base', 'small', 'medium', 'large-v3']
+const whisperLanguageOptions = [
+  { value: 'th', label: 'Thai' },
+  { value: 'en', label: 'English' },
+  { value: 'auto', label: 'Auto detect' }
+]
+const maxPromptOptions = [2000, 4000, 8000, 12000]
+const sessionTtlOptions = [8, 12, 24, 72, 168, 720]
+
 export default function SystemSettingsPage() {
   const { t } = useTranslation()
   const { get, post, patch, delete: del, isLoading, error } = useApi()
@@ -43,8 +94,6 @@ export default function SystemSettingsPage() {
     fetchAiKeys()
   }, [fetchSettings, fetchAiKeys])
 
-  const providerOptions: Array<SystemSettings['ai']['generation']['provider']> = ['ollama', 'openai', 'anthropic', 'gemini']
-
   const toggleFallbackProvider = (provider: SystemSettings['ai']['generation']['provider']) => {
     if (!settings) {
       return
@@ -71,6 +120,64 @@ export default function SystemSettingsPage() {
     }
 
     setSettings({ ...settings, [key]: value })
+  }
+
+  const setWhisperEnabled = (enabled: boolean) => {
+    if (!settings) {
+      return
+    }
+
+    setSettings({
+      ...settings,
+      ai: {
+        ...settings.ai,
+        whisper: {
+          ...settings.ai.whisper,
+          enabled,
+        },
+      },
+      integrations: {
+        ...settings.integrations,
+        whisperEnabled: enabled,
+      },
+    })
+  }
+
+  const setGenerationProvider = (provider: SystemSettings['ai']['generation']['provider']) => {
+    if (!settings) {
+      return
+    }
+
+    const modelOptions = providerModelOptions[provider]
+    const previousOptions = providerModelOptions[settings.ai.generation.provider]
+    const shouldSwitchModel =
+      !settings.ai.generation.defaultModel ||
+      previousOptions.includes(settings.ai.generation.defaultModel)
+
+    setValue('ai', {
+      ...settings.ai,
+      generation: {
+        ...settings.ai.generation,
+        provider,
+        defaultModel: shouldSwitchModel ? modelOptions[0] : settings.ai.generation.defaultModel,
+        fallbackProviders: settings.ai.generation.fallbackProviders.filter((item) => item !== provider)
+      }
+    })
+  }
+
+  const setAiKeyProvider = (provider: AiProvider) => {
+    const previousProvider = aiKeyForm.provider
+    const previousModels = providerModelOptions[previousProvider]
+    const nextModels = providerModelOptions[provider]
+    const shouldSwitchModel = !aiKeyForm.model || previousModels.includes(aiKeyForm.model)
+    const shouldSwitchBaseUrl = !aiKeyForm.baseUrl || aiKeyForm.baseUrl === providerBaseUrls[previousProvider]
+
+    setAiKeyForm((prev) => ({
+      ...prev,
+      provider,
+      model: shouldSwitchModel ? nextModels[0] : prev.model,
+      baseUrl: shouldSwitchBaseUrl ? providerBaseUrls[provider] : prev.baseUrl
+    }))
   }
 
   const onSave = async () => {
@@ -190,14 +297,7 @@ export default function SystemSettingsPage() {
                   {t('settings.generationProvider')}
                   <select
                     value={settings.ai.generation.provider}
-                    onChange={(e) => setValue('ai', {
-                      ...settings.ai,
-                      generation: {
-                        ...settings.ai.generation,
-                        provider: e.target.value as SystemSettings['ai']['generation']['provider'],
-                        fallbackProviders: settings.ai.generation.fallbackProviders.filter((provider) => provider !== e.target.value)
-                      }
-                    })}
+                    onChange={(e) => setGenerationProvider(e.target.value as SystemSettings['ai']['generation']['provider'])}
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
                   >
                     <option value="ollama">Ollama</option>
@@ -210,22 +310,29 @@ export default function SystemSettingsPage() {
                 <label className="text-sm text-gray-700 dark:text-slate-300">
                   {t('settings.defaultGenerationModel')}
                   <input
+                    list="generation-model-options"
                     value={settings.ai.generation.defaultModel}
                     onChange={(e) => setValue('ai', { ...settings.ai, generation: { ...settings.ai.generation, defaultModel: e.target.value } })}
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
                   />
+                  <datalist id="generation-model-options">
+                    {providerModelOptions[settings.ai.generation.provider].map((model) => (
+                      <option key={model} value={model} />
+                    ))}
+                  </datalist>
                 </label>
 
                 <label className="text-sm text-gray-700 dark:text-slate-300">
                   {t('settings.maxPromptChars')}
-                  <input
-                    type="number"
-                    min={256}
-                    max={12000}
+                  <select
                     value={settings.ai.generation.maxPromptChars}
                     onChange={(e) => setValue('ai', { ...settings.ai, generation: { ...settings.ai.generation, maxPromptChars: Number(e.target.value) || 4000 } })}
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
-                  />
+                  >
+                    {maxPromptOptions.map((value) => (
+                      <option key={value} value={value}>{value.toLocaleString()}</option>
+                    ))}
+                  </select>
                 </label>
 
                 <div className="md:col-span-2 rounded-md border border-gray-200 dark:border-slate-700 p-3">
@@ -256,20 +363,28 @@ export default function SystemSettingsPage() {
 
                 <label className="text-sm text-gray-700 dark:text-slate-300">
                   {t('settings.whisperModel')}
-                  <input
+                  <select
                     value={settings.ai.whisper.model}
                     onChange={(e) => setValue('ai', { ...settings.ai, whisper: { ...settings.ai.whisper, model: e.target.value } })}
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
-                  />
+                  >
+                    {whisperModelOptions.map((model) => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
                 </label>
 
                 <label className="text-sm text-gray-700 dark:text-slate-300">
                   {t('settings.whisperLanguage')}
-                  <input
+                  <select
                     value={settings.ai.whisper.language}
                     onChange={(e) => setValue('ai', { ...settings.ai, whisper: { ...settings.ai.whisper, language: e.target.value } })}
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
-                  />
+                  >
+                    {whisperLanguageOptions.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
                 </label>
 
                 <label className="text-sm text-gray-700 dark:text-slate-300">
@@ -288,7 +403,7 @@ export default function SystemSettingsPage() {
                   <input
                     type="checkbox"
                     checked={settings.ai.whisper.enabled}
-                    onChange={(e) => setValue('ai', { ...settings.ai, whisper: { ...settings.ai.whisper, enabled: e.target.checked } })}
+                    onChange={(e) => setWhisperEnabled(e.target.checked)}
                   />
                   {t('settings.whisperEnabled')}
                 </label>
@@ -318,14 +433,15 @@ export default function SystemSettingsPage() {
 
                 <label className="text-sm text-gray-700 dark:text-slate-300">
                   {t('settings.sessionTtlHours')}
-                  <input
-                    type="number"
-                    min={1}
-                    max={720}
+                  <select
                     value={settings.security.sessionTtlHours}
                     onChange={(e) => setValue('security', { ...settings.security, sessionTtlHours: Number(e.target.value) || 12 })}
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
-                  />
+                  >
+                    {sessionTtlOptions.map((value) => (
+                      <option key={value} value={value}>{value}</option>
+                    ))}
+                  </select>
                 </label>
               </div>
             </section>
@@ -367,7 +483,7 @@ export default function SystemSettingsPage() {
                   <input
                     type="checkbox"
                     checked={settings.integrations.whisperEnabled}
-                    onChange={(e) => setValue('integrations', { ...settings.integrations, whisperEnabled: e.target.checked })}
+                    onChange={(e) => setWhisperEnabled(e.target.checked)}
                   />
                   {t('settings.whisperIntegrationEnabled')}
                 </label>
@@ -381,7 +497,7 @@ export default function SystemSettingsPage() {
                   {t('settings.aiKeyProvider')}
                   <select
                     value={aiKeyForm.provider}
-                    onChange={(e) => setAiKeyForm((prev) => ({ ...prev, provider: e.target.value as AiProviderAccount['provider'] }))}
+                    onChange={(e) => setAiKeyProvider(e.target.value as AiProvider)}
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
                   >
                     <option value="gemini">Gemini</option>
@@ -412,21 +528,30 @@ export default function SystemSettingsPage() {
                 <label className="text-sm text-gray-700 dark:text-slate-300">
                   {t('settings.aiKeyModel')}
                   <input
+                    list="ai-key-model-options"
                     value={aiKeyForm.model}
                     onChange={(e) => setAiKeyForm((prev) => ({ ...prev, model: e.target.value }))}
-                    placeholder="gemini-2.0-flash"
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
                   />
+                  <datalist id="ai-key-model-options">
+                    {providerModelOptions[aiKeyForm.provider].map((model) => (
+                      <option key={model} value={model} />
+                    ))}
+                  </datalist>
                 </label>
 
                 <label className="text-sm text-gray-700 dark:text-slate-300">
                   {t('settings.aiKeyBaseUrl')}
-                  <input
+                  <select
                     value={aiKeyForm.baseUrl}
                     onChange={(e) => setAiKeyForm((prev) => ({ ...prev, baseUrl: e.target.value }))}
-                    placeholder="https://generativelanguage.googleapis.com"
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
-                  />
+                  >
+                    <option value="">Default</option>
+                    {providerOptions.map((provider) => (
+                      <option key={provider} value={providerBaseUrls[provider]}>{providerBaseUrls[provider]}</option>
+                    ))}
+                  </select>
                 </label>
 
                 <label className="text-sm text-gray-700 dark:text-slate-300">

@@ -125,9 +125,17 @@ async function resolveGenerationConfig(input: LocalGenerateInput): Promise<{ pro
 
   try {
     const settings = await getSystemSettings();
-    const fallbackProviders = (settings.ai.generation.fallbackProviders ?? [])
+    const configuredFallbackProviders = (settings.ai.generation.fallbackProviders ?? [])
       .map((value) => parseProvider(value))
       .filter((value): value is AiProvider => Boolean(value));
+    const activeCredentialProviders = (settings.aiProviders.accounts ?? [])
+      .filter((account) => account.isActive)
+      .map((account) => parseProvider(account.provider))
+      .filter((value): value is AiProvider => Boolean(value));
+    const fallbackProviders = [...new Set([
+      ...configuredFallbackProviders,
+      ...activeCredentialProviders
+    ])].filter((provider) => provider !== settings.ai.generation.provider);
 
     return {
       providers: resolveProviderChain({
@@ -405,13 +413,14 @@ async function generateWithGemini(input: LocalGenerateInput): Promise<LocalGener
 export async function generateWithLocalModel(input: LocalGenerateInput): Promise<LocalGenerateResult> {
   const generationConfig = await resolveGenerationConfig(input);
   const providers = generationConfig.providers;
-  const runtimeInput: LocalGenerateInput = {
-    ...input,
-    model: generationConfig.model
-  };
   const errors: string[] = [];
 
   for (const provider of providers) {
+    const runtimeInput: LocalGenerateInput = {
+      ...input,
+      model: provider === providers[0] ? generationConfig.model : undefined
+    };
+
     try {
       if (provider === "openai") {
         return await generateWithOpenAI(runtimeInput);

@@ -44,7 +44,7 @@ type SpeechRecognitionEventLike = {
 
 const DEFAULT_MODEL = 'qwen2.5:7b'
 
-function calculateRms(samples: Float32Array | null): number {
+function calculateRms(samples: Float32Array<ArrayBufferLike> | null): number {
   if (!samples || !samples.length) {
     return 0
   }
@@ -57,7 +57,7 @@ function calculateRms(samples: Float32Array | null): number {
   return Math.sqrt(sum / samples.length)
 }
 
-function calculateSpectralCentroid(freq: Uint8Array | null, sampleRate: number): number {
+function calculateSpectralCentroid(freq: Uint8Array<ArrayBufferLike> | null, sampleRate: number): number {
   if (!freq || !freq.length) {
     return 0
   }
@@ -182,8 +182,8 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const analyserNodeRef = useRef<AnalyserNode | null>(null)
   const analysisTimerRef = useRef<number | null>(null)
-  const timeDomainDataRef = useRef<Float32Array | null>(null)
-  const freqDataRef = useRef<Uint8Array | null>(null)
+  const timeDomainDataRef = useRef<Float32Array<ArrayBuffer> | null>(null)
+  const freqDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const voiceFramesRef = useRef<VoiceFrame[]>([])
   const speakerProfilesRef = useRef<Record<SpeakerLabel, SpeakerProfile | undefined>>({ A: undefined, B: undefined, C: undefined })
   const autoSpeakerIndexRef = useRef(0)
@@ -661,7 +661,8 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
 
       const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.detail || data.message || t('aiChat.errors.transcriptionFailed'))
+        const detail = typeof data.detail === 'string' ? data.detail : ''
+        throw new Error(detail || data.message || t('aiChat.errors.transcriptionFailed'))
       }
 
       return data as {
@@ -764,6 +765,26 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
     mediaRecorderRef.current = null
 
     const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+    const browserTranscript = buildFallbackTranscript()
+
+    if (browserTranscript) {
+      setLiveTranscriptText(browserTranscript)
+      if (!isTranscriptDirty) {
+        setTranscriptText(browserTranscript)
+      }
+
+      try {
+        const uploaded = await uploadAudio(audioBlob)
+        setAudioInfo(t('aiChat.recording.savedFile', { fileName: uploaded.fileName, countSuffix: '' }))
+      } catch (error) {
+        setAudioInfo(error instanceof Error ? error.message : t('aiChat.errors.uploadFailed'))
+      }
+
+      setRecordingStatus(t('aiChat.recording.browserTranscriptReady', {
+        defaultValue: 'Browser transcript is ready. Edit it if needed, then click Analyze Transcript.'
+      }))
+      return
+    }
 
     try {
       setRecordingStatus(t('aiChat.recording.transcribingWhisper'))
