@@ -174,7 +174,7 @@ export default function Sidebar({
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-screen bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 shadow-lg transition-all duration-300 ease-in-out z-40 w-64 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 flex h-screen flex-col overflow-hidden bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 shadow-lg transition-all duration-300 ease-in-out z-40 w-64 lg:translate-x-0 ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         } ${
           isDesktopCollapsed ? 'lg:w-20' : 'lg:w-64'
@@ -235,7 +235,7 @@ export default function Sidebar({
         )}
 
         {/* Navigation menu */}
-        <nav className={`flex-1 overflow-y-auto py-6 pb-44 transition-[padding] duration-300 ease-out ${isCollapsed ? 'px-2 lg:px-3' : 'px-4'}`}>
+        <nav className={`min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 transition-[padding] duration-300 ease-out ${isCollapsed ? 'px-2 lg:px-3' : 'px-4'}`}>
           <ul className="space-y-2">
             {navItems.map((item) => {
               const label = getNavLabel(item)
@@ -282,12 +282,12 @@ export default function Sidebar({
         </nav>
 
         {/* Theme & Language toggles */}
-        <div className={`absolute bottom-0 left-0 right-0 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 transition-[padding] duration-300 ease-out ${isCollapsed ? 'p-2 lg:p-3 space-y-2' : 'p-4 space-y-3'}`}>
+        <div className={`shrink-0 border-t border-gray-200 bg-white/95 dark:border-slate-700 dark:bg-slate-900/95 transition-[padding] duration-300 ease-out ${isCollapsed ? 'p-2 lg:p-3 space-y-2' : 'p-4 space-y-3'}`}>
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}
             title={isDesktopCollapsed ? 'Toggle theme' : undefined}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-600 transition-all duration-300 ease-out text-sm font-medium ${isCollapsed ? 'lg:justify-center lg:px-2 lg:py-2.5' : ''}`}
+            className={`w-full flex items-center justify-between rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition-all duration-300 ease-out hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 ${isCollapsed ? 'lg:justify-center lg:px-2 lg:py-2.5' : ''}`}
           >
             <span className="flex items-center gap-2">
               {theme === 'dark' ? (
@@ -310,14 +310,14 @@ export default function Sidebar({
           </button>
 
           {/* Language Switcher */}
-          <div className={`flex items-center gap-2 transition-all duration-300 ease-out ${isCollapsed ? 'lg:justify-center lg:gap-0' : ''}`}>
-            <span className={`text-xs font-semibold text-gray-600 dark:text-slate-400 ${isCollapsed ? 'lg:hidden' : ''}`}>Language:</span>
+          <div className={`transition-all duration-300 ease-out ${isCollapsed ? 'lg:flex lg:justify-center' : ''}`}>
+            <span className={`mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${isCollapsed ? 'lg:hidden' : ''}`}>Language</span>
             <LanguageSwitcher compact />
           </div>
 
           {/* User section */}
           <div className="border-t border-gray-200 dark:border-slate-700 pt-3">
-            <div className={`flex items-center gap-3 px-2 py-2 rounded-lg bg-gray-100 dark:bg-slate-700 mb-3 transition-all duration-300 ease-out ${isCollapsed ? 'lg:justify-center lg:gap-0' : ''}`}>
+            <div className={`flex items-center gap-3 px-2 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 mb-3 transition-all duration-300 ease-out ${isCollapsed ? 'lg:justify-center lg:gap-0' : ''}`}>
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-sm font-bold text-white">
                 {user?.name.charAt(0).toUpperCase()}
               </div>

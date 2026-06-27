@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
+import LiveMeetingRecorder, { type LiveMeetingRecordingResult } from '../components/LiveMeetingRecorder'
 import { useApi } from '../hooks/useApi'
 import { useTenantStore } from '../stores/tenantStore'
 import type { Project } from '../types'
@@ -46,6 +47,7 @@ type ProgressKey =
   | 'mappingToTemplate'
   | 'uploadingRecording'
   | 'transcribingRecording'
+  | 'analyzingRecording'
   | 'savingMeeting'
   | 'completed'
   | 'failed'
@@ -364,7 +366,7 @@ const deriveDocxSummaryHeuristic = (raw: string): DocxMinuteSummary => {
 
 const progressFlowByMode: Record<Exclude<ProgressMode, null>, ProgressKey[]> = {
   docx: ['validatingInput', 'extractingDocumentText', 'analyzingDocumentWithAI', 'mappingToTemplate', 'completed'],
-  audio: ['validatingInput', 'uploadingRecording', 'transcribingRecording', 'completed'],
+  audio: ['validatingInput', 'uploadingRecording', 'transcribingRecording', 'analyzingRecording', 'mappingToTemplate', 'completed'],
   save: ['savingMeeting', 'completed']
 }
 
@@ -565,6 +567,149 @@ export default function MeetingStudioPage() {
     text.slice(0, 2400)
   ].join('\n')
 
+  const buildTranscriptAnalysisPrompt = (text: string) => [
+    'You are a senior meeting minute analyst.',
+    'Analyze the following meeting transcript and return ONLY valid JSON.',
+    'No markdown, no code fences, no extra explanation.',
+    'Use this schema exactly:',
+    '{',
+    '  "summary": "string",',
+    '  "objective": "string",',
+    '  "decisions": ["string"],',
+    '  "risks": ["string"],',
+    '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime"}],',
+    '  "nextSteps": "string"',
+    '}',
+    'Respond in Thai for all text values.',
+    'Preserve project-specific names, dates, owners, and action wording when present.',
+    '',
+    'Transcript excerpt:',
+    text.slice(0, 4000)
+  ].join('\n')
+
+  const applyTranscriptAnalysis = async (text: string, sourceName: string) => {
+    const cleanText = text.trim()
+    if (!cleanText) {
+      return
+    }
+
+    setTranscript(cleanText)
+    if (!summary.trim()) {
+      setSummary(cleanText.slice(0, 240))
+    }
+
+    setStatus(t('meetings.status.analyzingRecording'))
+    updateProgress('audio', 'analyzingRecording')
+
+    const analysisResponse = await fetch('/ai/playground/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'qwen2.5:7b',
+        prompt: buildTranscriptAnalysisPrompt(cleanText)
+      })
+    })
+
+    const analysisData = await analysisResponse.json()
+    if (!analysisResponse.ok) {
+      throw new Error(analysisData.detail || analysisData.message || t('meetings.errors.documentAnalysisFailed'))
+    }
+
+    const parsedSummary = parseDocxSummary(analysisData.output || '')
+    if (!parsedSummary) {
+      setRecordingInfo(`${t('meetings.status.transcribed')}: ${sourceName}`)
+      return
+    }
+
+    updateProgress('audio', 'mappingToTemplate')
+    setSummary(parsedSummary.summary || cleanText.slice(0, 240))
+    setTemplate((current) => ({
+      ...current,
+      objective: parsedSummary.objective || current.objective,
+      decisions: parsedSummary.decisions.join('\n') || current.decisions,
+      risks: parsedSummary.risks.join('\n') || current.risks,
+      nextSteps: parsedSummary.nextSteps || current.nextSteps
+    }))
+    setChecklistItems(toChecklistItems(parsedSummary.actionItems, ownerOptions, sessionAt))
+    setRecordingInfo(`${t('meetings.status.recordingAnalyzed')}: ${sourceName}`)
+    setStatus(t('meetings.status.recordingAnalyzed'))
+  }
+
+  const processAudioFile = async (audioFile: File, preferredTranscript = '') => {
+    if (preferredTranscript.trim()) {
+      await applyTranscriptAnalysis(preferredTranscript, audioFile.name)
+      updateProgress('audio', 'completed')
+      return
+    }
+
+    updateProgress('audio', 'uploadingRecording')
+    const uploadForm = new FormData()
+    uploadForm.append('audio', audioFile)
+
+    const uploadResponse = await fetch('/ai/playground/record/upload', {
+      method: 'POST',
+      body: uploadForm,
+    })
+
+    const uploadData = await uploadResponse.json()
+    if (!uploadResponse.ok) {
+      throw new Error(uploadData.message || t('meetings.errors.uploadFailed'))
+    }
+
+    setRecordingInfo(`${t('meetings.status.uploadedOnly')}: ${uploadData.fileName}`)
+
+    const formData = new FormData()
+    formData.append('audio', audioFile)
+    formData.append('model', 'small')
+    formData.append('language', 'th')
+
+    updateProgress('audio', 'transcribingRecording')
+
+    const response = await fetch('/ai/playground/transcribe', {
+      method: 'POST',
+      body: formData,
+    })
+
+    const data = await response.json()
+    if (!response.ok) {
+      if (response.status === 403 || /Whisper transcription is disabled/i.test(data.message || '')) {
+        setStatus(t('meetings.status.uploadedOnly'))
+        return
+      }
+      const detail = typeof data.detail === 'string' ? data.detail : ''
+      throw new Error(detail || data.message || t('meetings.errors.transcriptionFailed'))
+    }
+
+    if (data.transcript) {
+      await applyTranscriptAnalysis(data.transcript, uploadData.fileName || audioFile.name)
+    } else {
+      setStatus(t('meetings.status.transcribed'))
+    }
+
+    updateProgress('audio', 'completed')
+  }
+
+  const handleLiveRecordingReady = async (result: LiveMeetingRecordingResult) => {
+    const liveFile = new File([result.audioBlob], result.fileName, { type: result.audioBlob.type || 'audio/webm' })
+    setRecordingFile(liveFile)
+    setGuidedStep((current) => Math.max(current, 3))
+    setError('')
+    setStatus(t('meetings.status.processingLiveRecording'))
+    setIsTranscribing(true)
+    updateProgress('audio', 'validatingInput')
+
+    try {
+      await processAudioFile(liveFile, result.transcript)
+    } catch (recordingError) {
+      setError(recordingError instanceof Error ? recordingError.message : t('meetings.errors.transcriptionFailed'))
+      updateProgress('audio', 'failed')
+    } finally {
+      setIsTranscribing(false)
+    }
+  }
+
   const preview = useMemo(() => {
     const parts = [
       `${t('meetings.previewLabels.meetingTitle')}: ${meetingTitle}`,
@@ -724,54 +869,7 @@ export default function MeetingStudioPage() {
         return
       }
 
-      updateProgress('audio', 'uploadingRecording')
-      const uploadForm = new FormData()
-      uploadForm.append('audio', recordingFile)
-
-      const uploadResponse = await fetch('/ai/playground/record/upload', {
-        method: 'POST',
-        body: uploadForm,
-      })
-
-      const uploadData = await uploadResponse.json()
-      if (!uploadResponse.ok) {
-        throw new Error(uploadData.message || t('meetings.errors.uploadFailed'))
-      }
-
-      setRecordingInfo(
-        `${t('meetings.status.uploadedOnly')}: ${uploadData.fileName}`
-      )
-
-      const formData = new FormData()
-      formData.append('audio', recordingFile)
-      formData.append('model', 'small')
-      formData.append('language', 'th')
-
-      updateProgress('audio', 'transcribingRecording')
-
-      const response = await fetch('/ai/playground/transcribe', {
-        method: 'POST',
-        body: formData,
-      })
-
-      const data = await response.json()
-      if (!response.ok) {
-        if (response.status === 403 || /Whisper transcription is disabled/i.test(data.message || '')) {
-          setStatus(t('meetings.status.uploadedOnly'))
-          return
-        }
-        throw new Error(data.detail || data.message || t('meetings.errors.transcriptionFailed'))
-      }
-
-      if (data.transcript) {
-        setTranscript(data.transcript)
-        if (!summary.trim()) {
-          setSummary(data.transcript.slice(0, 240))
-        }
-      }
-
-      setStatus(t('meetings.status.transcribed'))
-      updateProgress('audio', 'completed')
+      await processAudioFile(recordingFile)
     } catch (transcribeError) {
       setError(transcribeError instanceof Error ? transcribeError.message : t('meetings.errors.transcriptionFailed'))
       updateProgress(isDocxFile(recordingFile) ? 'docx' : 'audio', 'failed')
@@ -1061,6 +1159,11 @@ export default function MeetingStudioPage() {
                 className="mt-1 block w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800 dark:text-slate-300"
               />
             </label>
+
+            <LiveMeetingRecorder
+              disabled={isTranscribing}
+              onRecordingReady={handleLiveRecordingReady}
+            />
 
             <div className="flex flex-wrap gap-3">
               <button

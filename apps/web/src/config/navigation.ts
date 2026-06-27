@@ -48,7 +48,7 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
   {
     id: 'setup',
     to: '/setup',
-    labelKey: 'setup.welcomeTitle',
+    labelKey: 'setup.createOrganization',
     icon: 'setup',
   },
   {

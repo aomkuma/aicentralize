@@ -296,6 +296,9 @@
     "status": {
       "transcribing": "กำลังถอดข้อความ...",
       "transcribed": "ถอดข้อความเรียบร้อย",
+      "processingLiveRecording": "กำลังประมวลผลเสียงที่อัดสด...",
+      "analyzingRecording": "กำลังวิเคราะห์ข้อความถอดเสียง...",
+      "recordingAnalyzed": "วิเคราะห์ข้อความถอดเสียงเรียบร้อย",
       "documentProcessed": "ประมวลผลเอกสารเรียบร้อย",
       "analyzingDocument": "กำลังวิเคราะห์เอกสาร...",
       "analysisTakingLong": "AI กำลังวิเคราะห์เอกสารต่อ ใช้เวลานานกว่าปกติเล็กน้อย...",
@@ -317,6 +320,7 @@
         "mappingToTemplate": "เติมข้อมูลลงในแบบฟอร์มรายงานการประชุม",
         "uploadingRecording": "อัปโหลดไฟล์บันทึกการประชุม",
         "transcribingRecording": "ถอดเสียงเป็นข้อความ",
+        "analyzingRecording": "วิเคราะห์ข้อความถอดเสียงด้วย AI",
         "savingMeeting": "บันทึกข้อมูลการประชุมเข้าระบบ",
         "completed": "เสร็จเรียบร้อย"
       }

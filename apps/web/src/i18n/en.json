@@ -418,6 +418,9 @@
     "status": {
       "transcribing": "Transcribing recording...",
       "transcribed": "Recording transcribed.",
+      "processingLiveRecording": "Processing live recording...",
+      "analyzingRecording": "Analyzing recording transcript...",
+      "recordingAnalyzed": "Recording transcript analyzed",
       "documentProcessed": "Document processed",
       "analyzingDocument": "Analyzing document...",
       "analysisTakingLong": "AI is still analyzing the document. This is taking a bit longer than usual...",
@@ -439,6 +442,7 @@
         "mappingToTemplate": "Fill minute template fields",
         "uploadingRecording": "Upload recording file",
         "transcribingRecording": "Transcribe audio to text",
+        "analyzingRecording": "Analyze transcript with AI",
         "savingMeeting": "Save meeting data to backend",
         "completed": "Done"
       }
