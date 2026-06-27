@@ -5,7 +5,7 @@ ENV PATH="$PNPM_HOME:$PATH"
 
 WORKDIR /app
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
 FROM base AS deps
 
@@ -32,7 +32,7 @@ ENV PATH="$PNPM_HOME:$PATH"
 
 WORKDIR /app
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
 COPY --from=build /app/runtime ./
 COPY --from=build /app/apps/api/dist ./dist
