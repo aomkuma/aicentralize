@@ -26,7 +26,7 @@ export const env = {
   databaseUrl: required("DATABASE_URL", "postgresql://test:test@localhost:5432/test"),
   jwtSecret: required("JWT_SECRET", "test-secret"),
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
-  aiPrimaryProvider: process.env.AI_PRIMARY_PROVIDER ?? "ollama",
+  aiPrimaryProvider: process.env.AI_PRIMARY_PROVIDER ?? "gemini",
   aiFallbackProvider: process.env.AI_FALLBACK_PROVIDER,
   aiRequestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS ?? 120000),
   openaiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com",

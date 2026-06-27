@@ -11,15 +11,30 @@ services:
     environment:
       NODE_ENV: production
       PORT: ${PORT:-4000}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-aicentralize}?schema=public
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-aicentralize}?schema=public
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      WAIT_FOR_OLLAMA: ${WAIT_FOR_OLLAMA:-false}
     ports:
       - "${PORT:-4000}:4000"
     depends_on:
       postgres:
         condition: service_healthy
-      ollama:
-        condition: service_started
+
+  web:
+    profiles: ["production"]
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000}
+    container_name: aicentralize-web
+    restart: unless-stopped
+    environment:
+      PORT: ${WEB_PORT:-8080}
+    ports:
+      - "${WEB_PORT:-8080}:${WEB_PORT:-8080}"
+    depends_on:
+      - app
 
   postgres:
     profiles: ["production"]
@@ -42,7 +57,7 @@ services:
       retries: 10
 
   ollama:
-    profiles: ["production"]
+    profiles: ["local-ai"]
     image: ollama/ollama:latest
     container_name: aicentralize-ollama
     restart: unless-stopped

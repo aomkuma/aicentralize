@@ -7,7 +7,7 @@ npx prisma migrate deploy
 echo "[BOOT] Ensuring Prisma client is generated"
 npx prisma generate
 
-if [ -n "${OLLAMA_BASE_URL:-}" ]; then
+if [ "${WAIT_FOR_OLLAMA:-false}" = "true" ] && [ -n "${OLLAMA_BASE_URL:-}" ]; then
 	echo "[BOOT] Waiting for Ollama at ${OLLAMA_BASE_URL}"
 	node <<'NODE'
 const baseUrl = (process.env.OLLAMA_BASE_URL || '').replace(/\/$/, '');
@@ -36,6 +36,8 @@ waitForOllama().catch((error) => {
 	console.warn(`[BOOT] Ollama wait skipped: ${error instanceof Error ? error.message : 'unknown error'}`);
 });
 NODE
+else
+	echo "[BOOT] Ollama wait skipped"
 fi
 
 echo "[BOOT] Starting API"

@@ -68,7 +68,7 @@ const GEMINI_GENERATE_PATH_TEMPLATE = "/v1beta/models/{model}:generateContent";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
 const DEFAULT_ANTHROPIC_MODEL = "claude-3-5-haiku-latest";
 const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
-const DEFAULT_AI_PROVIDER: AiProvider = "ollama";
+const DEFAULT_AI_PROVIDER: AiProvider = "gemini";
 const GEMINI_MAX_ATTEMPTS = 3;
 const GEMINI_RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_WHISPER_MODEL = "tiny";
@@ -112,10 +112,6 @@ function resolveProviderChain(input: LocalGenerateInput): AiProvider[] {
     chain.push(fallbackFromInputOrEnv);
   }
 
-  if (!chain.includes("ollama")) {
-    chain.push("ollama");
-  }
-
   return chain;
 }
 
@@ -136,7 +132,7 @@ async function resolveGenerationConfig(input: LocalGenerateInput): Promise<{ pro
     return {
       providers: resolveProviderChain({
         ...input,
-        provider: "ollama",
+        provider: settings.ai.generation.provider,
         fallbackProviders
       }),
       model: input.model ?? settings.ai.generation.defaultModel

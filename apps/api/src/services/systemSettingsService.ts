@@ -43,6 +43,14 @@ type ActiveProviderCredential = {
   apiKey: string;
 };
 
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends Array<infer U>
+    ? Array<DeepPartial<U>>
+    : T[K] extends object
+      ? DeepPartial<T[K]>
+      : T[K];
+};
+
 export interface SystemSettings {
   ai: {
     asrMode: AsrMode;
@@ -87,10 +95,10 @@ const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
       timeoutMs: 30000,
     },
     generation: {
-      defaultModel: "qwen2.5:7b",
+      defaultModel: env.geminiModel ?? "gemini-2.0-flash",
       maxPromptChars: 4000,
-      provider: "ollama",
-      fallbackProviders: ["openai"],
+      provider: "gemini",
+      fallbackProviders: [],
     },
   },
   security: {
@@ -103,7 +111,7 @@ const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     escalationEnabled: true,
   },
   integrations: {
-    ollamaEnabled: true,
+    ollamaEnabled: false,
     whisperEnabled: true,
   },
   aiProviders: {
@@ -198,7 +206,9 @@ function normalizeSettings(input: unknown): SystemSettings {
 
   const providers: AiProvider[] = ["ollama", "openai", "anthropic", "gemini"];
 
-  merged.ai.generation.provider = "ollama";
+  if (!providers.includes(merged.ai.generation.provider)) {
+    merged.ai.generation.provider = DEFAULT_SYSTEM_SETTINGS.ai.generation.provider;
+  }
 
   const fallbackProviders = Array.isArray(merged.ai.generation.fallbackProviders)
     ? merged.ai.generation.fallbackProviders.filter((value): value is AiProvider => providers.includes(value as AiProvider))
@@ -292,7 +302,7 @@ export async function getSystemSettings(options?: { includeSecrets?: boolean }):
   return options?.includeSecrets ? settings : withoutSecrets(settings);
 }
 
-export async function updateSystemSettings(patch: Partial<SystemSettings>, updatedById: string): Promise<SystemSettings> {
+export async function updateSystemSettings(patch: DeepPartial<SystemSettings>, updatedById: string): Promise<SystemSettings> {
   const current = await getSystemSettings({ includeSecrets: true });
   const next = normalizeSettings(deepMerge(current, patch));
   const saved = await saveSystemSettings(next, updatedById);

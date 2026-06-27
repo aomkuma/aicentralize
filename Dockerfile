@@ -1,19 +1,41 @@
-FROM node:20-bookworm-slim
+FROM node:20-bookworm-slim AS base
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
+RUN corepack enable
 
-COPY tsconfig.json ./
-COPY prisma ./prisma
-COPY src ./src
-COPY scripts ./scripts
+FROM base AS deps
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS build
+
+COPY apps/api apps/api
+
+RUN pnpm --filter=api prisma:generate
+RUN pnpm --filter=api build
+RUN pnpm --filter=api deploy /app/runtime
+
+FROM node:20-bookworm-slim AS runtime
+
+ENV NODE_ENV=production
+ENV PORT=4000
+
+WORKDIR /app
+
+COPY --from=build /app/runtime ./
+COPY --from=build /app/apps/api/dist ./dist
+COPY --from=build /app/apps/api/prisma ./prisma
 COPY docker ./docker
-COPY README.md ./README.md
 
-RUN npm run prisma:generate
-RUN npm run build
+RUN chmod +x ./docker/start.sh
 
 EXPOSE 4000
 
