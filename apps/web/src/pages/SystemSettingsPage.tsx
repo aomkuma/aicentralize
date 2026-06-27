@@ -190,10 +190,20 @@ export default function SystemSettingsPage() {
                   {t('settings.generationProvider')}
                   <select
                     value={settings.ai.generation.provider}
-                    disabled
+                    onChange={(e) => setValue('ai', {
+                      ...settings.ai,
+                      generation: {
+                        ...settings.ai.generation,
+                        provider: e.target.value as SystemSettings['ai']['generation']['provider'],
+                        fallbackProviders: settings.ai.generation.fallbackProviders.filter((provider) => provider !== e.target.value)
+                      }
+                    })}
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
                   >
                     <option value="ollama">Ollama</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="gemini">Gemini</option>
                   </select>
                 </label>
 

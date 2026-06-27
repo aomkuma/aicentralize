@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SystemSettingsPage from './SystemSettingsPage'
 import type { SystemSettings } from '../types'
 
@@ -90,11 +91,11 @@ describe('SystemSettingsPage', () => {
 
     await screen.findByText('settings.title')
     const providerSelect = await screen.findByLabelText('settings.generationProvider')
-    expect(providerSelect).toBeDisabled()
     expect((providerSelect as HTMLSelectElement).value).toBe('ollama')
 
     const saveButton = await screen.findByRole('button', { name: 'settings.save' })
 
+    await userEvent.selectOptions(providerSelect, 'openai')
     await userEvent.click(saveButton)
 
     await waitFor(() => {
@@ -108,6 +109,8 @@ describe('SystemSettingsPage', () => {
 
     const payload = mockPatch.mock.calls[0][1] as Record<string, unknown>
     expect(payload).not.toHaveProperty('aiProviders')
+    expect((payload.ai as SystemSettings['ai']).generation.provider).toBe('openai')
+    expect((payload.ai as SystemSettings['ai']).generation.fallbackProviders).not.toContain('openai')
   })
 
   it('creates a new AI key account from form', async () => {
