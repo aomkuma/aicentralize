@@ -24,6 +24,15 @@ const promptPlaygroundSchema = z.object({
   projectId: z.string().min(1).optional()
 });
 
+function resolveRequestedModel(model?: string): string | undefined {
+  const normalized = model?.trim();
+  if (!normalized || normalized === "qwen2.5:7b") {
+    return undefined;
+  }
+
+  return normalized;
+}
+
 type AuthPayload = JwtPayload & {
   sub: string;
   role: UserRole;
@@ -281,7 +290,7 @@ aiRouter.post("/playground/generate", async (req, res) => {
     ].join("\n\n");
 
     const data = await generateWithLocalModel({
-      model: parsed.data.model,
+      model: resolveRequestedModel(parsed.data.model),
       prompt: guidedPrompt
     });
 
@@ -467,7 +476,7 @@ aiRouter.post("/playground/diarize-analyze", async (req, res) => {
 
   try {
     const data = await generateWithLocalModel({
-      model: parsed.data.model,
+      model: resolveRequestedModel(parsed.data.model),
       prompt
     });
 
@@ -477,7 +486,7 @@ aiRouter.post("/playground/diarize-analyze", async (req, res) => {
     });
   } catch (error) {
     return res.status(502).json({
-      message: "Cannot connect to local Ollama server",
+      message: "AI generation failed",
       detail: error instanceof Error ? error.message : "unknown error",
       transcript
     });
