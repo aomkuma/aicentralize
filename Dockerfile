@@ -27,8 +27,12 @@ FROM node:20-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
 ENV PORT=4000
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
 
 WORKDIR /app
+
+RUN corepack enable
 
 COPY --from=build /app/runtime ./
 COPY --from=build /app/apps/api/dist ./dist
