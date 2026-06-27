@@ -41,4 +41,4 @@ else
 fi
 
 echo "[BOOT] Starting API"
-node dist/index.js
+node dist/src/index.js
