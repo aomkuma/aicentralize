@@ -462,7 +462,6 @@ export default function MeetingStudioPage() {
     }
   ]
 
-  const currentGuidedStep = guidedSteps[guidedStep - 1]
   const activeGuideStep = hoveredGuideStep ?? guidedStep
   const activeGuideStepData = guidedSteps[activeGuideStep - 1]
   const stepOneComplete = Boolean(selectedProjectId)
@@ -473,17 +472,6 @@ export default function MeetingStudioPage() {
     setProgressMode(mode)
     setProgressKey(key)
   }
-
-  useEffect(() => {
-    if (stepOneComplete && guidedStep === 1) {
-      setGuidedStep(2)
-      return
-    }
-
-    if (stepOneComplete && stepTwoComplete && guidedStep === 2) {
-      setGuidedStep(3)
-    }
-  }, [guidedStep, stepOneComplete, stepTwoComplete])
 
   useEffect(() => {
     const nextActions = checklistToTemplateText(checklistItems)
@@ -694,7 +682,6 @@ export default function MeetingStudioPage() {
   const handleLiveRecordingReady = async (result: LiveMeetingRecordingResult) => {
     const liveFile = new File([result.audioBlob], result.fileName, { type: result.audioBlob.type || 'audio/webm' })
     setRecordingFile(liveFile)
-    setGuidedStep((current) => Math.max(current, 3))
     setError('')
     setStatus(t('meetings.status.processingLiveRecording'))
     setIsTranscribing(true)
@@ -1011,73 +998,48 @@ export default function MeetingStudioPage() {
 
         <section className="rounded-2xl border border-sky-200 bg-sky-50 p-4 sm:p-5 shadow-sm dark:border-sky-900/60 dark:bg-sky-950/20">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700 dark:text-sky-300">
-                {t('meetings.guide.label')}
-              </p>
-              <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-                {t('meetings.guide.hoverHint')}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 text-sm">
-              <span className="rounded-full bg-white px-3 py-1 font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
-                {guidedStep}/3
-              </span>
-              <button
-                type="button"
-                onClick={() => setGuidedStep((current) => Math.max(1, current - 1))}
-                disabled={guidedStep === 1}
-                className="rounded-full border border-slate-300 px-3 py-1 font-semibold text-slate-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
-              >
-                {t('common.back')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setGuidedStep((current) => Math.min(3, current + 1))}
-                disabled={guidedStep === 3}
-                className="rounded-full bg-sky-600 px-3 py-1 font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {t('common.next')}
-              </button>
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700 dark:text-sky-300">
+              {t('meetings.guide.label')}
+            </p>
+            <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
+              {t('common.step', { current: guidedStep, total: 3 })}
+            </span>
           </div>
 
-          {/*
-          <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-3">
+          <ol className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
             {guidedSteps.map((step, index) => {
-              const isActive = guidedStep === index + 1
+              const stepNumber = index + 1
+              const isActive = guidedStep === stepNumber
+              const isComplete = [stepOneComplete, stepTwoComplete, stepThreeComplete][index]
               return (
-                <button
-                  key={step.title}
-                  type="button"
-                  onClick={() => setGuidedStep(index + 1)}
-                  onMouseEnter={() => setHoveredGuideStep(index + 1)}
-                  onMouseLeave={() => setHoveredGuideStep(null)}
-                  onFocus={() => setHoveredGuideStep(index + 1)}
-                  onBlur={() => setHoveredGuideStep(null)}
-                  className={`rounded-xl border px-4 py-3 text-left transition ${isActive ? 'border-sky-400 bg-white shadow-sm dark:border-sky-500 dark:bg-slate-900' : 'border-sky-100 bg-white/60 hover:bg-white dark:border-slate-700 dark:bg-slate-900/60 dark:hover:bg-slate-900'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${isActive ? 'bg-sky-600 text-white' : 'bg-sky-100 text-sky-700 dark:bg-slate-800 dark:text-sky-300'}`}>
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-900 dark:text-white">{step.title}</p>
-                    </div>
-                  </div>
-                </button>
+                <li key={step.title}>
+                  <button
+                    type="button"
+                    onClick={() => setGuidedStep(stepNumber)}
+                    onMouseEnter={() => setHoveredGuideStep(stepNumber)}
+                    onMouseLeave={() => setHoveredGuideStep(null)}
+                    onFocus={() => setHoveredGuideStep(stepNumber)}
+                    onBlur={() => setHoveredGuideStep(null)}
+                    className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${isActive ? 'border-sky-400 bg-white shadow-sm dark:border-sky-500 dark:bg-slate-900' : 'border-sky-100 bg-white/60 hover:bg-white dark:border-slate-700 dark:bg-slate-900/60 dark:hover:bg-slate-900'}`}
+                  >
+                    <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${isComplete ? 'bg-emerald-500 text-white' : isActive ? 'bg-sky-600 text-white' : 'bg-sky-100 text-sky-700 dark:bg-slate-800 dark:text-sky-300'}`}>
+                      {isComplete ? '✓' : stepNumber}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        {t('common.step', { current: stepNumber, total: 3 })}
+                      </span>
+                      <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">{step.title}</span>
+                    </span>
+                  </button>
+                </li>
               )
             })}
-          </div>
-          */}
+          </ol>
 
           <div className="mt-3 rounded-xl border border-sky-100 bg-white p-3 text-sm text-slate-700 shadow-sm dark:border-sky-900/50 dark:bg-slate-900 dark:text-slate-200">
             <p className="font-semibold text-slate-900 dark:text-white">{activeGuideStepData.title}</p>
             <p className="mt-1 text-slate-600 dark:text-slate-400">{activeGuideStepData.description}</p>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              {activeGuideStep === 1 ? t('meetings.guide.recommended') : t('meetings.guide.optional')}
-            </p>
           </div>
         </section>
 
@@ -1121,8 +1083,8 @@ export default function MeetingStudioPage() {
           </section>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <section className={`rounded-2xl border bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-5 transition ${guidedStep === 1 ? 'border-sky-300 ring-2 ring-sky-100 dark:border-sky-700 dark:ring-sky-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
+        {guidedStep === 1 && (
+          <section className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-5">
             <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('meetings.tabs.upload')}</h2>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('meetings.uploadHelp')}</p>
@@ -1152,9 +1114,6 @@ export default function MeetingStudioPage() {
                 onChange={(event) => {
                   const nextFile = event.target.files?.[0] ?? null
                   setRecordingFile(nextFile)
-                  if (nextFile) {
-                    setGuidedStep((current) => Math.max(current, 3))
-                  }
                 }}
                 className="mt-1 block w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800 dark:text-slate-300"
               />
@@ -1193,12 +1152,7 @@ export default function MeetingStudioPage() {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.transcript')}</span>
               <textarea
                 value={transcript}
-                onChange={(event) => {
-                  setTranscript(event.target.value)
-                  if (event.target.value.trim()) {
-                    setGuidedStep((current) => Math.max(current, 3))
-                  }
-                }}
+                onChange={(event) => setTranscript(event.target.value)}
                 rows={12}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm leading-relaxed text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                 placeholder={t('meetings.transcriptPlaceholder')}
@@ -1234,8 +1188,10 @@ export default function MeetingStudioPage() {
               </div>
             </div>
           </section>
+        )}
 
-          <section className={`rounded-2xl border bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-5 transition ${guidedStep === 2 ? 'border-sky-300 ring-2 ring-sky-100 dark:border-sky-700 dark:ring-sky-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
+        {guidedStep === 2 && (
+          <section className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-5">
             <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('meetings.tabs.template')}</h2>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('meetings.templateHelp')}</p>
@@ -1245,12 +1201,7 @@ export default function MeetingStudioPage() {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.template.objective')}</span>
               <textarea
                 value={template.objective}
-                onChange={(event) => {
-                  updateTemplate('objective', event.target.value)
-                  if (event.target.value.trim()) {
-                    setGuidedStep(3)
-                  }
-                }}
+                onChange={(event) => updateTemplate('objective', event.target.value)}
                 rows={2}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
               />
@@ -1260,12 +1211,7 @@ export default function MeetingStudioPage() {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.template.summary')}</span>
               <textarea
                 value={summary}
-                onChange={(event) => {
-                  setSummary(event.target.value)
-                  if (event.target.value.trim()) {
-                    setGuidedStep(3)
-                  }
-                }}
+                onChange={(event) => setSummary(event.target.value)}
                 rows={4}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
               />
@@ -1275,12 +1221,7 @@ export default function MeetingStudioPage() {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.template.decisions')}</span>
               <textarea
                 value={template.decisions}
-                onChange={(event) => {
-                  updateTemplate('decisions', event.target.value)
-                  if (event.target.value.trim()) {
-                    setGuidedStep(3)
-                  }
-                }}
+                onChange={(event) => updateTemplate('decisions', event.target.value)}
                 rows={3}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
               />
@@ -1290,12 +1231,7 @@ export default function MeetingStudioPage() {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.template.risks')}</span>
               <textarea
                 value={template.risks}
-                onChange={(event) => {
-                  updateTemplate('risks', event.target.value)
-                  if (event.target.value.trim()) {
-                    setGuidedStep(3)
-                  }
-                }}
+                onChange={(event) => updateTemplate('risks', event.target.value)}
                 rows={3}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
               />
@@ -1343,12 +1279,7 @@ export default function MeetingStudioPage() {
                     <div className="mt-2 space-y-2">
                       <input
                         value={item.text}
-                        onChange={(event) => {
-                          updateChecklistText(item.id, event.target.value)
-                          if (event.target.value.trim()) {
-                            setGuidedStep(3)
-                          }
-                        }}
+                        onChange={(event) => updateChecklistText(item.id, event.target.value)}
                         placeholder={t('meetings.checklist.placeholder')}
                         className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                       />
@@ -1400,26 +1331,13 @@ export default function MeetingStudioPage() {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.template.nextSteps')}</span>
               <textarea
                 value={template.nextSteps}
-                onChange={(event) => {
-                  updateTemplate('nextSteps', event.target.value)
-                  if (event.target.value.trim()) {
-                    setGuidedStep(3)
-                  }
-                }}
+                onChange={(event) => updateTemplate('nextSteps', event.target.value)}
                 rows={3}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
               />
             </label>
 
             <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => void handleSaveMeeting()}
-                disabled={isSaving}
-                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSaving ? t('meetings.status.saving') : t('meetings.actions.saveMeeting')}
-              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -1432,22 +1350,54 @@ export default function MeetingStudioPage() {
               </button>
             </div>
           </section>
-        </div>
+        )}
 
-        <section className={`rounded-2xl border bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm transition ${guidedStep === 3 ? 'border-sky-300 ring-2 ring-sky-100 dark:border-sky-700 dark:ring-sky-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('meetings.preview')}</h2>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('meetings.previewHelp')}</p>
+        {guidedStep === 3 && (
+          <section className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">{t('meetings.preview')}</h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{t('meetings.previewHelp')}</p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                {selectedProject?.tenant?.name || currentTenant?.name || t('meetings.noProjectSelected')}
+              </span>
             </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-              {selectedProject?.tenant?.name || currentTenant?.name || t('meetings.noProjectSelected')}
-            </span>
-          </div>
-          <pre className="mt-4 max-h-[32rem] overflow-auto rounded-2xl bg-slate-950 p-4 text-sm leading-relaxed text-slate-100 whitespace-pre-wrap">
-            {preview}
-          </pre>
-        </section>
+            <pre className="mt-4 max-h-[32rem] overflow-auto rounded-2xl bg-slate-950 p-4 text-sm leading-relaxed text-slate-100 whitespace-pre-wrap">
+              {preview}
+            </pre>
+          </section>
+        )}
+
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setGuidedStep((current) => Math.max(1, current - 1))}
+            disabled={guidedStep === 1}
+            className="rounded-xl border border-slate-300 px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            {t('common.back')}
+          </button>
+
+          {guidedStep < 3 ? (
+            <button
+              type="button"
+              onClick={() => setGuidedStep((current) => Math.min(3, current + 1))}
+              className="rounded-xl bg-sky-600 px-6 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+            >
+              {t('common.next')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleSaveMeeting()}
+              disabled={isSaving}
+              className="rounded-xl bg-emerald-600 px-6 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSaving ? t('meetings.status.saving') : t('meetings.actions.saveMeeting')}
+            </button>
+          )}
+        </div>
       </div>
     </Layout>
   )

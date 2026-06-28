@@ -31,6 +31,15 @@
 - Suspend/restore login and edit member `jobTitle`/`department` from `/admin/organizations`.
   Admins cannot suspend themselves or a `SUPER_ADMIN`.
 - API tests live in `apps/api` (vitest): `pnpm --filter api test`.
+
+### Meeting Studio is a step-by-step wizard
+- `MeetingStudioPage` (`/meetings`) shows ONE step at a time, not all blocks at once:
+  1. Import — project + time, upload/live-record/paste transcript, transcribe/analyze.
+  2. Compose — review/edit minute template (objective, summary, decisions, risks, tasks).
+  3. Review & save — full minutes preview, then Save.
+- The clickable stepper header tracks completion (✓) per step; Back/Next/Save live in a
+  footer bar. `guidedStep` state drives which step renders. Step navigation is manual —
+  no auto-advance — so editing a field never jumps the user to another step.
 - Full handover: `docs/next-day-handover-2026-06-28.md`
 
 ## Session Update (2026-06-22)

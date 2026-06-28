@@ -134,6 +134,14 @@ Committed and pushed:
   - `/admin/organizations` member cards have a suspend/restore login control (hidden for
     `SUPER_ADMIN`) with a confirm prompt.
 
+UI/UX changes also shipped:
+- Dashboard AI panel rebranded with a "ตัวรับจบ" / "The Closer" persona (copy only).
+- Removed the AI Playground item from the sidebar (route still exists, just unlinked).
+- Reworked the Meeting Studio (`/meetings`) from all-blocks-at-once into a true
+  step-by-step wizard (Import → Compose → Review & save) with a clickable stepper,
+  per-step completion ticks, and a Back/Next/Save footer. Auto-advance and inline
+  step jumps were removed so editing never moves the user off the current step.
+
 Three ways to block access now exist, smallest to largest scope:
 - `TenantMembership.isActive=false`: blocked from one organization only.
 - `Tenant.isActive=false`: whole organization blocked.

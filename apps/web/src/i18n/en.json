@@ -417,16 +417,16 @@
       "optional": "Optional for some organizations",
       "steps": {
         "step1": {
-          "title": "Set the meeting context",
-          "description": "Pick the project and meeting time first so the note lands in the right place."
+          "title": "Import meeting content",
+          "description": "Pick the project and time, then upload a file, record live, or paste a transcript, and run transcribe/analyze."
         },
         "step2": {
-          "title": "Add content",
-          "description": "Upload a recording or paste a transcript, then transcribe if available."
+          "title": "Compose the minutes",
+          "description": "Review and refine the objective, summary, decisions, risks, and follow-up tasks."
         },
         "step3": {
           "title": "Review and save",
-          "description": "Fill the minute template, review the preview, and save the meeting."
+          "description": "Check the full minutes preview, then save the meeting."
         }
       }
     },
