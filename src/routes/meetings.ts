@@ -1,4 +1,5 @@
 import {
+  ActionItemPriority,
   ActionStatus,
   MeetingArtifactSourceType,
   MeetingArtifactType,
@@ -29,7 +30,8 @@ const createMeetingSchema = z.object({
     task: z.string().min(2),
     detail: z.string().optional(),
     assigneeId: z.string().min(1),
-    dueDate: z.string().datetime()
+    dueDate: z.string().datetime(),
+    priority: z.nativeEnum(ActionItemPriority).default(ActionItemPriority.MEDIUM)
   })).default([])
 });
 
@@ -208,7 +210,8 @@ meetingRouter.post("/", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]),
           task: item.task,
           detail: item.detail,
           assigneeId: item.assigneeId,
-          dueDate: new Date(item.dueDate)
+          dueDate: new Date(item.dueDate),
+          priority: item.priority
         }))
       },
       embeddings: {

@@ -115,8 +115,8 @@
     "memberEmailPlaceholder": "e.g. min.young@org.local",
     "memberPhonePlaceholder": "e.g. +82-10-1234-5678",
     "memberJobTitlePlaceholder": "e.g. Business Analyst",
-    "memberDepartmentPlaceholder": "Optional department",
-    "memberValidation": "Name, email, phone, and job title are required.",
+    "memberDepartmentPlaceholder": "e.g. Product Operations",
+    "memberValidation": "Name, email, phone, job title, and department are required.",
     "memberCreateSubmit": "Create Member",
     "memberCreating": "Creating member...",
     "memberCreated": "Team member saved successfully.",
@@ -136,6 +136,15 @@
     "viewer": "VIEWER"
   },
   "navigation": {
+    "dashboard": "Dashboard",
+    "meetingStudio": "Meeting Studio",
+    "projectContinuity": "Project Continuity",
+    "allProjects": "All Projects",
+    "taskReminders": "Task Reminders",
+    "meetingHistory": "Meeting History",
+    "aiTrace": "AI Activity Log",
+    "organizationSetup": "Organization Setup",
+    "organizationAdmin": "Organizations",
     "projects": "Projects",
     "meetings": "Meetings",
     "systemSettings": "System Settings"
@@ -191,6 +200,7 @@
       "summary": "Summary",
       "byOwner": "By Owner",
       "byProject": "By Project",
+      "actions": "Action Items",
       "missing": "Missing Info"
     },
     "riskLevel": {
@@ -207,6 +217,31 @@
     "noOverdueByOwner": "No overdue items by owner",
     "noProjectOverdue": "No overdue items by project",
     "noMissingInfo": "No items with missing information",
+    "noActionItems": "No action items found for this project.",
+    "reassignAction": "Reassign",
+    "reassignSelectOwner": "Select new owner",
+    "reassignNotePlaceholder": "Note (optional)",
+    "reassignSuccess": "Action item reassigned.",
+    "reassignFailed": "Unable to reassign action item.",
+    "workloadSuggestions": "Workload check",
+    "workloadSuggestionTitle": "A few ways to ease the load",
+    "riskLevelLabel": "Needs attention",
+    "overloadedOwners": "People who may need help",
+    "rebalanceSuggestions": "Possible handoffs",
+    "confidence": "Confidence",
+    "dismissSuggestion": "Not now",
+    "reviewActionItems": "Review action items",
+    "workloadRisk": {
+      "LOW": "Looks manageable",
+      "MEDIUM": "Worth keeping an eye on",
+      "HIGH": "Could use attention soon",
+      "CRITICAL": "Needs attention now"
+    },
+    "suggestionConfidence": {
+      "LOW": "Low",
+      "MEDIUM": "Medium",
+      "HIGH": "High"
+    },
     "dueDate": "Due Date",
     "owner": "Owner",
     "type": "Type",
@@ -476,6 +511,17 @@
       "placeholder": "Action text",
       "detailPlaceholder": "Detail (optional)",
       "selectOwner": "Select owner",
+      "owner": "Owner",
+      "dueDate": "Due date",
+      "importanceScore": "Importance score",
+      "importanceHelp": "High score raises focus even when the due date is later.",
+      "priority": "Priority",
+      "priorityLabels": {
+        "LOW": "Low",
+        "MEDIUM": "Medium",
+        "HIGH": "High",
+        "CRITICAL": "Critical"
+      },
       "itemLabel": "Item {{index}}"
     },
     "previewLabels": {

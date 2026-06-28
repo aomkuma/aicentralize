@@ -172,7 +172,7 @@ export default function Sidebar({
       {/* Mobile menu button */}
       <button
         onClick={onToggleMobile}
-        className={`fixed top-4 left-4 z-50 p-2 rounded-lg bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors lg:hidden ${
+        className={`fixed left-[max(1rem,calc(env(safe-area-inset-left)+1rem))] top-[max(1.75rem,calc(env(safe-area-inset-top)+0.875rem))] z-50 h-11 w-11 items-center justify-center rounded-lg bg-blue-600 text-white shadow-lg transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 lg:hidden ${
           isMobileOpen ? 'hidden' : 'inline-flex'
         }`}
         aria-label="Open navigation menu"
@@ -321,7 +321,6 @@ export default function Sidebar({
 
           {/* Language Switcher */}
           <div className={`transition-all duration-300 ease-out ${isCollapsed ? 'lg:flex lg:justify-center' : ''}`}>
-            <span className={`mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${isCollapsed ? 'lg:hidden' : ''}`}>Language</span>
             <LanguageSwitcher compact />
           </div>
 

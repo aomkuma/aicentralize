@@ -149,12 +149,12 @@ export default function TenantSetupPage() {
       email: memberForm.email.trim().toLowerCase(),
       phone: memberForm.phone.trim(),
       jobTitle: memberForm.jobTitle.trim(),
-      department: memberForm.department.trim() || undefined,
+      department: memberForm.department.trim(),
       tenantRole: memberForm.tenantRole,
     }
 
-    if (!payload.name || !payload.email || !payload.phone || !payload.jobTitle) {
-      setError('Name, email, phone, and job title are required')
+    if (!payload.name || !payload.email || !payload.phone || !payload.jobTitle || !payload.department) {
+      setError(t('dashboard.memberValidation'))
       return
     }
 
@@ -475,6 +475,7 @@ export default function TenantSetupPage() {
                       value={memberForm.department}
                       onChange={handleMemberInputChange}
                       placeholder={t('dashboard.memberDepartmentPlaceholder')}
+                      required
                       className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                     />
                   </label>

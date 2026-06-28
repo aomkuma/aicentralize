@@ -331,3 +331,33 @@ There are uncommitted changes. Do not revert them. `apps/web/tsconfig.tsbuildinf
 ```powershell
 git restore -- apps/web/tsconfig.tsbuildinfo
 ```
+
+## Follow-Up Note (2026-06-28, PM project timeline)
+
+User asked whether roles above `MEMBER` already have a project analysis/evaluation panel with a Project Manager timeline.
+
+Current state:
+- There is a `Project Continuity Dashboard` at `/continuity` and `/continuity/:projectId`.
+- Dashboard/Projects link each project to Continuity, Reminders, and AI Trace.
+- Continuity currently shows summary, overdue by owner, overdue by project, missing info, and saved meetings.
+
+Gap:
+- There is not yet a dedicated PM timeline view that lays out milestones/action items/meeting sequence/workload by date.
+- Recommended future implementation: add a timeline section or tab under Continuity that combines action item due dates, priorities, meetings, recent decisions, and stale/risk indicators into a date-ordered PM view.
+
+## Design Note (2026-06-28, AI workload balancing suggestion)
+
+User approved a suggestion-only workload balancing assistant for PM/manager project continuity.
+
+Design:
+- Scope: `/continuity/:projectId` only, using the currently open project action items and current tenant members.
+- Behavior: when the PM opens project continuity, run one AI analysis only when needed:
+  - once per calendar day per project, or
+  - again during the same day only if the action-item signature changes.
+- Signature should include action item id, owner, due date, priority, status, and title, so new tasks from Meeting Studio or meaningful task changes trigger a fresh analysis.
+- Cache should live in browser localStorage keyed by project id. If the user dismisses a suggestion, do not auto-open it again for the same day/signature.
+- AI output must be suggestion-only. It must not automatically reassign work.
+- Popup should be non-blocking, small, and dismissible; it should not interrupt current editing/review flows.
+- Prompt should return structured JSON with summary, risk level, overloaded owners, and optional suggested reassignments.
+- UI copy should stay user-friendly rather than system-ish; use gentle labels such as `Not now` / `Review action items` and human risk labels instead of raw enum values.
+- Actual reassignment remains a PM-confirmed action in the existing Action Items tab.

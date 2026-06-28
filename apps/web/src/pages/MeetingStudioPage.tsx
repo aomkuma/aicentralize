@@ -33,6 +33,17 @@ type DocxMeetingMeta = {
   sessionAt?: string
 }
 
+type ActionItemPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+
+type AiActionItem = {
+  task: string
+  detail?: string
+  ownerName?: string
+  dueDate?: string
+  importanceScore?: number
+  priority?: ActionItemPriority
+}
+
 type StudioProject = Project & {
   code?: string
   tenant?: { id: string; name: string } | null
@@ -59,6 +70,8 @@ type ChecklistItem = {
   ownerUserId: string
   dueDate: string
   detail: string
+  importanceScore: number
+  priority: ActionItemPriority
 }
 
 type OwnerOption = {
@@ -111,6 +124,50 @@ const checklistId = () => `check-${Date.now()}-${Math.random().toString(36).slic
 
 const normalizeOwnerToken = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim()
 
+const clampImportanceScore = (value: unknown, fallback = 50) => {
+  const numeric = typeof value === 'number'
+    ? value
+    : typeof value === 'string'
+      ? Number(value)
+      : fallback
+
+  if (!Number.isFinite(numeric)) {
+    return fallback
+  }
+
+  return Math.min(100, Math.max(1, Math.round(numeric)))
+}
+
+const priorityFromImportanceScore = (score: number): ActionItemPriority => {
+  if (score >= 90) {
+    return 'CRITICAL'
+  }
+
+  if (score >= 70) {
+    return 'HIGH'
+  }
+
+  if (score >= 35) {
+    return 'MEDIUM'
+  }
+
+  return 'LOW'
+}
+
+const importanceScoreFromPriority = (priority?: ActionItemPriority) => {
+  switch (priority) {
+    case 'CRITICAL':
+      return 95
+    case 'HIGH':
+      return 75
+    case 'LOW':
+      return 20
+    case 'MEDIUM':
+    default:
+      return 50
+  }
+}
+
 const defaultChecklistDueDate = (sessionAt?: string) => {
   const base = sessionAt ? new Date(sessionAt) : new Date()
   const safeBase = Number.isNaN(base.getTime()) ? new Date() : base
@@ -147,13 +204,17 @@ const resolveOwnerUserId = (ownerName: string | undefined, owners: OwnerOption[]
 }
 
 const toChecklistItems = (
-  items: Array<{ task: string; detail?: string; ownerName?: string; dueDate?: string }>,
+  items: AiActionItem[],
   owners: OwnerOption[],
   sessionAt?: string
 ): ChecklistItem[] =>
   uniqueNonEmpty(items.map((item) => item.task), 12).map((text, index) => {
     const source = items[index]
     const dueDateRaw = source?.dueDate ? new Date(source.dueDate) : null
+    const importanceScore = clampImportanceScore(
+      source?.importanceScore,
+      importanceScoreFromPriority(source?.priority)
+    )
 
     return {
       id: checklistId(),
@@ -162,7 +223,9 @@ const toChecklistItems = (
       dueDate: dueDateRaw && !Number.isNaN(dueDateRaw.getTime())
         ? toDateTimeLocalString(dueDateRaw)
         : defaultChecklistDueDate(sessionAt),
-      detail: source?.detail?.trim() ?? ''
+      detail: source?.detail?.trim() ?? '',
+      importanceScore,
+      priority: priorityFromImportanceScore(importanceScore)
     }
   })
 
@@ -177,7 +240,9 @@ const parseChecklistFromText = (raw: string, sessionAt?: string): ChecklistItem[
     text,
     ownerUserId: '',
     dueDate: defaultChecklistDueDate(sessionAt),
-    detail: ''
+    detail: '',
+    importanceScore: 50,
+    priority: 'MEDIUM'
   }))
 }
 
@@ -187,7 +252,7 @@ const checklistToTemplateText = (items: ChecklistItem[]) =>
     .map((item) => item.text.trim())
     .join('\n')
 
-const normalizeAiActionItems = (raw: unknown): Array<{ task: string; detail?: string; ownerName?: string; dueDate?: string }> => {
+const normalizeAiActionItems = (raw: unknown): AiActionItem[] => {
   if (!Array.isArray(raw)) {
     return []
   }
@@ -210,6 +275,8 @@ const normalizeAiActionItems = (raw: unknown): Array<{ task: string; detail?: st
         ownerName?: unknown
         owner?: unknown
         dueDate?: unknown
+        importanceScore?: unknown
+        priority?: unknown
       }
 
       const task = typeof value.task === 'string'
@@ -217,6 +284,11 @@ const normalizeAiActionItems = (raw: unknown): Array<{ task: string; detail?: st
         : typeof value.title === 'string'
           ? value.title
           : ''
+      const normalizedPriority = typeof value.priority === 'string' ? value.priority.toUpperCase() : ''
+      const priority = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(normalizedPriority)
+        ? normalizedPriority as ActionItemPriority
+        : undefined
+      const importanceScore = clampImportanceScore(value.importanceScore, importanceScoreFromPriority(priority))
 
       return {
         task: task.trim(),
@@ -230,7 +302,9 @@ const normalizeAiActionItems = (raw: unknown): Array<{ task: string; detail?: st
           : typeof value.owner === 'string'
             ? value.owner.trim()
             : undefined,
-        dueDate: typeof value.dueDate === 'string' ? value.dueDate : undefined
+        dueDate: typeof value.dueDate === 'string' ? value.dueDate : undefined,
+        importanceScore,
+        priority: priorityFromImportanceScore(importanceScore)
       }
     })
     .filter((item) => Boolean(item.task))
@@ -549,10 +623,12 @@ export default function MeetingStudioPage() {
     '  "objective": "string",',
     '  "decisions": ["string"],',
     '  "risks": ["string"],',
-    '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime"}],',
+    '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime","importanceScore":50,"priority":"LOW|MEDIUM|HIGH|CRITICAL"}],',
     '  "nextSteps": "string"',
     '}',
     'Respond in Thai for all text values.',
+    'Set importanceScore from 1-100 based on business impact, urgency, blockers, customer/executive impact, and risk.',
+    'Use HIGH or CRITICAL for very important work even when the due date is later, so teams can focus earlier.',
     '',
     'Document text excerpt (may be truncated if the source document is long):',
     text.slice(0, 2400)
@@ -568,11 +644,13 @@ export default function MeetingStudioPage() {
     '  "objective": "string",',
     '  "decisions": ["string"],',
     '  "risks": ["string"],',
-    '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime"}],',
+    '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime","importanceScore":50,"priority":"LOW|MEDIUM|HIGH|CRITICAL"}],',
     '  "nextSteps": "string"',
     '}',
     'Respond in Thai for all text values.',
     'Preserve project-specific names, dates, owners, and action wording when present.',
+    'Set importanceScore from 1-100 based on business impact, urgency, blockers, customer/executive impact, and risk.',
+    'Use HIGH or CRITICAL for very important work even when the due date is later, so teams can focus earlier.',
     '',
     'Transcript excerpt:',
     text.slice(0, 4000)
@@ -701,6 +779,20 @@ export default function MeetingStudioPage() {
   }
 
   const preview = useMemo(() => {
+    const checklistPreview = checklistItems
+      .filter((item) => item.text.trim())
+      .map((item) => {
+        const owner = ownerOptions.find((option) => option.id === item.ownerUserId)
+        const meta = [
+          `${t('meetings.checklist.importanceScore')}: ${item.importanceScore}/100`,
+          `${t('meetings.checklist.priority')}: ${t(`meetings.checklist.priorityLabels.${item.priority}`)}`,
+          owner ? `${t('meetings.checklist.owner')}: ${owner.name}` : '',
+          item.dueDate ? `${t('meetings.checklist.dueDate')}: ${new Date(item.dueDate).toLocaleString()}` : ''
+        ].filter(Boolean).join(', ')
+
+        return `- ${item.text.trim()} (${meta})`
+      })
+      .join('\n')
     const parts = [
       `${t('meetings.previewLabels.meetingTitle')}: ${meetingTitle}`,
       `${t('meetings.previewLabels.project')}: ${selectedProject?.name ?? currentTenant?.name ?? '—'}`,
@@ -718,7 +810,7 @@ export default function MeetingStudioPage() {
       template.risks,
       '',
       `5. ${t('meetings.template.actions')}`,
-      template.actions,
+      checklistPreview || template.actions,
       '',
       `6. ${t('meetings.template.nextSteps')}`,
       template.nextSteps,
@@ -727,7 +819,7 @@ export default function MeetingStudioPage() {
     ]
 
     return parts.filter(Boolean).join('\n')
-  }, [meetingTitle, selectedProject?.name, currentTenant?.name, template, summary, transcript, t])
+  }, [checklistItems, currentTenant?.name, meetingTitle, ownerOptions, selectedProject?.name, summary, template, transcript, t])
 
   const handleTranscribe = async () => {
     if (!recordingFile) {
@@ -894,7 +986,8 @@ export default function MeetingStudioPage() {
         task: item.text.trim(),
         detail: item.detail.trim() || undefined,
         assigneeId: item.ownerUserId,
-        dueDate: item.dueDate
+        dueDate: item.dueDate,
+        priority: item.priority
       }))
       .filter((item) => item.task)
 
@@ -934,7 +1027,8 @@ export default function MeetingStudioPage() {
           task: item.task,
           detail: item.detail,
           assigneeId: item.assigneeId,
-          dueDate: new Date(item.dueDate).toISOString()
+          dueDate: new Date(item.dueDate).toISOString(),
+          priority: item.priority
         })),
       })
 
@@ -963,13 +1057,24 @@ export default function MeetingStudioPage() {
         text: '',
         ownerUserId: '',
         dueDate: defaultChecklistDueDate(sessionAt),
-        detail: ''
+        detail: '',
+        importanceScore: 50,
+        priority: 'MEDIUM'
       }
     ]))
   }
 
   const updateChecklistText = (id: string, text: string) => {
     setChecklistItems((current) => current.map((item) => (item.id === id ? { ...item, text } : item)))
+  }
+
+  const updateChecklistImportanceScore = (id: string, nextScore: number) => {
+    const importanceScore = clampImportanceScore(nextScore)
+    setChecklistItems((current) => current.map((item) => (
+      item.id === id
+        ? { ...item, importanceScore, priority: priorityFromImportanceScore(importanceScore) }
+        : item
+    )))
   }
 
   const removeChecklistItem = (id: string) => {
@@ -1297,7 +1402,7 @@ export default function MeetingStudioPage() {
                         className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                       />
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <select
                           value={item.ownerUserId}
                           onChange={(event) => {
@@ -1323,6 +1428,26 @@ export default function MeetingStudioPage() {
                           }}
                           className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                         />
+
+                        <label className="rounded-md border border-slate-300 bg-white px-2 py-1.5 dark:border-slate-600 dark:bg-slate-800">
+                          <span className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            <span>{t('meetings.checklist.importanceScore')}</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 dark:bg-slate-700 dark:text-slate-100">
+                              {item.importanceScore}/100
+                            </span>
+                          </span>
+                          <input
+                            type="range"
+                            min={1}
+                            max={100}
+                            value={item.importanceScore}
+                            onChange={(event) => updateChecklistImportanceScore(item.id, Number(event.target.value))}
+                            className="mt-2 w-full accent-blue-600"
+                          />
+                          <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                            {t('meetings.checklist.priority')}: {t(`meetings.checklist.priorityLabels.${item.priority}`)}
+                          </span>
+                        </label>
                       </div>
                     </div>
                   </div>

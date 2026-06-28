@@ -115,8 +115,8 @@
     "memberEmailPlaceholder": "เช่น min.young@org.local",
     "memberPhonePlaceholder": "เช่น +82-10-1234-5678",
     "memberJobTitlePlaceholder": "เช่น Business Analyst",
-    "memberDepartmentPlaceholder": "แผนก (ไม่บังคับ)",
-    "memberValidation": "กรุณากรอกชื่อ อีเมล เบอร์โทร และตำแหน่งงานให้ครบ",
+    "memberDepartmentPlaceholder": "เช่น Product Operations",
+    "memberValidation": "กรุณากรอกชื่อ อีเมล เบอร์โทร ตำแหน่งงาน และแผนกให้ครบ",
     "memberCreateSubmit": "สร้างสมาชิก",
     "memberCreating": "กำลังสร้างสมาชิก...",
     "memberCreated": "บันทึกสมาชิกทีมเรียบร้อยแล้ว",
@@ -136,6 +136,15 @@
     "viewer": "ผู้ชม"
   },
   "navigation": {
+    "dashboard": "แดชบอร์ด",
+    "meetingStudio": "สตูดิโอประชุม",
+    "projectContinuity": "ความต่อเนื่องโปรเจกต์",
+    "allProjects": "โปรเจกต์ทั้งหมด",
+    "taskReminders": "แจ้งเตือนงาน",
+    "meetingHistory": "ประวัติรายงานประชุม",
+    "aiTrace": "ประวัติการใช้ AI",
+    "organizationSetup": "ตั้งค่าองค์กร",
+    "organizationAdmin": "จัดการองค์กร",
     "projects": "โปรเจค",
     "meetings": "การประชุม",
     "systemSettings": "ตั้งค่าระบบ"
@@ -191,6 +200,7 @@
       "summary": "สรุป",
       "byOwner": "ตามเจ้าของ",
       "byProject": "ตามโครงการ",
+      "actions": "รายการงาน",
       "missing": "ข้อมูลที่ขาดหายไป"
     },
     "riskLevel": {
@@ -207,6 +217,31 @@
     "noOverdueByOwner": "ไม่มีรายการที่เกินกำหนดตามเจ้าของ",
     "noProjectOverdue": "ไม่มีรายการที่เกินกำหนดตามโครงการ",
     "noMissingInfo": "ไม่มีรายการที่มีข้อมูลขาดหายไป",
+    "noActionItems": "ยังไม่มีรายการงานสำหรับโปรเจคนี้",
+    "reassignAction": "เปลี่ยนเจ้าของงาน",
+    "reassignSelectOwner": "เลือกเจ้าของงานใหม่",
+    "reassignNotePlaceholder": "หมายเหตุ (ไม่บังคับ)",
+    "reassignSuccess": "เปลี่ยนเจ้าของงานเรียบร้อยแล้ว",
+    "reassignFailed": "ไม่สามารถเปลี่ยนเจ้าของงานได้",
+    "workloadSuggestions": "เช็กภาระงาน",
+    "workloadSuggestionTitle": "มีบางงานที่อาจช่วยกันแบ่งเบาได้",
+    "riskLevelLabel": "ระดับที่ควรดูแล",
+    "overloadedOwners": "คนที่อาจต้องการตัวช่วย",
+    "rebalanceSuggestions": "งานที่อาจส่งต่อได้",
+    "confidence": "ความมั่นใจ",
+    "dismissSuggestion": "ไว้ทีหลัง",
+    "reviewActionItems": "ดูรายการงาน",
+    "workloadRisk": {
+      "LOW": "ยังดูรับมือได้",
+      "MEDIUM": "ควรช่วยกันจับตา",
+      "HIGH": "ควรดูแลเร็ว ๆ นี้",
+      "CRITICAL": "ควรช่วยทันที"
+    },
+    "suggestionConfidence": {
+      "LOW": "ต่ำ",
+      "MEDIUM": "ปานกลาง",
+      "HIGH": "สูง"
+    },
     "dueDate": "วันครบกำหนด",
     "owner": "เจ้าของ",
     "type": "ประเภท",
@@ -354,6 +389,17 @@
       "placeholder": "ข้อความงาน",
       "detailPlaceholder": "รายละเอียด (ไม่บังคับ)",
       "selectOwner": "เลือกเจ้าของงาน",
+      "owner": "เจ้าของงาน",
+      "dueDate": "วันครบกำหนด",
+      "importanceScore": "คะแนนความสำคัญ",
+      "importanceHelp": "คะแนนสูงช่วยดันให้โฟกัสเร็วขึ้น แม้วันครบกำหนดจะยังอยู่ไกล",
+      "priority": "ความสำคัญ",
+      "priorityLabels": {
+        "LOW": "ต่ำ",
+        "MEDIUM": "ปานกลาง",
+        "HIGH": "สูง",
+        "CRITICAL": "วิกฤต"
+      },
       "itemLabel": "รายการ {{index}}"
     },
     "previewLabels": {
