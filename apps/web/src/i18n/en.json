@@ -327,8 +327,8 @@
     "whisperIntegrationEnabled": "Whisper integration enabled"
   },
   "aiChat": {
-    "title": "PM AI Assistant",
-    "description": "Ask for project status, overdue risks, and next actions in one place.",
+    "title": "The Closer",
+    "description": "Loose ends, project status, overdue work — hand it over and I'll get it wrapped up in one place.",
     "tabs": {
       "textPrompt": "Text Prompt",
       "recordTranscript": "Record & Transcript"
@@ -352,13 +352,13 @@
       "liveTranscriptPreview": "Live transcript preview"
     },
     "placeholders": {
-      "askAnything": "Ask anything..."
+      "askAnything": "Something to close out? Just tell me..."
     },
     "status": {
-      "ready": "Ready.",
-      "generating": "Generating",
+      "ready": "Ready to take it on",
+      "generating": "On it",
       "copied": "Copied",
-      "done": "Done",
+      "done": "Handled",
       "noOutput": "(no output)",
       "waitingTranscript": "Waiting for transcript...",
       "editedManually": "Edited manually",
