@@ -63,11 +63,4 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
     labelKey: 'navigation.systemSettings',
     icon: 'settings',
   },
-  {
-    id: 'ai-playground',
-    to: '/ai/playground/page',
-    labelKey: 'navigation.aiPlayground',
-    icon: 'ai',
-    external: true,
-  },
 ]
