@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { UserRole } from "@prisma/client";
+import { SystemRole } from "@prisma/client";
 import webpush from "web-push";
 import { z } from "zod";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth, requireSystemRole } from "../middleware/auth";
 import { sendPushMessage } from "../services/pushService";
 
 export const notificationRouter = Router();
@@ -119,7 +119,7 @@ notificationRouter.get("/push/sw.js", (_req, res) => {
 });`);
 });
 
-notificationRouter.post("/push/generate-vapid", requireAuth, requireRole([UserRole.ADMIN]), async (req, res) => {
+notificationRouter.post("/push/generate-vapid", requireAuth, requireSystemRole([SystemRole.SUPER_ADMIN]), async (req, res) => {
   const keys = webpush.generateVAPIDKeys();
 
   res.json({
@@ -184,7 +184,7 @@ notificationRouter.delete("/push-subscriptions/me", requireAuth, async (req, res
   res.status(204).send();
 });
 
-notificationRouter.post("/push/broadcast", requireAuth, requireRole([UserRole.ADMIN]), async (req, res) => {
+notificationRouter.post("/push/broadcast", requireAuth, requireSystemRole([SystemRole.SUPER_ADMIN]), async (req, res) => {
   const parsed = broadcastPushSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });

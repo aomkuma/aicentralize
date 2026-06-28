@@ -1,7 +1,7 @@
-import { UserRole } from "@prisma/client";
+import { SystemRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth, requireSystemRole } from "../middleware/auth";
 import { ensureAskAiScopeAccess } from "../services/accessScopeService";
 import { logAiRun } from "../services/aiRunLogService";
 import { backfillKnowledgeChunks } from "../services/retrieval/knowledgeIndexService";
@@ -87,7 +87,7 @@ retrievalRouter.post("/search", requireAuth, async (req, res) => {
   }
 });
 
-retrievalRouter.post("/backfill", requireAuth, requireRole([UserRole.ADMIN]), async (req, res) => {
+retrievalRouter.post("/backfill", requireAuth, requireSystemRole([SystemRole.SUPER_ADMIN]), async (req, res) => {
   const parsed = backfillSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });

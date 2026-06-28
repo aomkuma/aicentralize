@@ -1,8 +1,8 @@
-import { ReminderLogType, UserRole } from "@prisma/client";
+import { ReminderLogType, SystemRole, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth, requireRole, requireSystemRole } from "../middleware/auth";
 import { listReminderDigests } from "../services/reminderDigestService";
 import { runReminderNow } from "../services/reminderService";
 
@@ -22,7 +22,7 @@ const listReminderLogsQuerySchema = z.object({
   actionItemId: z.string().min(1).optional()
 });
 
-reminderRouter.post("/run-now", requireAuth, requireRole([UserRole.ADMIN]), async (_req, res) => {
+reminderRouter.post("/run-now", requireAuth, requireSystemRole([SystemRole.SUPER_ADMIN]), async (_req, res) => {
   const summary = await runReminderNow();
   return res.json(summary);
 });
