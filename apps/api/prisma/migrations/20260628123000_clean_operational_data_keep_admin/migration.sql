@@ -1,62 +1,16 @@
--- One-time cleanup migration.
+-- NEUTRALIZED 2026-06-28.
 --
--- Keeps:
--- - "User" rows where systemRole = 'SUPER_ADMIN' OR role = 'ADMIN'
--- - "SystemSettings"
+-- This migration originally TRUNCATEd all operational tables and deleted
+-- non-admin users. That is destructive and unsafe to run on any environment
+-- that has not applied it yet (a prod DB that is behind on migrations would
+-- lose data on the next `migrate deploy`).
 --
--- Removes:
--- - tenants, tenant memberships, invitations
--- - projects, meetings, meeting artifacts/minutes/drafts/versions
--- - action items, reminders, notifications, AI/retrieval logs
--- - non-admin users and their personal auth/notification records
-
-TRUNCATE TABLE
-  "UserInvitation",
-  "TenantMembership",
-  "Tenant",
-  "Project",
-  "Meeting",
-  "MeetingParticipant",
-  "MeetingArtifact",
-  "MinuteDraft",
-  "MinuteVersion",
-  "MeetingKnowledgeChunk",
-  "Decision",
-  "MinuteEntry",
-  "ActionItem",
-  "ActionItemStatusHistory",
-  "Notification",
-  "ReminderLog",
-  "ReminderDigest",
-  "EmbeddingChunk",
-  "AskAiQueryLog",
-  "AiRunLog"
-CASCADE;
-
-DELETE FROM "RefreshToken"
-WHERE "userId" IN (
-  SELECT "id"
-  FROM "User"
-  WHERE "systemRole" <> 'SUPER_ADMIN'
-    AND "role" <> 'ADMIN'
-);
-
-DELETE FROM "NotificationSetting"
-WHERE "userId" IN (
-  SELECT "id"
-  FROM "User"
-  WHERE "systemRole" <> 'SUPER_ADMIN'
-    AND "role" <> 'ADMIN'
-);
-
-DELETE FROM "PushSubscription"
-WHERE "userId" IN (
-  SELECT "id"
-  FROM "User"
-  WHERE "systemRole" <> 'SUPER_ADMIN'
-    AND "role" <> 'ADMIN'
-);
-
-DELETE FROM "User"
-WHERE "systemRole" <> 'SUPER_ADMIN'
-  AND "role" <> 'ADMIN';
+-- Operational-data resets are now done with a repeatable, dry-run-by-default
+-- script instead of a migration:
+--   pnpm --filter api db:clean         (preview)
+--   pnpm --filter api db:clean:force   (delete)
+--
+-- The body is intentionally a no-op so this migration is harmless wherever it
+-- has not yet run, while remaining present in history for environments that
+-- already applied the original.
+SELECT 1;
