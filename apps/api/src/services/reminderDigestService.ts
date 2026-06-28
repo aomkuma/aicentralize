@@ -117,10 +117,12 @@ export async function listReminderDigests(params: {
   page: number;
   pageSize: number;
   projectId?: string;
+  tenantIds?: string[];
 }) {
   const skip = (params.page - 1) * params.pageSize;
   const where = {
-    projectId: params.projectId
+    projectId: params.projectId,
+    project: params.tenantIds ? { tenantId: { in: params.tenantIds } } : undefined
   };
 
   const [items, total] = await Promise.all([

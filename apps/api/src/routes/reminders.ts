@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole, requireSystemRole } from "../middleware/auth";
 import { listReminderDigests } from "../services/reminderDigestService";
 import { runReminderNow } from "../services/reminderService";
+import { listTenantIdsForUser } from "../services/tenantAccessService";
 
 export const reminderRouter = Router();
 
@@ -33,7 +34,8 @@ reminderRouter.get("/digests", requireAuth, requireRole([UserRole.ADMIN, UserRol
     return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
   }
 
-  const result = await listReminderDigests(parsed.data);
+  const tenantIds = await listTenantIdsForUser(req.user!);
+  const result = await listReminderDigests({ ...parsed.data, tenantIds });
   return res.json(result);
 });
 
@@ -43,18 +45,23 @@ reminderRouter.get("/logs", requireAuth, requireRole([UserRole.ADMIN, UserRole.P
     return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
   }
 
+  const tenantIds = await listTenantIdsForUser(req.user!);
   const skip = (parsed.data.page - 1) * parsed.data.pageSize;
+
+  const meetingFilter =
+    parsed.data.projectId || tenantIds
+      ? {
+          meeting: {
+            projectId: parsed.data.projectId,
+            project: tenantIds ? { tenantId: { in: tenantIds } } : undefined
+          }
+        }
+      : undefined;
 
   const where = {
     reminderType: parsed.data.reminderType,
     actionItemId: parsed.data.actionItemId,
-    actionItem: parsed.data.projectId
-      ? {
-          meeting: {
-            projectId: parsed.data.projectId
-          }
-        }
-      : undefined
+    actionItem: meetingFilter
   };
 
   const [items, total] = await Promise.all([

@@ -3,6 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { listTenantIdsForUser } from "../services/tenantAccessService";
 
 export const observabilityRouter = Router();
 
@@ -30,13 +31,15 @@ observabilityRouter.get("/ai-runs", requireAuth, requireRole([UserRole.ADMIN, Us
     return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
   }
 
+  const tenantIds = await listTenantIdsForUser(req.user!);
   const skip = (parsed.data.page - 1) * parsed.data.pageSize;
   const where = {
     operation: parsed.data.operation,
     status: parsed.data.status,
     projectId: parsed.data.projectId,
     meetingId: parsed.data.meetingId,
-    userId: parsed.data.userId
+    userId: parsed.data.userId,
+    project: tenantIds ? { tenantId: { in: tenantIds } } : undefined
   };
 
   const [items, total] = await Promise.all([
@@ -63,16 +66,17 @@ observabilityRouter.get("/ai-runs", requireAuth, requireRole([UserRole.ADMIN, Us
 });
 
 observabilityRouter.get("/ai-runs/:id", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]), async (req, res) => {
+  const tenantIds = await listTenantIdsForUser(req.user!);
   const item = await prisma.aiRunLog.findUnique({
     where: { id: req.params.id },
     include: {
       user: { select: { id: true, name: true, email: true } },
-      project: { select: { id: true, code: true, name: true } },
+      project: { select: { id: true, code: true, name: true, tenantId: true } },
       meeting: { select: { id: true, title: true, sessionAt: true } }
     }
   });
 
-  if (!item) {
+  if (!item || (tenantIds && !(item.project && tenantIds.includes(item.project.tenantId ?? "")))) {
     return res.status(404).json({ message: "AI run log not found" });
   }
 
@@ -85,11 +89,13 @@ observabilityRouter.get("/ask-ai-queries", requireAuth, requireRole([UserRole.AD
     return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
   }
 
+  const tenantIds = await listTenantIdsForUser(req.user!);
   const skip = (parsed.data.page - 1) * parsed.data.pageSize;
   const where = {
     projectId: parsed.data.projectId,
     meetingId: parsed.data.meetingId,
-    userId: parsed.data.userId
+    userId: parsed.data.userId,
+    project: tenantIds ? { tenantId: { in: tenantIds } } : undefined
   };
 
   const [items, total] = await Promise.all([
@@ -116,16 +122,17 @@ observabilityRouter.get("/ask-ai-queries", requireAuth, requireRole([UserRole.AD
 });
 
 observabilityRouter.get("/ask-ai-queries/:id", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]), async (req, res) => {
+  const tenantIds = await listTenantIdsForUser(req.user!);
   const item = await prisma.askAiQueryLog.findUnique({
     where: { id: req.params.id },
     include: {
       user: { select: { id: true, name: true, email: true } },
-      project: { select: { id: true, code: true, name: true } },
+      project: { select: { id: true, code: true, name: true, tenantId: true } },
       meeting: { select: { id: true, title: true, sessionAt: true } }
     }
   });
 
-  if (!item) {
+  if (!item || (tenantIds && !(item.project && tenantIds.includes(item.project.tenantId ?? "")))) {
     return res.status(404).json({ message: "Ask-AI query log not found" });
   }
 
