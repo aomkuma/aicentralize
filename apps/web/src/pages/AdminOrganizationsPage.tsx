@@ -121,6 +121,31 @@ export default function AdminOrganizationsPage() {
     }
   }
 
+  const onSaveMemberField = async (
+    member: TenantMembership,
+    field: 'jobTitle' | 'department',
+    value: string,
+  ) => {
+    if (!selectedTenantId) {
+      return
+    }
+
+    const trimmed = value.trim()
+    if (trimmed === (member[field] ?? '')) {
+      return
+    }
+
+    setNotice(null)
+    const updated = await patchMember<TenantMembership>(`/admin/tenants/${selectedTenantId}/members/${member.userId}`, {
+      [field]: trimmed === '' ? null : trimmed,
+    })
+
+    if (updated) {
+      setMembers((items) => items.map((item) => (item.id === updated.id ? updated : item)))
+      setNotice(t('adminOrganizations.memberSaved'))
+    }
+  }
+
   const onResendInvitation = async (invitation: UserInvitation) => {
     setNotice(null)
     setManualInviteUrl(null)
@@ -250,6 +275,20 @@ export default function AdminOrganizationsPage() {
                     }`}>
                       {member.isActive !== false ? t('adminOrganizations.active') : t('adminOrganizations.inactive')}
                     </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <input
+                      defaultValue={member.jobTitle ?? ''}
+                      onBlur={(event) => onSaveMemberField(member, 'jobTitle', event.target.value)}
+                      placeholder={t('adminOrganizations.jobTitle')}
+                      className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+                    />
+                    <input
+                      defaultValue={member.department ?? ''}
+                      onBlur={(event) => onSaveMemberField(member, 'department', event.target.value)}
+                      placeholder={t('adminOrganizations.department')}
+                      className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+                    />
                   </div>
                 </div>
               ))}

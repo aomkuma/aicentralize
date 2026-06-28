@@ -268,8 +268,8 @@ adminRouter.patch("/tenants/:tenantId/members/:userId", async (req, res) => {
     },
     data: {
       role: parsed.data.role,
-      jobTitle: parsed.data.jobTitle ?? undefined,
-      department: parsed.data.department ?? undefined,
+      jobTitle: parsed.data.jobTitle,
+      department: parsed.data.department,
       isActive: parsed.data.isActive
     },
     include: {

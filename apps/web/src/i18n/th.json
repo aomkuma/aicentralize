@@ -148,6 +148,8 @@
     "organizationName": "องค์กร",
     "organizationSaved": "บันทึกข้อมูลองค์กรสำเร็จ",
     "memberSaved": "บันทึกข้อมูลสมาชิกสำเร็จ",
+    "jobTitle": "ตำแหน่งงาน",
+    "department": "แผนก",
     "owner": "ผู้สร้าง",
     "members": "สมาชิก",
     "projects": "โปรเจค",

@@ -148,6 +148,8 @@
     "organizationName": "Organization",
     "organizationSaved": "Organization updated successfully.",
     "memberSaved": "Member updated successfully.",
+    "jobTitle": "Job title",
+    "department": "Department",
     "owner": "Owner",
     "members": "Members",
     "projects": "Projects",
