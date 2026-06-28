@@ -14,6 +14,8 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "setup:push": "ts-node scripts/setup-push.ts",
     "setup:push:force": "ts-node scripts/setup-push.ts --force",
+    "db:clean": "ts-node scripts/clean-data.ts",
+    "db:clean:force": "ts-node scripts/clean-data.ts --force",
     "test": "vitest run",
     "test:watch": "vitest"
   },
