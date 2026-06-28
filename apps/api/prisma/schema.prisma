@@ -15,6 +15,7 @@ enum UserRole {
 
 enum SystemRole {
   SUPER_ADMIN
+  MODERATOR
   USER
 }
 
@@ -157,6 +158,7 @@ model User {
   name          String
   phone         String?
   passwordHash  String
+  mustChangePassword Boolean @default(false)
   role          UserRole     @default(MEMBER)
   systemRole    SystemRole   @default(USER)
   createdAt     DateTime     @default(now())
@@ -180,6 +182,8 @@ model User {
   tenantMemberships TenantMembership[]
   createdTenants Tenant[] @relation("TenantCreator")
   systemSettingsUpdates SystemSettings[]
+  invitationsCreated UserInvitation[] @relation("InvitationCreator")
+  invitationsAccepted UserInvitation[] @relation("InvitationAcceptedUser")
 }
 
 model SystemSettings {
@@ -198,6 +202,7 @@ model Tenant {
   id          String   @id @default(cuid())
   slug        String   @unique
   name        String
+  isActive    Boolean  @default(true)
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -205,6 +210,7 @@ model Tenant {
   createdBy   User     @relation("TenantCreator", fields: [createdById], references: [id], onDelete: Restrict)
   memberships TenantMembership[]
   projects    Project[]
+  invitations UserInvitation[]
 
   @@index([createdAt])
 }
@@ -216,6 +222,7 @@ model TenantMembership {
   role       TenantRole @default(MEMBER)
   jobTitle   String?
   department String?
+  isActive  Boolean    @default(true)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
@@ -225,6 +232,35 @@ model TenantMembership {
   @@unique([tenantId, userId])
   @@index([userId])
   @@index([tenantId, role])
+}
+
+model UserInvitation {
+  id             String     @id @default(cuid())
+  tenantId       String
+  email          String
+  name           String
+  phone          String?
+  tenantRole     TenantRole @default(MEMBER)
+  userRole       UserRole   @default(MEMBER)
+  jobTitle       String
+  department     String?
+  tokenHash      String     @unique
+  expiresAt      DateTime
+  emailLastAttemptAt DateTime?
+  emailSentAt     DateTime?
+  emailLastError  String?
+  acceptedAt     DateTime?
+  acceptedUserId String?
+  createdById    String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy    User?  @relation("InvitationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  acceptedUser User?  @relation("InvitationAcceptedUser", fields: [acceptedUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, email])
+  @@index([expiresAt])
 }
 
 model RefreshToken {

@@ -9,7 +9,8 @@
     "back": "Back",
     "next": "Next",
     "submit": "Submit",
-    "joined": "Joined"
+    "joined": "Joined",
+    "platformConsole": "Platform Console"
   },
   "auth": {
     "email": "Email",
@@ -42,7 +43,36 @@
     "reviewSetup": "Review your setup",
     "reviewHelp": "Please confirm all details before creating. You can update organization settings later.",
     "createOrganization": "Create Organization",
-    "organizationCreated": "Organization created successfully!"
+    "organizationCreated": "Organization created successfully!",
+    "firstMemberIntro": "You can add the first team member now, or skip this step and add members later.",
+    "createFirstMember": "Create First Member",
+    "skipFirstMember": "Skip Member Setup",
+    "finishSetup": "Finish Setup",
+    "temporaryPassword": "Temporary password",
+    "temporaryPasswordHelp": "Share this password with the new user only if they cannot use the invitation link.",
+    "invitationEmailSent": "Invitation email sent successfully.",
+    "invitationFallback": "Invitation email was not sent. Share this link manually."
+  },
+  "profile": {
+    "title": "Personal Profile",
+    "description": "Update your personal details and account password.",
+    "saved": "Profile saved successfully.",
+    "saveProfile": "Save Profile",
+    "changePassword": "Change Password",
+    "changePasswordDesc": "Use a strong password with at least 8 characters.",
+    "mustChangePasswordTitle": "Change your temporary password",
+    "mustChangePasswordDesc": "Your account was created with a temporary password. Please set a new password before continuing.",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm Password",
+    "passwordMismatch": "New password and confirmation do not match.",
+    "savePassword": "Save Password"
+  },
+  "invite": {
+    "title": "Accept Invitation",
+    "description": "Set your password to activate your AICentralize account.",
+    "accept": "Accept Invitation",
+    "missingToken": "Invitation token is missing."
   },
   "dashboard": {
     "home": "Dashboard",
@@ -90,6 +120,7 @@
     "memberCreateSubmit": "Create Member",
     "memberCreating": "Creating member...",
     "memberCreated": "Team member saved successfully.",
+    "memberInvited": "Team member created and invitation email sent.",
     "teamEmpty": "No team members found for this organization.",
     "recordMeetings": "Record Meetings",
     "recordMeetingsDesc": "Capture and transcribe your meetings automatically",
@@ -109,6 +140,31 @@
     "meetings": "Meetings",
     "aiPlayground": "AI Playground",
     "systemSettings": "System Settings"
+  },
+  "adminOrganizations": {
+    "title": "Organization Management",
+    "description": "Manage registered organizations, organization status, and member access.",
+    "organizations": "Organizations",
+    "organizationName": "Organization",
+    "organizationSaved": "Organization updated successfully.",
+    "memberSaved": "Member updated successfully.",
+    "owner": "Owner",
+    "members": "Members",
+    "projects": "Projects",
+    "active": "Active",
+    "inactive": "Inactive",
+    "empty": "No organizations found.",
+    "noMembers": "No members found for this organization.",
+    "toggleOrganization": "Toggle organization status",
+    "toggleMember": "Toggle member status",
+    "pendingInvitations": "Pending Invitations",
+    "resendInvite": "Resend",
+    "invitationResent": "Invitation email resent successfully.",
+    "invitationResendFallback": "Invitation email was not sent. Share the generated link manually.",
+    "emailSent": "Email sent",
+    "emailNotSent": "Email not sent yet",
+    "emailError": "Email error",
+    "noPendingInvitations": "No pending invitations."
   },
   "features": {
     "notAvailable": "This feature is not available with your current plan. Upgrade to access this feature."

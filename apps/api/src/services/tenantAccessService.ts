@@ -11,6 +11,10 @@ export function isSuperAdmin(user: TenantAuthUser): boolean {
   return user.systemRole === SystemRole.SUPER_ADMIN;
 }
 
+export function isPlatformAdmin(user: TenantAuthUser): boolean {
+  return user.systemRole === SystemRole.SUPER_ADMIN || user.systemRole === SystemRole.MODERATOR;
+}
+
 export async function getTenantMembership(userId: string, tenantId: string) {
   return prisma.tenantMembership.findUnique({
     where: {
@@ -20,18 +24,24 @@ export async function getTenantMembership(userId: string, tenantId: string) {
       }
     },
     select: {
-      role: true
+      role: true,
+      isActive: true,
+      tenant: {
+        select: {
+          isActive: true
+        }
+      }
     }
   });
 }
 
 export async function ensureTenantMembership(user: TenantAuthUser, tenantId: string): Promise<boolean> {
-  if (isSuperAdmin(user)) {
+  if (isPlatformAdmin(user)) {
     return true;
   }
 
   const membership = await getTenantMembership(user.id, tenantId);
-  return Boolean(membership);
+  return Boolean(membership?.isActive && membership.tenant.isActive);
 }
 
 export async function ensureTenantRole(
@@ -39,12 +49,12 @@ export async function ensureTenantRole(
   tenantId: string,
   allowed: TenantRole[]
 ): Promise<boolean> {
-  if (isSuperAdmin(user)) {
+  if (isPlatformAdmin(user)) {
     return true;
   }
 
   const membership = await getTenantMembership(user.id, tenantId);
-  if (!membership) {
+  if (!membership?.isActive || !membership.tenant.isActive) {
     return false;
   }
 
@@ -52,12 +62,18 @@ export async function ensureTenantRole(
 }
 
 export async function listTenantIdsForUser(user: TenantAuthUser): Promise<string[] | undefined> {
-  if (isSuperAdmin(user)) {
+  if (isPlatformAdmin(user)) {
     return undefined;
   }
 
   const rows = await prisma.tenantMembership.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      isActive: true,
+      tenant: {
+        isActive: true
+      }
+    },
     select: { tenantId: true }
   });
 

@@ -52,6 +52,12 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
     icon: 'setup',
   },
   {
+    id: 'admin-organizations',
+    to: '/admin/organizations',
+    labelKey: 'adminOrganizations.title',
+    icon: 'setup',
+  },
+  {
     id: 'settings',
     to: '/settings',
     labelKey: 'navigation.systemSettings',

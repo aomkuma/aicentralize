@@ -138,7 +138,17 @@ export default function Sidebar({
   const clearAuth = useAuthStore((state) => state.clearAuth)
 
   const isCollapsed = isDesktopCollapsed
+  const isPlatformAdmin = user?.systemRole === 'SUPER_ADMIN' || user?.systemRole === 'MODERATOR'
   const navItems = PRIMARY_NAVIGATION.filter((item) => {
+    if (isPlatformAdmin) {
+      return item.id === 'admin-organizations' ||
+        (user?.systemRole === 'SUPER_ADMIN' && (item.id === 'settings' || item.id === 'setup'))
+    }
+
+    if (item.id === 'admin-organizations') {
+      return false
+    }
+
     if (item.id === 'projects') {
       return user?.systemRole !== 'SUPER_ADMIN'
     }
@@ -317,7 +327,12 @@ export default function Sidebar({
 
           {/* User section */}
           <div className="border-t border-gray-200 dark:border-slate-700 pt-3">
-            <div className={`flex items-center gap-3 px-2 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 mb-3 transition-all duration-300 ease-out ${isCollapsed ? 'lg:justify-center lg:gap-0' : ''}`}>
+            <NavLink
+              to="/profile"
+              onClick={onCloseMobile}
+              title={isDesktopCollapsed ? t('profile.title') : undefined}
+              className={`flex items-center gap-3 px-2 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 mb-3 transition-all duration-300 ease-out ${isCollapsed ? 'lg:justify-center lg:gap-0' : ''}`}
+            >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-sm font-bold text-white">
                 {user?.name.charAt(0).toUpperCase()}
               </div>
@@ -329,7 +344,7 @@ export default function Sidebar({
                   {user?.email}
                 </p>
               </div>
-            </div>
+            </NavLink>
 
             {user?.systemRole === 'SUPER_ADMIN' && (
               <NavLink

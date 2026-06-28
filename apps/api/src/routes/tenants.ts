@@ -1,10 +1,13 @@
 import { SystemRole, TenantRole, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
-import { ensureTenantMembership, ensureTenantRole, isSuperAdmin, type TenantAuthUser } from "../services/tenantAccessService";
+import { env } from "../config/env";
+import { sendInvitationEmail } from "../services/emailService";
+import { ensureTenantMembership, ensureTenantRole, isPlatformAdmin, isSuperAdmin, type TenantAuthUser } from "../services/tenantAccessService";
 
 export const tenantRouter = Router();
 
@@ -31,38 +34,61 @@ const onboardMemberSchema = z.object({
   email: z.string().email(),
   phone: z.string().min(7).max(30),
   tenantRole: z.nativeEnum(TenantRole).default(TenantRole.MEMBER),
-  userRole: z.nativeEnum(UserRole).optional().default(UserRole.MEMBER),
+  userRole: z.nativeEnum(UserRole).optional(),
   jobTitle: z.string().min(1).max(120),
   department: z.string().min(1).max(120).optional(),
   password: z.string().min(8).max(72).optional()
 });
 
 function slugifyName(name: string): string {
-  return name
+  const slug = name
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+
+  return slug || `org-${crypto.randomBytes(4).toString("hex")}`;
 }
 
 function canCreateTenant(user: TenantAuthUser): boolean {
-  return isSuperAdmin(user) || user.role === UserRole.ADMIN;
+  return isPlatformAdmin(user);
 }
 
 function createTemporaryPassword() {
-  return `Temp${Math.random().toString(36).slice(2, 10)}!`;
+  return `Temp${crypto.randomBytes(6).toString("base64url")}!`;
+}
+
+function createInviteToken() {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+function hashInviteToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function buildInviteUrl(token: string) {
+  return `${env.appPublicUrl.replace(/\/+$/, "")}/accept-invite?token=${encodeURIComponent(token)}`;
 }
 
 tenantRouter.get("/me", requireAuth, async (req, res) => {
   const memberships = await prisma.tenantMembership.findMany({
-    where: { userId: req.user!.id },
+    where: isSuperAdmin(req.user!)
+      ? { userId: req.user!.id }
+      : {
+        userId: req.user!.id,
+        isActive: true,
+        tenant: {
+          isActive: true
+        }
+      },
     include: {
       tenant: {
         select: {
           id: true,
           slug: true,
           name: true,
+          isActive: true,
           createdAt: true,
           updatedAt: true
         }
@@ -86,22 +112,28 @@ tenantRouter.post("/", requireAuth, async (req, res) => {
     return res.status(403).json({ message: "Forbidden" });
   }
 
-  const slug = (parsed.data.slug ?? slugifyName(parsed.data.name)).trim().toLowerCase();
+  const slug = (parsed.data.slug ? slugifyName(parsed.data.slug) : slugifyName(parsed.data.name)).trim().toLowerCase();
   if (!slug) {
     return res.status(400).json({ message: "Slug cannot be empty" });
   }
+
+  const shouldCreateCreatorMembership = !isPlatformAdmin(req.user!);
 
   const tenant = await prisma.tenant.create({
     data: {
       name: parsed.data.name,
       slug,
       createdById: req.user!.id,
-      memberships: {
-        create: {
-          userId: req.user!.id,
-          role: TenantRole.TENANT_ADMIN
+      ...(shouldCreateCreatorMembership
+        ? {
+          memberships: {
+            create: {
+              userId: req.user!.id,
+              role: TenantRole.TENANT_ADMIN
+            }
+          }
         }
-      }
+        : {})
     }
   });
 
@@ -124,7 +156,8 @@ tenantRouter.get("/:tenantId/members", requireAuth, async (req, res) => {
           name: true,
           phone: true,
           role: true,
-          systemRole: true
+          systemRole: true,
+          mustChangePassword: true
         }
       }
     },
@@ -216,14 +249,25 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
   const name = parsed.data.name.trim();
   const phone = parsed.data.phone.trim();
   const department = parsed.data.department?.trim();
-  const passwordHash = await bcrypt.hash(parsed.data.password ?? createTemporaryPassword(), 10);
+  const isTenantManagerRole = parsed.data.tenantRole === TenantRole.TENANT_ADMIN ||
+    parsed.data.tenantRole === TenantRole.MANAGER;
+  const workflowRole = parsed.data.userRole ?? (
+    isTenantManagerRole
+      ? UserRole.PM
+      : UserRole.MEMBER
+  );
+  const temporaryPassword = parsed.data.password ? null : createTemporaryPassword();
+  const passwordHash = await bcrypt.hash(parsed.data.password ?? temporaryPassword!, 10);
+  const inviteToken = createInviteToken();
+  const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   const existingUser = await prisma.user.findUnique({
     where: { email },
     select: {
       id: true,
       role: true,
-      systemRole: true
+      systemRole: true,
+      mustChangePassword: true
     }
   });
 
@@ -233,7 +277,8 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
       data: {
         name,
         phone,
-        role: existingUser.role === UserRole.ADMIN ? existingUser.role : parsed.data.userRole,
+        role: existingUser.role === UserRole.ADMIN ? existingUser.role : workflowRole,
+        mustChangePassword: existingUser ? existingUser.mustChangePassword : !parsed.data.password,
         systemRole: existingUser.systemRole
       },
       select: {
@@ -250,8 +295,9 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
         email,
         name,
         phone,
-        role: parsed.data.userRole,
+        role: workflowRole,
         passwordHash,
+        mustChangePassword: !parsed.data.password,
         systemRole: SystemRole.USER
       },
       select: {
@@ -297,7 +343,80 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
     }
   });
 
-  return res.status(existingUser ? 200 : 201).json(membership);
+  let invitationEmailSent = false;
+  let invitationEmailError: string | undefined;
+  let inviteUrl: string | undefined;
+
+  if (!parsed.data.password) {
+    const tokenHash = hashInviteToken(inviteToken);
+    const invitation = await prisma.userInvitation.create({
+      data: {
+        tenantId: req.params.tenantId,
+        email,
+        name,
+        phone,
+        tenantRole: parsed.data.tenantRole,
+        userRole: workflowRole,
+        jobTitle: parsed.data.jobTitle,
+        department,
+        tokenHash,
+        expiresAt: inviteExpiresAt,
+        createdById: req.user!.id
+      }
+    });
+
+    inviteUrl = buildInviteUrl(inviteToken);
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: req.params.tenantId },
+      select: {
+        name: true
+      }
+    });
+
+    const inviter = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        name: true
+      }
+    });
+
+    try {
+      invitationEmailSent = await sendInvitationEmail({
+        to: email,
+        inviteeName: name,
+        inviterName: inviter?.name,
+        tenantName: tenant?.name ?? "AICentralize",
+        inviteUrl,
+        expiresAt: inviteExpiresAt
+      });
+      await prisma.userInvitation.update({
+        where: { id: invitation.id },
+        data: {
+          emailLastAttemptAt: new Date(),
+          emailSentAt: invitationEmailSent ? new Date() : null,
+          emailLastError: invitationEmailSent ? null : "SMTP is not configured"
+        }
+      });
+    } catch (error) {
+      invitationEmailError = error instanceof Error ? error.message : "Invitation email failed";
+      await prisma.userInvitation.update({
+        where: { id: invitation.id },
+        data: {
+          emailLastAttemptAt: new Date(),
+          emailLastError: invitationEmailError
+        }
+      });
+    }
+  }
+
+  return res.status(existingUser ? 200 : 201).json({
+    ...membership,
+    temporaryPassword,
+    invitationEmailSent,
+    invitationEmailError,
+    inviteUrl: invitationEmailSent ? undefined : inviteUrl
+  });
 });
 
 tenantRouter.patch("/:tenantId/members/:userId", requireAuth, async (req, res) => {

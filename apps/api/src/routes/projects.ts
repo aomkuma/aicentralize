@@ -2,7 +2,7 @@ import { MeetingAttendanceStatus, MeetingParticipantRole, TenantRole, UserRole }
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { requireAuth, requireRole } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { listMemberProjectIds } from "../services/accessScopeService";
 import { createProjectMeeting } from "../services/meetingIngestionService";
 import { ensureTenantMembership, ensureTenantRole, isSuperAdmin, listTenantIdsForUser } from "../services/tenantAccessService";
@@ -72,7 +72,7 @@ projectRouter.get("/", requireAuth, async (req, res) => {
   res.json(projects);
 });
 
-projectRouter.post("/", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]), async (req, res) => {
+projectRouter.post("/", requireAuth, async (req, res) => {
   const parsed = createProjectSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
@@ -132,10 +132,32 @@ projectRouter.post("/", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]),
   res.status(201).json(project);
 });
 
-projectRouter.post("/:projectId/meetings", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]), async (req, res) => {
+projectRouter.post("/:projectId/meetings", requireAuth, async (req, res) => {
   const parsed = createProjectMeetingSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: { id: true, tenantId: true }
+  });
+
+  if (!project) {
+    return res.status(404).json({ message: "Project not found" });
+  }
+
+  if (project.tenantId) {
+    const canCreateInTenant = await ensureTenantRole(
+      req.user!,
+      project.tenantId,
+      [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]
+    );
+    if (!canCreateInTenant) {
+      return res.status(403).json({ message: "Forbidden tenant scope" });
+    }
+  } else if (!isSuperAdmin(req.user!)) {
+    return res.status(403).json({ message: "Forbidden project scope" });
   }
 
   const meeting = await createProjectMeeting({

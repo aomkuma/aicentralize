@@ -1,5 +1,23 @@
 # Quick Reference - Common Commands
 
+## Session Update (2026-06-28)
+
+- Platform roles are separated from tenant/workflow roles:
+  - `SystemRole.SUPER_ADMIN`: full platform + system settings.
+  - `SystemRole.MODERATOR`: platform organization/member management.
+  - `SystemRole.USER`: normal tenant user.
+- New code should use `systemRole` for platform access. Do not use `UserRole.ADMIN` as the platform-admin signal.
+- Tenant roles still control tenant work:
+  - `TENANT_ADMIN` / `MANAGER`: manage tenant members and projects.
+  - `MEMBER` / `VIEWER`: normal tenant access.
+- Invitation flow:
+  - Frontend: `/accept-invite?token=...`
+  - Preview: `GET /auth/invitations/:token`
+  - Accept: `POST /auth/invitations/:token/accept`
+- `/accept-invite` must exist in both logged-out and logged-in route trees. If it is missing for logged-in users, the page renders blank.
+- Auth clears stale `tenant-store` on user change/logout. Dashboard and projects reselect tenant from `/tenants/me`.
+- Full handover: `docs/next-day-handover-2026-06-28.md`
+
 ## Session Update (2026-06-22)
 
 - Dashboard now includes `AI Chat` with feature parity to playground:
@@ -127,6 +145,23 @@ Config (FE)     → apps/web/.env.local
 ```
 
 ## 🐛 Troubleshooting
+
+### Invitation link opens a blank page
+```bash
+# Confirm the route exists for both logged-out and logged-in users:
+# apps/web/src/App.tsx -> /accept-invite
+
+# Verify token preview directly:
+curl http://localhost:4000/auth/invitations/<token>
+```
+
+### Wrong organization after cleaning local data
+```bash
+# Browser may still have an old tenant persisted:
+localStorage.removeItem('tenant-store')
+
+# Logout/login also clears tenant-store after the 2026-06-28 fix.
+```
 
 ### Packages won't install
 ```bash

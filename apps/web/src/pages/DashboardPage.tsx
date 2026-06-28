@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const user = useAuthStore((state) => state.user)
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const setCurrentTenant = useTenantStore((state) => state.setCurrentTenant)
+  const clearCurrentTenant = useTenantStore((state) => state.clearCurrentTenant)
   const {
     get: getMemberships,
     isLoading: isMembershipLoading,
@@ -37,20 +38,32 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<DashboardProject[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const isSuperAdmin = user?.systemRole === 'SUPER_ADMIN'
+  const activeMembership = memberships.find((membership) => membership.tenantId === currentTenant?.id) ?? memberships[0]
+  const activeTenantName = activeMembership?.tenant?.name ?? currentTenant?.name
 
   useEffect(() => {
     const fetchMemberships = async () => {
       const data = await getMemberships<TenantMembership[]>('/tenants/me')
       if (data) {
         setMemberships(data)
-        if (data.length > 0 && !currentTenant && data[0].tenant) {
-          setCurrentTenant(data[0].tenant, data[0])
+        const matchingMembership = data.find((membership) => membership.tenantId === currentTenant?.id)
+        const nextMembership = matchingMembership ?? data[0]
+
+        if (nextMembership?.tenant && (
+          nextMembership.tenantId !== currentTenant?.id ||
+          nextMembership.tenant.name !== currentTenant?.name
+        )) {
+          setCurrentTenant(nextMembership.tenant, nextMembership)
+        }
+
+        if (data.length === 0) {
+          clearCurrentTenant()
         }
       }
     }
 
     fetchMemberships()
-  }, [getMemberships, currentTenant, setCurrentTenant])
+  }, [getMemberships, currentTenant?.id, setCurrentTenant, clearCurrentTenant])
 
   const fetchProjects = useCallback(async () => {
     const data = await getProjects<DashboardProject[]>('/projects')
@@ -80,7 +93,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <Layout currentTenantName={currentTenant?.name}>
+    <Layout currentTenantName={activeTenantName}>
       {/* Main content area */}
       <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
         {isSuperAdmin && (

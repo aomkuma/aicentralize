@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
+import { requireAuth } from "../middleware/auth";
 
 export const authRouter = Router();
 
@@ -16,6 +17,20 @@ const loginSchema = z.object({
 
 const refreshSchema = z.object({
   refreshToken: z.string().min(20)
+});
+
+const profileSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  phone: z.string().trim().max(30).optional().nullable()
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(6).optional(),
+  newPassword: z.string().min(8).max(72)
+});
+
+const acceptInvitationSchema = z.object({
+  password: z.string().min(8).max(72)
 });
 
 function signAccessToken(user: {
@@ -39,6 +54,10 @@ function createRefreshTokenValue() {
 }
 
 function hashRefreshToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function hashInviteToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
@@ -293,8 +312,245 @@ authRouter.post("/login", async (req, res) => {
       id: user.id,
       email: user.email,
       name: user.name,
+      phone: user.phone,
       role: user.role as UserRole,
-      systemRole: user.systemRole as SystemRole
+      systemRole: user.systemRole as SystemRole,
+      mustChangePassword: user.mustChangePassword
+    }
+  });
+});
+
+authRouter.get("/me", requireAuth, async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      phone: true,
+      role: true,
+      systemRole: true,
+      mustChangePassword: true,
+      createdAt: true,
+      updatedAt: true
+    }
+  });
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  return res.json(user);
+});
+
+authRouter.patch("/me", requireAuth, async (req, res) => {
+  const parsed = profileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.user!.id },
+    data: {
+      name: parsed.data.name,
+      phone: parsed.data.phone?.trim() || null
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      phone: true,
+      role: true,
+      systemRole: true,
+      mustChangePassword: true,
+      createdAt: true,
+      updatedAt: true
+    }
+  });
+
+  return res.json(user);
+});
+
+authRouter.post("/change-password", requireAuth, async (req, res) => {
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  if (!user.mustChangePassword) {
+    if (!parsed.data.currentPassword) {
+      return res.status(400).json({ message: "Current password is required" });
+    }
+
+    const ok = await bcrypt.compare(parsed.data.currentPassword, user.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+  }
+
+  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      mustChangePassword: false
+    }
+  });
+
+  return res.json({ ok: true });
+});
+
+authRouter.get("/invitations/:token", async (req, res) => {
+  const tokenHash = hashInviteToken(req.params.token);
+  const invitation = await prisma.userInvitation.findUnique({
+    where: { tokenHash },
+    include: {
+      tenant: {
+        select: {
+          id: true,
+          name: true,
+          isActive: true
+        }
+      }
+    }
+  });
+
+  if (!invitation || invitation.acceptedAt || invitation.expiresAt.getTime() <= Date.now()) {
+    return res.status(404).json({ message: "Invitation not found or expired" });
+  }
+
+  if (!invitation.tenant.isActive) {
+    return res.status(403).json({ message: "Organization is inactive" });
+  }
+
+  return res.json({
+    email: invitation.email,
+    name: invitation.name,
+    tenantName: invitation.tenant.name,
+    expiresAt: invitation.expiresAt
+  });
+});
+
+authRouter.post("/invitations/:token/accept", async (req, res) => {
+  const parsed = acceptInvitationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  const tokenHash = hashInviteToken(req.params.token);
+  const invitation = await prisma.userInvitation.findUnique({
+    where: { tokenHash },
+    include: {
+      tenant: {
+        select: {
+          id: true,
+          isActive: true
+        }
+      }
+    }
+  });
+
+  if (!invitation || invitation.acceptedAt || invitation.expiresAt.getTime() <= Date.now()) {
+    return res.status(404).json({ message: "Invitation not found or expired" });
+  }
+
+  if (!invitation.tenant.isActive) {
+    return res.status(403).json({ message: "Organization is inactive" });
+  }
+
+  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+  const email = invitation.email.trim().toLowerCase();
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      role: true,
+      systemRole: true
+    }
+  });
+
+  const user = existingUser
+    ? await prisma.user.update({
+      where: { id: existingUser.id },
+      data: {
+        name: invitation.name,
+        phone: invitation.phone,
+        passwordHash,
+        mustChangePassword: false,
+        role: existingUser.role === UserRole.ADMIN ? existingUser.role : invitation.userRole
+      }
+    })
+    : await prisma.user.create({
+      data: {
+        email,
+        name: invitation.name,
+        phone: invitation.phone,
+        passwordHash,
+        mustChangePassword: false,
+        role: invitation.userRole,
+        systemRole: SystemRole.USER
+      }
+    });
+
+  await prisma.tenantMembership.upsert({
+    where: {
+      tenantId_userId: {
+        tenantId: invitation.tenantId,
+        userId: user.id
+      }
+    },
+    create: {
+      tenantId: invitation.tenantId,
+      userId: user.id,
+      role: invitation.tenantRole,
+      jobTitle: invitation.jobTitle,
+      department: invitation.department,
+      isActive: true
+    },
+    update: {
+      role: invitation.tenantRole,
+      jobTitle: invitation.jobTitle,
+      department: invitation.department,
+      isActive: true
+    }
+  });
+
+  await prisma.userInvitation.update({
+    where: { id: invitation.id },
+    data: {
+      acceptedAt: new Date(),
+      acceptedUserId: user.id
+    }
+  });
+
+  const token = signAccessToken({
+    id: user.id,
+    role: user.role as UserRole,
+    systemRole: user.systemRole as SystemRole,
+    email: user.email
+  });
+  const refreshToken = await issueRefreshToken({
+    userId: user.id,
+    userAgent: req.get("user-agent") || undefined
+  });
+
+  return res.json({
+    accessToken: token,
+    refreshToken,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      role: user.role as UserRole,
+      systemRole: user.systemRole as SystemRole,
+      mustChangePassword: user.mustChangePassword
     }
   });
 });

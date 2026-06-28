@@ -22,6 +22,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAuth: (auth: AuthResponse) => {
     // Write to localStorage
     if (typeof window !== 'undefined') {
+      const previousUserJson = localStorage.getItem('user')
+      let previousUser: User | null = null
+      try {
+        previousUser = previousUserJson ? JSON.parse(previousUserJson) as User : null
+      } catch {
+        previousUser = null
+      }
+      if (previousUser?.id !== auth.user.id) {
+        localStorage.removeItem('tenant-store')
+      }
       localStorage.setItem('accessToken', auth.accessToken)
       localStorage.setItem('refreshToken', auth.refreshToken)
       localStorage.setItem('user', JSON.stringify(auth.user))
@@ -54,6 +64,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
+      localStorage.removeItem('tenant-store')
     }
     set({
       user: null,

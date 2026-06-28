@@ -9,7 +9,8 @@
     "back": "กลับ",
     "next": "ถัดไป",
     "submit": "ส่ง",
-    "joined": "เข้าร่วมเมื่อ"
+    "joined": "เข้าร่วมเมื่อ",
+    "platformConsole": "คอนโซลแพลตฟอร์ม"
   },
   "auth": {
     "email": "อีเมล",
@@ -42,7 +43,36 @@
     "reviewSetup": "ตรวจสอบการตั้งค่าของคุณ",
     "reviewHelp": "กรุณาตรวจสอบข้อมูลก่อนกดสร้าง คุณสามารถแก้ไขการตั้งค่าองค์กรภายหลังได้",
     "createOrganization": "สร้างองค์กร",
-    "organizationCreated": "สร้างองค์กรสำเร็จแล้ว!"
+    "organizationCreated": "สร้างองค์กรสำเร็จแล้ว!",
+    "firstMemberIntro": "คุณสามารถเพิ่มสมาชิกคนแรกตอนนี้ หรือข้ามไปเพิ่มภายหลังได้",
+    "createFirstMember": "สร้างสมาชิกคนแรก",
+    "skipFirstMember": "ข้ามการเพิ่มสมาชิก",
+    "finishSetup": "เสร็จสิ้น",
+    "temporaryPassword": "รหัสผ่านชั่วคราว",
+    "temporaryPasswordHelp": "ส่งรหัสนี้ให้ผู้ใช้ใหม่เฉพาะกรณีที่ใช้งานลิงก์คำเชิญไม่ได้",
+    "invitationEmailSent": "ส่งอีเมลคำเชิญสำเร็จแล้ว",
+    "invitationFallback": "ยังไม่ได้ส่งอีเมลคำเชิญ กรุณาส่งลิงก์นี้ให้ผู้ใช้ด้วยตนเอง"
+  },
+  "profile": {
+    "title": "โปรไฟล์ส่วนตัว",
+    "description": "แก้ไขข้อมูลส่วนตัวและรหัสผ่านของบัญชี",
+    "saved": "บันทึกโปรไฟล์สำเร็จ",
+    "saveProfile": "บันทึกโปรไฟล์",
+    "changePassword": "เปลี่ยนรหัสผ่าน",
+    "changePasswordDesc": "ตั้งรหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร",
+    "mustChangePasswordTitle": "เปลี่ยนรหัสผ่านชั่วคราว",
+    "mustChangePasswordDesc": "บัญชีนี้ถูกสร้างด้วยรหัสผ่านชั่วคราว กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งานต่อ",
+    "currentPassword": "รหัสผ่านปัจจุบัน",
+    "newPassword": "รหัสผ่านใหม่",
+    "confirmPassword": "ยืนยันรหัสผ่านใหม่",
+    "passwordMismatch": "รหัสผ่านใหม่และการยืนยันไม่ตรงกัน",
+    "savePassword": "บันทึกรหัสผ่าน"
+  },
+  "invite": {
+    "title": "ตอบรับคำเชิญ",
+    "description": "ตั้งรหัสผ่านเพื่อเปิดใช้งานบัญชี AICentralize ของคุณ",
+    "accept": "ตอบรับคำเชิญ",
+    "missingToken": "ไม่พบ token ของคำเชิญ"
   },
   "dashboard": {
     "home": "แดชบอร์ด",
@@ -90,6 +120,7 @@
     "memberCreateSubmit": "สร้างสมาชิก",
     "memberCreating": "กำลังสร้างสมาชิก...",
     "memberCreated": "บันทึกสมาชิกทีมเรียบร้อยแล้ว",
+    "memberInvited": "สร้างสมาชิกและส่งอีเมลคำเชิญแล้ว",
     "teamEmpty": "ยังไม่มีสมาชิกทีมในองค์กรนี้",
     "recordMeetings": "บันทึกการประชุม",
     "recordMeetingsDesc": "จับและแปลงการประชุมของคุณโดยอัตโนมัติ",
@@ -109,6 +140,31 @@
     "meetings": "การประชุม",
     "aiPlayground": "AI เพลย์กราวด์",
     "systemSettings": "ตั้งค่าระบบ"
+  },
+  "adminOrganizations": {
+    "title": "จัดการองค์กร",
+    "description": "จัดการองค์กรที่ลงทะเบียน สถานะองค์กร และสิทธิ์สมาชิก",
+    "organizations": "องค์กร",
+    "organizationName": "องค์กร",
+    "organizationSaved": "บันทึกข้อมูลองค์กรสำเร็จ",
+    "memberSaved": "บันทึกข้อมูลสมาชิกสำเร็จ",
+    "owner": "ผู้สร้าง",
+    "members": "สมาชิก",
+    "projects": "โปรเจค",
+    "active": "เปิดใช้งาน",
+    "inactive": "ปิดใช้งาน",
+    "empty": "ไม่พบองค์กร",
+    "noMembers": "ไม่พบสมาชิกในองค์กรนี้",
+    "toggleOrganization": "เปิดหรือปิดสถานะองค์กร",
+    "toggleMember": "เปิดหรือปิดสถานะสมาชิก",
+    "pendingInvitations": "คำเชิญที่รอตอบรับ",
+    "resendInvite": "ส่งซ้ำ",
+    "invitationResent": "ส่งอีเมลคำเชิญซ้ำสำเร็จ",
+    "invitationResendFallback": "ยังส่งอีเมลคำเชิญไม่ได้ กรุณาส่งลิงก์ที่สร้างให้ผู้ใช้ด้วยตนเอง",
+    "emailSent": "ส่งอีเมลแล้ว",
+    "emailNotSent": "ยังไม่ได้ส่งอีเมล",
+    "emailError": "ข้อผิดพลาดอีเมล",
+    "noPendingInvitations": "ไม่มีคำเชิญที่รอตอบรับ"
   },
   "features": {
     "notAvailable": "คุณลักษณะนี้ไม่พร้อมใช้งานกับแผนปัจจุบันของคุณ อัปเกรดเพื่อเข้าถึงคุณลักษณะนี้"

@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useTenantStore } from '../stores/tenantStore'
 import { useApi } from '../hooks/useApi'
 import Layout from '../components/Layout'
-import type { MemberOnboardRequest, TenantMembership } from '../types'
+import type { MemberOnboardRequest, MemberOnboardResponse, TenantMembership } from '../types'
 
 type DashboardProject = {
   id: string
@@ -25,6 +25,7 @@ export default function ProjectsPage() {
   const user = useAuthStore((state) => state.user)
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const setCurrentTenant = useTenantStore((state) => state.setCurrentTenant)
+  const clearCurrentTenant = useTenantStore((state) => state.clearCurrentTenant)
 
   const { get: getMemberships } = useApi()
   const {
@@ -64,8 +65,12 @@ export default function ProjectsPage() {
   const [memberDepartment, setMemberDepartment] = useState('')
   const [memberRole, setMemberRole] = useState<'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'>('MEMBER')
   const [memberNotice, setMemberNotice] = useState<string | null>(null)
+  const [memberInviteUrl, setMemberInviteUrl] = useState<string | null>(null)
+  const [memberTemporaryPassword, setMemberTemporaryPassword] = useState<string | null>(null)
 
-  const activeTenantId = currentTenant?.id ?? memberships[0]?.tenantId
+  const activeMembership = memberships.find((membership) => membership.tenantId === currentTenant?.id) ?? memberships[0]
+  const activeTenantId = activeMembership?.tenantId
+  const activeTenantName = activeMembership?.tenant?.name ?? currentTenant?.name
 
   if (user?.systemRole === 'SUPER_ADMIN') {
     return <Navigate to="/dashboard" replace />
@@ -90,14 +95,24 @@ export default function ProjectsPage() {
       const data = await getMemberships<TenantMembership[]>('/tenants/me')
       if (data) {
         setMemberships(data)
-        if (data.length > 0 && !currentTenant && data[0].tenant) {
-          setCurrentTenant(data[0].tenant, data[0])
+        const matchingMembership = data.find((membership) => membership.tenantId === currentTenant?.id)
+        const nextMembership = matchingMembership ?? data[0]
+
+        if (nextMembership?.tenant && (
+          nextMembership.tenantId !== currentTenant?.id ||
+          nextMembership.tenant.name !== currentTenant?.name
+        )) {
+          setCurrentTenant(nextMembership.tenant, nextMembership)
+        }
+
+        if (data.length === 0) {
+          clearCurrentTenant()
         }
       }
     }
 
     fetchMemberships()
-  }, [getMemberships, currentTenant, setCurrentTenant])
+  }, [getMemberships, currentTenant?.id, setCurrentTenant, clearCurrentTenant])
 
   useEffect(() => {
     fetchProjects()
@@ -123,7 +138,7 @@ export default function ProjectsPage() {
     const code = projectCode.trim()
     const name = projectName.trim()
     const description = projectDescription.trim()
-    const tenantId = currentTenant?.id ?? memberships[0]?.tenantId
+    const tenantId = activeTenantId
 
     if (!tenantId) {
       setCreateProjectNotice(t('dashboard.selectOrganizationFirst'))
@@ -180,7 +195,9 @@ export default function ProjectsPage() {
     }
 
     setMemberNotice(null)
-    const created = await onboardTeamMember(`/tenants/${activeTenantId}/members/create`, payload)
+    setMemberInviteUrl(null)
+    setMemberTemporaryPassword(null)
+    const created = await onboardTeamMember<MemberOnboardResponse>(`/tenants/${activeTenantId}/members/create`, payload)
     if (created) {
       setMemberName('')
       setMemberEmail('')
@@ -189,13 +206,15 @@ export default function ProjectsPage() {
       setMemberDepartment('')
       setMemberRole('MEMBER')
       setShowCreateMember(false)
-      setMemberNotice(t('dashboard.memberCreated'))
+      setMemberTemporaryPassword(created.temporaryPassword || null)
+      setMemberInviteUrl(created.inviteUrl || null)
+      setMemberNotice(created.invitationEmailSent ? t('dashboard.memberInvited') : t('dashboard.memberCreated'))
       await fetchTenantTeam()
     }
   }
 
   return (
-    <Layout currentTenantName={currentTenant?.name}>
+    <Layout currentTenantName={activeTenantName}>
       <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-2">
@@ -298,6 +317,20 @@ export default function ProjectsPage() {
 
                 {memberNotice && (
                   <p className="mt-3 text-sm text-blue-700 dark:text-blue-300">{memberNotice}</p>
+                )}
+                {(memberInviteUrl || memberTemporaryPassword) && (
+                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                    {memberInviteUrl && (
+                      <code className="block break-all rounded bg-white px-2 py-1 font-mono text-xs dark:bg-slate-950">
+                        {memberInviteUrl}
+                      </code>
+                    )}
+                    {memberTemporaryPassword && (
+                      <p className="mt-2">
+                        {t('setup.temporaryPassword')}: <code className="font-mono">{memberTemporaryPassword}</code>
+                      </p>
+                    )}
+                  </div>
                 )}
                 {onboardMemberError && (
                   <p className="mt-3 text-sm text-red-600 dark:text-red-400">{onboardMemberError.message}</p>

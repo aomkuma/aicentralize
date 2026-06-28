@@ -3,14 +3,18 @@ export interface User {
   email: string
   name: string
   phone?: string
-  systemRole: 'SUPER_ADMIN' | 'USER'
-  createdAt: string
+  role?: 'ADMIN' | 'PM' | 'MEMBER'
+  systemRole: 'SUPER_ADMIN' | 'MODERATOR' | 'USER'
+  mustChangePassword?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Tenant {
   id: string
   slug: string
   name: string
+  isActive?: boolean
   createdBy: User
   createdAt: string
   updatedAt: string
@@ -23,10 +27,19 @@ export interface TenantMembership {
   role: 'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'
   jobTitle?: string
   department?: string
+  isActive?: boolean
   createdAt: string
   updatedAt: string
   user?: User
   tenant?: Tenant
+}
+
+export type AdminTenant = Omit<Tenant, 'createdBy'> & {
+  createdBy?: Pick<User, 'id' | 'name' | 'email'>
+  _count?: {
+    memberships: number
+    projects: number
+  }
 }
 
 export interface Project {
@@ -103,6 +116,7 @@ export interface AiProviderAccount {
 
 export interface TenantCreateRequest {
   name: string
+  slug?: string
 }
 
 export interface MemberAddRequest {
@@ -120,6 +134,27 @@ export interface MemberOnboardRequest {
   userRole?: 'ADMIN' | 'PM' | 'MEMBER'
   jobTitle: string
   department?: string
+}
+
+export interface MemberOnboardResponse extends TenantMembership {
+  temporaryPassword?: string | null
+  invitationEmailSent?: boolean
+  invitationEmailError?: string
+  inviteUrl?: string
+}
+
+export interface UserInvitation {
+  id: string
+  email: string
+  name: string
+  tenantRole: 'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'
+  jobTitle: string
+  expiresAt: string
+  emailLastAttemptAt?: string | null
+  emailSentAt?: string | null
+  emailLastError?: string | null
+  createdAt: string
+  inviteUrl?: string
 }
 
 // Continuity Dashboard Types

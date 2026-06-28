@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   actionItemRouter,
+  adminRouter,
   aiRouter,
   askAiRouter,
   authRouter,
@@ -25,6 +26,8 @@ import {
 export function createApp() {
   const app = express();
 
+  app.disable("etag");
+
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -39,6 +42,10 @@ export function createApp() {
   }));
   app.use(cors());
   app.use(morgan("dev"));
+  app.use((_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
   app.use(express.json({ limit: "1mb" }));
 
   app.get("/", (_req, res) => {
@@ -293,6 +300,7 @@ export function createApp() {
   });
 
   app.use("/auth", authRouter);
+  app.use("/admin", adminRouter);
   app.use("/projects", projectRouter);
   app.use("/meetings", meetingRouter);
   app.use("/minute-drafts", minuteDraftRouter);

@@ -11,6 +11,7 @@ interface TenantState {
   setTenants: (tenants: Tenant[]) => void
   setMemberships: (memberships: TenantMembership[]) => void
   clearCurrentTenant: () => void
+  clearTenantState: () => void
 }
 
 export const useTenantStore = create<TenantState>()(
@@ -40,6 +41,15 @@ export const useTenantStore = create<TenantState>()(
         set({
           currentTenant: null,
           currentMembership: null,
+        })
+      },
+
+      clearTenantState: () => {
+        set({
+          currentTenant: null,
+          currentMembership: null,
+          tenants: [],
+          memberships: [],
         })
       },
     }),

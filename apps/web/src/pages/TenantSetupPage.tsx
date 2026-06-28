@@ -4,10 +4,9 @@ import { useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuthStore } from '../stores/authStore'
-import { useTenantStore } from '../stores/tenantStore'
 import { getSetupOnboardingStatus, setSetupOnboardingStatus } from '../lib/setupOnboarding'
 import LanguageSwitcher from '../components/LanguageSwitcher'
-import type { Tenant, TenantCreateRequest } from '../types'
+import type { MemberOnboardRequest, MemberOnboardResponse, Tenant, TenantCreateRequest } from '../types'
 
 export default function TenantSetupPage() {
   const { t } = useTranslation()
@@ -15,7 +14,6 @@ export default function TenantSetupPage() {
   const navigate = useNavigate()
   const { post, isLoading } = useApi()
   const userId = useAuthStore((state) => state.user?.id)
-  const setCurrentTenant = useTenantStore((state) => state.setCurrentTenant)
 
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState({
@@ -23,6 +21,18 @@ export default function TenantSetupPage() {
     contactEmail: '',
     contactName: '',
   })
+  const [memberForm, setMemberForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    jobTitle: '',
+    department: '',
+    tenantRole: 'MEMBER' as MemberOnboardRequest['tenantRole'],
+  })
+  const [createdTenant, setCreatedTenant] = useState<Tenant | null>(null)
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null)
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+  const [invitationEmailSent, setInvitationEmailSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hoveredField, setHoveredField] = useState<string | null>(null)
 
@@ -59,6 +69,14 @@ export default function TenantSetupPage() {
     }))
   }
 
+  const handleMemberInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setMemberForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }))
+  }
+
   const handleNext = async () => {
     if (step === 1) {
       if (!formData.organizationName.trim()) {
@@ -88,21 +106,13 @@ export default function TenantSetupPage() {
       const response = await post<Tenant>('/tenants', payload)
 
       if (response) {
-        if (userId) {
-          setSetupOnboardingStatus(userId, 'completed')
-        }
-
-        setCurrentTenant(response, {
-          id: 'temp',
-          tenantId: response.id,
-          userId: '',
-          role: 'TENANT_ADMIN',
-          jobTitle: formData.contactName || undefined,
-          department: undefined,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-        navigate('/dashboard')
+        setCreatedTenant(response)
+        setMemberForm((prev) => ({
+          ...prev,
+          name: formData.contactName,
+          email: formData.contactEmail,
+        }))
+        setStep(4)
       } else {
         setError('Failed to create organization')
       }
@@ -125,6 +135,46 @@ export default function TenantSetupPage() {
     }
 
     navigate('/dashboard')
+  }
+
+  const handleFinish = () => {
+    if (userId) {
+      setSetupOnboardingStatus(userId, 'completed')
+    }
+
+    navigate('/dashboard')
+  }
+
+  const handleCreateFirstMember = async () => {
+    if (!createdTenant) {
+      setError('Please create an organization first')
+      return
+    }
+
+    const payload: MemberOnboardRequest = {
+      name: memberForm.name.trim(),
+      email: memberForm.email.trim().toLowerCase(),
+      phone: memberForm.phone.trim(),
+      jobTitle: memberForm.jobTitle.trim(),
+      department: memberForm.department.trim() || undefined,
+      tenantRole: memberForm.tenantRole,
+    }
+
+    if (!payload.name || !payload.email || !payload.phone || !payload.jobTitle) {
+      setError('Name, email, phone, and job title are required')
+      return
+    }
+
+    setError(null)
+    const response = await post<MemberOnboardResponse>(`/tenants/${createdTenant.id}/members/create`, payload)
+
+    if (response) {
+      setTemporaryPassword(response.temporaryPassword || null)
+      setInviteUrl(response.inviteUrl || null)
+      setInvitationEmailSent(Boolean(response.invitationEmailSent))
+    } else {
+      setError('Failed to create team member')
+    }
   }
 
   return (
@@ -161,7 +211,7 @@ export default function TenantSetupPage() {
       <div className="relative z-10 w-full max-w-2xl">
           {/* Progress indicator */}
           <div className="flex gap-2 mb-8">
-            {[1, 2, 3].map((s) => (
+            {[1, 2, 3, 4].map((s) => (
               <div
                 key={s}
                 className={`h-1 flex-1 rounded-full transition-all ${
@@ -374,18 +424,119 @@ export default function TenantSetupPage() {
               </div>
             )}
 
+            {/* Step 4: First team member */}
+            {step === 4 && (
+              <div className="space-y-5">
+                <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3">
+                  <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                    {t('setup.organizationCreated')} {t('setup.firstMemberIntro')}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className="block">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberName')}</span>
+                    <input
+                      name="name"
+                      value={memberForm.name}
+                      onChange={handleMemberInputChange}
+                      placeholder={t('dashboard.memberNamePlaceholder')}
+                      className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberEmail')}</span>
+                    <input
+                      type="email"
+                      name="email"
+                      value={memberForm.email}
+                      onChange={handleMemberInputChange}
+                      placeholder={t('dashboard.memberEmailPlaceholder')}
+                      className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberPhone')}</span>
+                    <input
+                      name="phone"
+                      value={memberForm.phone}
+                      onChange={handleMemberInputChange}
+                      placeholder={t('dashboard.memberPhonePlaceholder')}
+                      className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberJobTitle')}</span>
+                    <input
+                      name="jobTitle"
+                      value={memberForm.jobTitle}
+                      onChange={handleMemberInputChange}
+                      placeholder={t('dashboard.memberJobTitlePlaceholder')}
+                      className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberDepartment')}</span>
+                    <input
+                      name="department"
+                      value={memberForm.department}
+                      onChange={handleMemberInputChange}
+                      placeholder={t('dashboard.memberDepartmentPlaceholder')}
+                      className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberRole')}</span>
+                    <select
+                      name="tenantRole"
+                      value={memberForm.tenantRole}
+                      onChange={handleMemberInputChange}
+                      className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    >
+                      <option value="TENANT_ADMIN">{t('tenant.tenantAdmin')}</option>
+                      <option value="MANAGER">{t('tenant.manager')}</option>
+                      <option value="MEMBER">{t('tenant.member')}</option>
+                      <option value="VIEWER">{t('tenant.viewer')}</option>
+                    </select>
+                  </label>
+                </div>
+
+                {(invitationEmailSent || inviteUrl || temporaryPassword) && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                    <p className="font-semibold">
+                      {invitationEmailSent ? t('setup.invitationEmailSent') : t('setup.invitationFallback')}
+                    </p>
+                    {inviteUrl && (
+                      <code className="mt-2 block break-all rounded-md bg-white px-3 py-2 font-mono text-xs text-amber-900 dark:bg-slate-950 dark:text-amber-200">
+                        {inviteUrl}
+                      </code>
+                    )}
+                    {temporaryPassword && (
+                      <>
+                        <p className="mt-3 font-semibold">{t('setup.temporaryPassword')}</p>
+                        <code className="mt-2 block rounded-md bg-white px-3 py-2 font-mono text-base text-amber-900 dark:bg-slate-950 dark:text-amber-200">
+                          {temporaryPassword}
+                        </code>
+                        <p className="mt-2">{t('setup.temporaryPasswordHelp')}</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Action buttons */}
             <div className="flex gap-3 mt-8">
               <button
-                onClick={handleSkip}
+                onClick={step === 4 ? handleFinish : handleSkip}
                 className="px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 font-semibold hover:bg-gray-100 dark:hover:bg-slate-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isLoading}
                 type="button"
               >
-                {t('common.skip')}
+                {step === 4 ? t('setup.finishSetup') : t('common.skip')}
               </button>
 
-              {step > 1 && (
+              {step > 1 && step < 4 && (
                 <button
                   onClick={handleBack}
                   className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white font-semibold hover:bg-gray-100 dark:hover:bg-slate-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -405,7 +556,7 @@ export default function TenantSetupPage() {
                 >
                   {t('common.next')}
                 </button>
-              ) : (
+              ) : step === 3 ? (
                 <button
                   onClick={handleSubmit}
                   className="flex-1 px-4 py-2 rounded-lg bg-blue-600 dark:bg-blue-500 text-white font-semibold hover:bg-blue-700 dark:hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -414,12 +565,31 @@ export default function TenantSetupPage() {
                 >
                   {isLoading ? `${t('common.loading')}...` : t('setup.createOrganization')}
                 </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleCreateFirstMember}
+                    className="flex-1 px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading || Boolean(temporaryPassword || invitationEmailSent || inviteUrl)}
+                    type="button"
+                  >
+                    {isLoading ? `${t('common.loading')}...` : t('setup.createFirstMember')}
+                  </button>
+                  <button
+                    onClick={handleFinish}
+                    className="flex-1 px-4 py-2 rounded-lg bg-blue-600 dark:bg-blue-500 text-white font-semibold hover:bg-blue-700 dark:hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading}
+                    type="button"
+                  >
+                    {(temporaryPassword || invitationEmailSent || inviteUrl) ? t('setup.finishSetup') : t('setup.skipFirstMember')}
+                  </button>
+                </>
               )}
             </div>
 
             {/* Step counter */}
             <p className="text-center text-sm text-gray-600 dark:text-slate-400 mt-4">
-              {t('setup.step', { current: step, total: 3 })}
+              {t('setup.step', { current: step, total: 4 })}
             </p>
         </div>
       </div>

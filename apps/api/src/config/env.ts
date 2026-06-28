@@ -23,6 +23,7 @@ function required(name: string, testFallback?: string): string {
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: Number(process.env.PORT ?? 4000),
+  appPublicUrl: process.env.APP_PUBLIC_URL ?? process.env.WEB_PUBLIC_URL ?? "http://localhost:5175",
   databaseUrl: required("DATABASE_URL", "postgresql://test:test@localhost:5432/test"),
   jwtSecret: required("JWT_SECRET", "test-secret"),
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
