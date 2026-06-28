@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useApi } from './useApi'
 import type { ReminderDigest, ReminderDigestDetail } from '../types'
 
@@ -7,11 +7,17 @@ export const useReminders = () => {
   const [digests, setDigests] = useState<ReminderDigest[]>([])
   const [currentDigest, setCurrentDigest] = useState<ReminderDigestDetail | null>(null)
 
-  const fetchDigests = async (projectId?: string, limit?: number) => {
+  const fetchDigests = useCallback(async (
+    projectId?: string,
+    limit?: number,
+    dateRange?: { start?: string; end?: string }
+  ) => {
     // API returns { items: [...], page, pageSize, total }
     const params = new URLSearchParams()
     if (projectId) params.append('projectId', projectId)
     if (limit) params.append('pageSize', limit.toString())
+    if (dateRange?.start) params.append('startDate', dateRange.start)
+    if (dateRange?.end) params.append('endDate', dateRange.end)
 
     const raw = await get<{ items: ReminderDigest[] }>(
       `/reminders/digests?${params.toString()}`
@@ -19,15 +25,15 @@ export const useReminders = () => {
     const items = raw?.items ?? []
     setDigests(items)
     return items
-  }
+  }, [get])
 
-  const fetchDigestDetail = async (digestId: string) => {
+  const fetchDigestDetail = useCallback(async (digestId: string) => {
     const data = await get<ReminderDigestDetail>(`/reminders/digests/${digestId}`)
     if (data) setCurrentDigest(data)
     return data
-  }
+  }, [get])
 
-  const fetchDigestsByDateRange = async (
+  const fetchDigestsByDateRange = useCallback(async (
     startDate: string,
     endDate: string,
     projectId?: string
@@ -42,7 +48,7 @@ export const useReminders = () => {
     )
     if (data) setDigests(data)
     return data
-  }
+  }, [get])
 
   return {
     digests,

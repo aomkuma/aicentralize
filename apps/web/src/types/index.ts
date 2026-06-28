@@ -200,6 +200,10 @@ export interface MissingOwnerItem {
   status: string
   type: 'ACTION_ITEM' | 'MINUTE_DRAFT'
   projectId: string
+  projectName?: string
+  meetingId?: string
+  meetingTitle?: string
+  missingReason?: string
   notes?: string
 }
 
@@ -229,6 +233,11 @@ export type ReminderEscalationLevel = 'DUE_SOON' | 'OVERDUE' | 'OVERDUE_SHORT' |
 export interface ReminderDigest {
   id: string
   projectId: string
+  project?: {
+    id: string
+    code?: string
+    name: string
+  }
   windowStart: string
   windowEnd: string
   totalOpen: number
@@ -240,7 +249,14 @@ export interface ReminderDigest {
 
 export interface ReminderDigestDetail extends ReminderDigest {
   overdueByOwner?: OverdueByOwner[]
-  items?: OverdueItem[]
+  items?: Array<OverdueItem & {
+    description?: string
+    ownerName?: string
+    ownerEmail?: string
+    meetingId?: string
+    meetingTitle?: string
+    severity?: ReminderEscalationLevel
+  }>
 }
 
 // AI Run Log Types

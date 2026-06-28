@@ -21,7 +21,7 @@ type UseContinuityResult = {
   fetchSummary: (projectId?: string) => Promise<{ items: Array<{ project: { id: string; name: string; code: string }; summary: { totalOpenActionItems: number; overdueActionItems: number; dueSoonActionItems: number; staleProject: boolean; lastMeetingDate: string | null } }> } | null>
   fetchOverdueByOwner: (projectId?: string) => Promise<{ items: Array<{ owner?: { id: string; name: string; email: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> } | null>
   fetchOverdueByProject: () => Promise<{ items: Array<{ project: { id: string; name: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> } | null>
-  fetchMissingOwnerItems: (projectId?: string) => Promise<{ missingOwner: Array<{ id: string; task: string; status: string; dueDate: string; meeting?: { project?: { id: string } } }>; missingDueDate: Array<{ id: string; task: string; status: string }> } | null>
+  fetchMissingOwnerItems: (projectId?: string) => Promise<{ missingOwner: Array<{ id: string; task: string; status: string; dueDate: string; meeting?: { id?: string; title?: string; project?: { id: string; name?: string } } }>; missingDueDate: Array<{ id: string; task: string; status: string; meeting?: { id?: string; title?: string; project?: { id: string; name?: string } } }> } | null>
   fetchRecentMeetings: (projectId?: string, days?: number) => Promise<RecentApprovedMeeting[] | null>
   fetchMemorySnapshot: (projectId: string) => Promise<ProjectMemorySnapshot | null>
 }
@@ -116,7 +116,7 @@ export const useContinuity = (): UseContinuityResult => {
     // API returns { missingOwner: [...], missingDueDate: [...] }
     const params = new URLSearchParams()
     if (projectId) params.append('projectId', projectId)
-    const raw = await get<{ missingOwner: Array<{ id: string; task: string; status: string; dueDate: string; meeting?: { project?: { id: string } } }>; missingDueDate: Array<{ id: string; task: string; status: string }> }>(
+    const raw = await get<{ missingOwner: Array<{ id: string; task: string; status: string; dueDate: string; meeting?: { id?: string; title?: string; project?: { id: string; name?: string } } }>; missingDueDate: Array<{ id: string; task: string; status: string; meeting?: { id?: string; title?: string; project?: { id: string; name?: string } } }> }>(
       `/continuity/action-items/missing-owner-or-due-date?${params.toString()}`
     )
     if (raw) {
@@ -127,13 +127,21 @@ export const useContinuity = (): UseContinuityResult => {
           status: i.status,
           type: 'ACTION_ITEM' as const,
           projectId: i.meeting?.project?.id ?? projectId ?? '',
+          projectName: i.meeting?.project?.name,
+          meetingId: i.meeting?.id,
+          meetingTitle: i.meeting?.title,
+          missingReason: 'owner',
         })),
         ...(raw.missingDueDate ?? []).map((i) => ({
           id: i.id,
           title: i.task,
           status: i.status,
           type: 'ACTION_ITEM' as const,
-          projectId: projectId ?? '',
+          projectId: i.meeting?.project?.id ?? projectId ?? '',
+          projectName: i.meeting?.project?.name,
+          meetingId: i.meeting?.id,
+          meetingTitle: i.meeting?.title,
+          missingReason: 'dueDate',
         })),
       ]
       setMissingOwnerItems(combined)

@@ -297,24 +297,55 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
         )}
 
         {selectedTab === 'missing' && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {missingOwnerItems.map((item) => (
               <div
                 key={item.id}
-                className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg"
+                className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg"
               >
-                <div className="flex justify-between items-start gap-2">
-                  <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
                     <h4 className="font-medium text-gray-900 dark:text-white">
                       {item.title}
                     </h4>
                     <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
                       {t('continuity.type')}: {item.type}
                     </p>
+                    {(item.projectName || item.meetingTitle) && (
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                        {item.projectName}
+                        {item.meetingTitle ? ` · ${item.meetingTitle}` : ''}
+                      </p>
+                    )}
+                    <p className="text-xs text-yellow-800 dark:text-yellow-200 mt-2">
+                      {item.missingReason === 'owner'
+                        ? t('continuity.missingOwnerHelp', { defaultValue: 'Next step: review this action and assign or confirm the owner label.' })
+                        : t('continuity.missingDueDateHelp', { defaultValue: 'Next step: review this action and set a due date.' })}
+                    </p>
                   </div>
-                  <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100 rounded whitespace-nowrap">
-                    {t('continuity.missingInfo')}
-                  </span>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {item.meetingId && (
+                      <Link
+                        to={`/meetings/history/${item.meetingId}`}
+                        className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                      >
+                        {t('continuity.openMinutes', { defaultValue: 'Open minutes' })}
+                      </Link>
+                    )}
+                    {item.projectId && (
+                      <Link
+                        to={`/continuity/${item.projectId}`}
+                        className="rounded-md border border-yellow-300 px-3 py-1.5 text-xs font-semibold text-yellow-800 hover:bg-yellow-100 dark:border-yellow-700 dark:text-yellow-100 dark:hover:bg-yellow-900/30"
+                      >
+                        {t('continuity.openProject', { defaultValue: 'Open project' })}
+                      </Link>
+                    )}
+                    <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100 rounded whitespace-nowrap">
+                      {item.missingReason === 'owner'
+                        ? t('continuity.missingOwner', { defaultValue: 'Owner missing' })
+                        : t('continuity.missingDueDate', { defaultValue: 'Due date missing' })}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}

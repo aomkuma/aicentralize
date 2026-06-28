@@ -118,11 +118,19 @@ export async function listReminderDigests(params: {
   pageSize: number;
   projectId?: string;
   tenantIds?: string[];
+  startDate?: Date;
+  endDate?: Date;
 }) {
   const skip = (params.page - 1) * params.pageSize;
   const where = {
     projectId: params.projectId,
-    project: params.tenantIds ? { tenantId: { in: params.tenantIds } } : undefined
+    project: params.tenantIds ? { tenantId: { in: params.tenantIds } } : undefined,
+    createdAt: params.startDate || params.endDate
+      ? {
+          gte: params.startDate,
+          lte: params.endDate
+        }
+      : undefined
   };
 
   const [items, total] = await Promise.all([
@@ -149,5 +157,106 @@ export async function listReminderDigests(params: {
     total,
     page: params.page,
     pageSize: params.pageSize
+  };
+}
+
+export async function getReminderDigestDetail(params: {
+  digestId: string;
+  tenantIds?: string[];
+}) {
+  const digest = await prisma.reminderDigest.findFirst({
+    where: {
+      id: params.digestId,
+      project: params.tenantIds ? { tenantId: { in: params.tenantIds } } : undefined
+    },
+    include: {
+      project: {
+        select: {
+          id: true,
+          code: true,
+          name: true
+        }
+      }
+    }
+  });
+
+  if (!digest) {
+    return null;
+  }
+
+  const rawItems = Array.isArray(digest.itemsJson) ? digest.itemsJson : [];
+  const actionItemIds = rawItems
+    .map((item) => typeof item === "object" && item && "actionItemId" in item ? String(item.actionItemId) : null)
+    .filter((id): id is string => Boolean(id));
+
+  const actionItems = actionItemIds.length
+    ? await prisma.actionItem.findMany({
+        where: { id: { in: actionItemIds } },
+        select: {
+          id: true,
+          task: true,
+          detail: true,
+          dueDate: true,
+          status: true,
+          assigneeId: true,
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
+          meeting: {
+            select: {
+              id: true,
+              title: true,
+              projectId: true
+            }
+          }
+        }
+      })
+    : [];
+
+  const actionById = new Map(actionItems.map((item) => [item.id, item]));
+  const overdueByOwnerRaw = Array.isArray(digest.overdueByOwnerJson) ? digest.overdueByOwnerJson : [];
+
+  return {
+    ...digest,
+    overdueByOwner: overdueByOwnerRaw.map((item) => {
+      const row = item as { ownerId?: string; ownerName?: string; ownerEmail?: string; overdueCount?: number; count?: number };
+      return {
+        ownerId: row.ownerId,
+        ownerName: row.ownerName,
+        ownerEmail: row.ownerEmail,
+        count: row.overdueCount ?? row.count ?? 0,
+        items: []
+      };
+    }),
+    items: rawItems.map((raw) => {
+      const row = raw as {
+        actionItemId?: string;
+        task?: string;
+        assigneeId?: string;
+        assigneeName?: string;
+        dueDate?: string;
+        status?: string;
+        severity?: string;
+      };
+      const action = row.actionItemId ? actionById.get(row.actionItemId) : undefined;
+      return {
+        id: row.actionItemId ?? action?.id ?? "",
+        title: action?.task ?? row.task ?? "Untitled action",
+        description: action?.detail,
+        dueDate: action?.dueDate ?? row.dueDate,
+        status: action?.status ?? row.status ?? "OPEN",
+        ownerId: action?.assigneeId ?? row.assigneeId,
+        ownerName: action?.assignee.name ?? row.assigneeName,
+        ownerEmail: action?.assignee.email,
+        projectId: action?.meeting.projectId ?? digest.projectId,
+        meetingId: action?.meeting.id,
+        meetingTitle: action?.meeting.title,
+        severity: row.severity
+      };
+    })
   };
 }

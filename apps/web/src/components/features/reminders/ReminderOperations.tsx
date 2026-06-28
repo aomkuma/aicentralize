@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useTenantStore } from '../../../stores/tenantStore'
 import { useFeatureFlagStore } from '../../../stores/featureFlagStore'
@@ -29,6 +30,7 @@ export default function ReminderOperations({ projectId }: ReminderOperationsProp
       .split('T')[0]
     return { start, end }
   })
+  const [detailError, setDetailError] = useState('')
 
   // Check feature access
   const canAccessReminders = canAccessFeature('REMINDERS_ESCALATION')
@@ -36,15 +38,26 @@ export default function ReminderOperations({ projectId }: ReminderOperationsProp
   // Fetch digests on mount or when projectId changes
   useEffect(() => {
     if (!canAccessReminders) return
-    fetchDigests(projectId)
+    fetchDigests(projectId, undefined, dateRange)
   }, [projectId, canAccessReminders])
 
   // Fetch digest detail when selected
   useEffect(() => {
     if (selectedDigestId && canAccessReminders) {
-      fetchDigestDetail(selectedDigestId)
+      setDetailError('')
+      fetchDigestDetail(selectedDigestId).then((data) => {
+        if (!data) {
+          setDetailError(t('reminders.detailLoadFailed', { defaultValue: 'Unable to load digest details.' }))
+        }
+      })
     }
-  }, [selectedDigestId, canAccessReminders])
+  }, [selectedDigestId, canAccessReminders, fetchDigestDetail, t])
+
+  const handleApplyDateRange = async () => {
+    setSelectedDigestId(null)
+    setDetailError('')
+    await fetchDigests(projectId, undefined, dateRange)
+  }
 
   if (!canAccessReminders) {
     return (
@@ -66,6 +79,9 @@ export default function ReminderOperations({ projectId }: ReminderOperationsProp
           </h2>
           <p className="text-gray-600 dark:text-slate-400 text-sm">
             {t('reminders.description')}
+          </p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-slate-500">
+            {t('reminders.helpText', { defaultValue: 'Use this page to inspect reminder digest snapshots, identify overdue follow-ups, and open the related project or minutes.' })}
           </p>
         </div>
 
@@ -91,6 +107,14 @@ export default function ReminderOperations({ projectId }: ReminderOperationsProp
               }
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded text-sm"
             />
+            <button
+              type="button"
+              onClick={handleApplyDateRange}
+              className="w-full rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isLoading}
+            >
+              {t('reminders.applyDateRange', { defaultValue: 'Apply date range' })}
+            </button>
           </div>
         </div>
 
@@ -121,7 +145,7 @@ export default function ReminderOperations({ projectId }: ReminderOperationsProp
 
       {/* Right: Digest Detail */}
       <div className="lg:col-span-2">
-        {selectedDigestId && currentDigest ? (
+        {selectedDigestId && currentDigest?.id === selectedDigestId ? (
           <div className="bg-white dark:bg-slate-700 rounded-lg border border-gray-200 dark:border-slate-600 p-6">
             {/* Header */}
             <div className="mb-6 pb-6 border-b border-gray-200 dark:border-slate-600">
@@ -132,6 +156,19 @@ export default function ReminderOperations({ projectId }: ReminderOperationsProp
                 {new Date(currentDigest.windowStart).toLocaleDateString()} -{' '}
                 {new Date(currentDigest.windowEnd).toLocaleDateString()}
               </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  to={`/continuity/${currentDigest.projectId}`}
+                  className="rounded-md bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                >
+                  {t('reminders.openContinuity', { defaultValue: 'Open continuity' })}
+                </Link>
+                {currentDigest.project?.name && (
+                  <span className="rounded-md bg-slate-100 px-3 py-1.5 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    {currentDigest.project.code ? `${currentDigest.project.code} - ` : ''}{currentDigest.project.name}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Stats Grid */}
@@ -211,17 +248,61 @@ export default function ReminderOperations({ projectId }: ReminderOperationsProp
                       key={item.id}
                       className="p-3 bg-gray-50 dark:bg-slate-600 rounded"
                     >
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {item.title}
-                      </p>
-                      <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                        {item.status}
-                      </p>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {item.title}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
+                            {item.status}
+                            {item.dueDate ? ` · ${t('reminders.dueDate', { defaultValue: 'Due' })}: ${new Date(item.dueDate).toLocaleDateString()}` : ''}
+                          </p>
+                          {(item.ownerName || item.ownerEmail || item.meetingTitle) && (
+                            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                              {item.ownerName || item.ownerEmail || t('reminders.unassigned')}
+                              {item.meetingTitle ? ` · ${item.meetingTitle}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          {item.severity && (
+                            <span className="rounded bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-200">
+                              {item.severity}
+                            </span>
+                          )}
+                          {item.meetingId && (
+                            <Link
+                              to={`/meetings/history/${item.meetingId}`}
+                              className="rounded bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                            >
+                              {t('reminders.openMinutes', { defaultValue: 'Open minutes' })}
+                            </Link>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {(!currentDigest.items || currentDigest.items.length === 0) && (
+              <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-slate-600 dark:text-slate-400">
+                {t('reminders.noDigestItems', { defaultValue: 'This digest has no due or overdue action items.' })}
+              </div>
+            )}
+          </div>
+        ) : selectedDigestId && isLoading ? (
+          <div className="text-center py-12 bg-gray-50 dark:bg-slate-800 rounded-lg">
+            <p className="text-gray-500 dark:text-slate-400">
+              {t('common.loading')}
+            </p>
+          </div>
+        ) : selectedDigestId && detailError ? (
+          <div className="text-center py-12 bg-red-50 dark:bg-red-900/20 rounded-lg">
+            <p className="text-red-600 dark:text-red-300">
+              {detailError}
+            </p>
           </div>
         ) : (
           <div className="text-center py-12 bg-gray-50 dark:bg-slate-800 rounded-lg">

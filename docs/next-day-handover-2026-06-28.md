@@ -300,6 +300,30 @@ Fix:
 - `TenantSetupPage` still writes skip/completed status when its buttons are used, but no longer
   blocks a super admin from opening the route later.
 
+## Post-Handover Work Completed (2026-06-28, reminders and continuity UX)
+
+Implemented:
+- Reminders:
+  - Added backend `GET /reminders/digests/:digestId`.
+  - Reminder digest list now accepts `startDate` / `endDate` date filters.
+  - Reminder digest and log access now uses platform admin or tenant `TENANT_ADMIN` / `MANAGER`
+    access instead of legacy `UserRole.ADMIN` / `UserRole.PM`.
+  - Frontend date range now has an explicit `Apply date range` action.
+  - Clicking a digest card now loads a real detail panel with project context, totals, owner
+    grouping, action items, severity labels, due dates, owner/meeting context, and links to
+    project continuity or meeting minutes.
+  - Detail loading/error/empty states were added so the right panel no longer feels inert.
+- Continuity:
+  - Missing-info rows now preserve meeting/project context from the API.
+  - Orange missing-info rows now show a next-step hint and action buttons:
+    `Open minutes` when a meeting ID is available and `Open project` for the project context.
+  - Missing reason is explicit (`Owner missing` or `Due date missing`) instead of a generic
+    non-actionable badge only.
+
+Verification:
+- `pnpm.cmd --filter api type-check` passed.
+- `pnpm.cmd --filter web type-check` passed.
+
 ## Caution
 
 There are uncommitted changes. Do not revert them. `apps/web/tsconfig.tsbuildinfo` is touched by type-check; restore it after checks with:
