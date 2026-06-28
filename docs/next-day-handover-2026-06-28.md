@@ -203,6 +203,42 @@ Deployment note:
   - `SMTP_SECURE`
   - `MAIL_FROM`
 
+## Post-Handover Work Completed (2026-06-28, tenant admin minutes fix)
+
+Implemented and verified locally:
+- Added saved minutes history and edit flow:
+  - Backend `GET /meetings/:meetingId` now includes `minutes` and `actionItems`.
+  - Backend `PATCH /meetings/:meetingId` updates meeting metadata, transcript, and replaces
+    saved minute sections.
+  - Frontend page `/meetings/history` and `/meetings/history/:meetingId` lists saved meetings,
+    opens details, and edits saved minutes.
+  - Sidebar now includes `Minute History`.
+- Fixed tenant-admin workflow access for projects and minutes:
+  - `TENANT_ADMIN` / `MANAGER` now have project visibility and meeting/minute workflow access
+    based on `TenantMembership.role`, even when legacy `User.role` is still `MEMBER`.
+  - `POST /meetings` and `PATCH /meetings/:meetingId` now allow tenant admins/managers for
+    projects inside their tenant.
+  - `/projects` supports tenant-scoped listing for the active tenant; Dashboard, Projects,
+    and Meeting Studio now call `/projects?tenantId=...`.
+  - Project continuity now renders a `Saved meetings` section from `GET /meetings?projectId=...`
+    so a newly saved Meeting Studio record appears immediately.
+
+Local QA finding:
+- `korapotu@gmail.com` is `TENANT_ADMIN`, job title `CTO`, `systemRole=USER`, and legacy
+  workflow `User.role=MEMBER` in the Aommy tenant.
+- Local project `Test01` / `Test AI` exists in the Aommy tenant. Before this fix it had
+  `_count.meetings=0`, because `POST /meetings` was still blocked by legacy
+  `UserRole.ADMIN/PM` checks.
+- After this fix, restart API and save minutes again; the new meeting should appear in
+  `/continuity/cmqxebe3y0001hji0asdy4lxp` under `Saved meetings` and in `/meetings/history`.
+
+Local verification:
+- `pnpm.cmd --filter api type-check` passed.
+- `pnpm.cmd --filter web type-check` passed.
+- Restarted local dev servers:
+  - API: `http://localhost:4000/health` returned `{"status":"ok"}`.
+  - Web: `http://localhost:5175` returned HTTP 200.
+
 ## Caution
 
 There are uncommitted changes. Do not revert them. `apps/web/tsconfig.tsbuildinfo` is touched by type-check; restore it after checks with:

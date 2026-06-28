@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const isSuperAdmin = user?.systemRole === 'SUPER_ADMIN'
   const activeMembership = memberships.find((membership) => membership.tenantId === currentTenant?.id) ?? memberships[0]
+  const activeTenantId = activeMembership?.tenantId
   const activeTenantName = activeMembership?.tenant?.name ?? currentTenant?.name
 
   useEffect(() => {
@@ -66,9 +67,10 @@ export default function DashboardPage() {
   }, [getMemberships, currentTenant?.id, setCurrentTenant, clearCurrentTenant])
 
   const fetchProjects = useCallback(async () => {
-    const data = await getProjects<DashboardProject[]>('/projects')
+    const url = activeTenantId ? `/projects?tenantId=${encodeURIComponent(activeTenantId)}` : '/projects'
+    const data = await getProjects<DashboardProject[]>(url)
     if (Array.isArray(data)) setProjects(data)
-  }, [getProjects])
+  }, [activeTenantId, getProjects])
 
   useEffect(() => {
     if (!isSuperAdmin) fetchProjects()

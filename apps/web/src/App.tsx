@@ -11,6 +11,7 @@ import RemindersPage from './pages/RemindersPage'
 import ProjectsPage from './pages/ProjectsPage'
 import AiTracePage from './pages/AiTracePage'
 import MeetingStudioPage from './pages/MeetingStudioPage'
+import MeetingHistoryPage from './pages/MeetingHistoryPage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import ProfilePage from './pages/ProfilePage'
@@ -133,6 +134,8 @@ function AppContent() {
           <Route path="/continuity" element={<WorkflowRoute><ContinuityPage /></WorkflowRoute>} />
           <Route path="/continuity/:projectId" element={<WorkflowRoute><ContinuityPage /></WorkflowRoute>} />
           <Route path="/reminders" element={<WorkflowRoute><RemindersPage /></WorkflowRoute>} />
+          <Route path="/meetings/history" element={<WorkflowRoute><MeetingHistoryPage /></WorkflowRoute>} />
+          <Route path="/meetings/history/:meetingId" element={<WorkflowRoute><MeetingHistoryPage /></WorkflowRoute>} />
           <Route path="/meetings" element={<WorkflowRoute><MeetingStudioPage /></WorkflowRoute>} />
           <Route path="/meetings/:projectId" element={<WorkflowRoute><MeetingStudioPage /></WorkflowRoute>} />
           <Route

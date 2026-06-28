@@ -118,6 +118,21 @@ export async function getMeetingDetail(meetingId: string) {
       artifacts: {
         orderBy: { createdAt: "asc" }
       },
+      minutes: {
+        orderBy: { createdAt: "asc" }
+      },
+      actionItems: {
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              email: true,
+              name: true
+            }
+          }
+        },
+        orderBy: { createdAt: "asc" }
+      },
       minuteDrafts: {
         select: {
           id: true,

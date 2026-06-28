@@ -40,6 +40,12 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
     icon: 'meetings',
   },
   {
+    id: 'meeting-history',
+    to: '/meetings/history',
+    labelKey: 'meetingHistory.navLabel',
+    icon: 'meetings',
+  },
+  {
     id: 'ai-trace',
     to: '/ai-trace',
     labelKey: 'aiTrace.title',

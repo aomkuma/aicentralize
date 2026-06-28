@@ -30,6 +30,49 @@ const createProjectMeetingSchema = z.object({
   })).optional().default([])
 });
 
+async function buildProjectListWhere(user: NonNullable<Express.Request["user"]>, tenantId?: string) {
+  const filters: object[] = [];
+
+  if (tenantId) {
+    filters.push({ tenantId });
+  }
+
+  const tenantIds = await listTenantIdsForUser(user);
+  if (tenantIds) {
+    filters.push({ OR: [{ tenantId: null }, { tenantId: { in: tenantIds } }] });
+  }
+
+  if (user.role === UserRole.MEMBER) {
+    const [memberProjectIds, managedTenantRows] = await Promise.all([
+      listMemberProjectIds(user.id),
+      prisma.tenantMembership.findMany({
+        where: {
+          userId: user.id,
+          isActive: true,
+          role: { in: [TenantRole.TENANT_ADMIN, TenantRole.MANAGER] },
+          tenant: { isActive: true }
+        },
+        select: { tenantId: true }
+      })
+    ]);
+
+    const visibility: object[] = [];
+    const managedTenantIds = managedTenantRows.map((item) => item.tenantId);
+
+    if (managedTenantIds.length) {
+      visibility.push({ tenantId: { in: managedTenantIds } });
+    }
+
+    if (memberProjectIds.length) {
+      visibility.push({ id: { in: memberProjectIds } });
+    }
+
+    filters.push(visibility.length ? { OR: visibility } : { id: { in: [] } });
+  }
+
+  return filters.length ? { AND: filters } : undefined;
+}
+
 projectRouter.get("/", requireAuth, async (req, res) => {
   const tenantId = typeof req.query.tenantId === "string" && req.query.tenantId.trim()
     ? req.query.tenantId.trim()
@@ -42,18 +85,10 @@ projectRouter.get("/", requireAuth, async (req, res) => {
     }
   }
 
-  const memberProjectIds = req.user?.role === UserRole.MEMBER
-    ? await listMemberProjectIds(req.user.id)
-    : undefined;
-
-  const tenantIds = await listTenantIdsForUser(req.user!);
+  const where = await buildProjectListWhere(req.user!, tenantId);
 
   const projects = await prisma.project.findMany({
-    where: {
-      ...(memberProjectIds ? { id: { in: memberProjectIds } } : {}),
-      ...(tenantId ? { tenantId } : {}),
-      ...(tenantIds ? { OR: [{ tenantId: null }, { tenantId: { in: tenantIds } }] } : {})
-    },
+    where,
     orderBy: { createdAt: "desc" },
     include: {
       _count: {

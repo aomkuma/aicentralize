@@ -55,6 +55,8 @@ export const useContinuity = (): UseContinuityResult => {
           ? 'high'
           : item.summary.overdueActionItems >= 1 ? 'medium' : 'low',
       })
+    } else {
+      setSummary(null)
     }
     return raw
   }

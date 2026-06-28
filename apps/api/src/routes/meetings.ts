@@ -2,6 +2,7 @@ import {
   ActionStatus,
   MeetingArtifactSourceType,
   MeetingArtifactType,
+  TenantRole,
   UserRole
 } from "@prisma/client";
 import { Router } from "express";
@@ -12,6 +13,7 @@ import { ensureMeetingScopeAccess, listMemberProjectIds } from "../services/acce
 import { buildEmbedding } from "../services/embeddingService";
 import { addMeetingArtifact, getMeetingDetail } from "../services/meetingIngestionService";
 import { extractMinuteDraft } from "../services/minuteExtractionService";
+import { ensureTenantRole, isSuperAdmin } from "../services/tenantAccessService";
 
 export const meetingRouter = Router();
 
@@ -31,6 +33,17 @@ const createMeetingSchema = z.object({
     assigneeId: z.string().min(1),
     dueDate: z.string().datetime()
   })).default([])
+});
+
+const updateMeetingSchema = z.object({
+  title: z.string().min(2).optional(),
+  sessionAt: z.string().datetime().optional(),
+  summary: z.string().min(3).optional(),
+  transcript: z.string().optional(),
+  minutes: z.array(z.object({
+    section: z.string().min(1),
+    content: z.string().min(1)
+  })).optional()
 });
 
 const updateActionStatusSchema = z.object({
@@ -65,14 +78,40 @@ const extractMinuteDraftSchema = z.object({
   model: z.string().min(1).optional()
 });
 
+async function canManageProjectMeetings(user: NonNullable<Express.Request["user"]>, projectId: string) {
+  if (user.role === UserRole.ADMIN || user.role === UserRole.PM || isSuperAdmin(user)) {
+    return true;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      tenantId: true
+    }
+  });
+
+  if (!project) {
+    return false;
+  }
+
+  if (!project.tenantId) {
+    return false;
+  }
+
+  return ensureTenantRole(user, project.tenantId, [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]);
+}
+
 meetingRouter.get("/", requireAuth, async (req, res) => {
   const projectId = req.query.projectId as string | undefined;
+  const canManageProject = projectId
+    ? await canManageProjectMeetings(req.user!, projectId)
+    : false;
   const memberProjectIds = req.user?.role === UserRole.MEMBER
-    ? await listMemberProjectIds(req.user.id)
+    ? (canManageProject ? undefined : await listMemberProjectIds(req.user.id))
     : undefined;
 
   const meetings = await prisma.meeting.findMany({
-    where: req.user?.role === UserRole.MEMBER
+    where: req.user?.role === UserRole.MEMBER && !canManageProject
       ? {
           projectId: projectId
             ? projectId
@@ -186,10 +225,30 @@ meetingRouter.post("/:meetingId/minute-drafts/extract", requireAuth, async (req,
   }
 });
 
-meetingRouter.post("/", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]), async (req, res) => {
+meetingRouter.post("/", requireAuth, async (req, res) => {
   const parsed = createMeetingSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: parsed.data.projectId },
+    select: {
+      id: true,
+      tenantId: true
+    }
+  });
+
+  if (!project) {
+    return res.status(404).json({ message: "Project not found" });
+  }
+
+  const canCreate = parsed.data.projectId
+    ? await canManageProjectMeetings(req.user!, parsed.data.projectId)
+    : false;
+
+  if (!canCreate) {
+    return res.status(403).json({ message: "Forbidden project scope" });
   }
 
   const meeting = await prisma.meeting.create({
@@ -233,6 +292,89 @@ meetingRouter.post("/", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]),
   });
 
   res.status(201).json(meeting);
+});
+
+meetingRouter.patch("/:meetingId", requireAuth, async (req, res) => {
+  const scope = await ensureMeetingScopeAccess(req.user!, req.params.meetingId);
+  if (!scope.allowed) {
+    if (scope.reason === "MEETING_NOT_FOUND") {
+      return res.status(404).json({ message: "Meeting not found" });
+    }
+    return res.status(403).json({ message: "Forbidden scope" });
+  }
+
+  if (!scope.projectId || !(await canManageProjectMeetings(req.user!, scope.projectId))) {
+    return res.status(403).json({ message: "Forbidden project scope" });
+  }
+
+  const parsed = updateMeetingSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    if (parsed.data.minutes) {
+      await tx.minuteEntry.deleteMany({
+        where: { meetingId: req.params.meetingId }
+      });
+
+      await tx.embeddingChunk.deleteMany({
+        where: {
+          meetingId: req.params.meetingId,
+          OR: [
+            { sourceType: "summary" },
+            { sourceType: { startsWith: "minute:" } }
+          ]
+        }
+      });
+    }
+
+    const meeting = await tx.meeting.update({
+      where: { id: req.params.meetingId },
+      data: {
+        title: parsed.data.title,
+        sessionAt: parsed.data.sessionAt ? new Date(parsed.data.sessionAt) : undefined,
+        summary: parsed.data.summary,
+        transcript: parsed.data.transcript,
+        minutes: parsed.data.minutes
+          ? {
+              create: parsed.data.minutes
+            }
+          : undefined,
+        embeddings: parsed.data.minutes
+          ? {
+              create: [
+                ...(parsed.data.summary
+                  ? [{
+                      sourceType: "summary",
+                      chunkText: parsed.data.summary,
+                      vector: buildEmbedding(parsed.data.summary)
+                    }]
+                  : []),
+                ...parsed.data.minutes.map((minute) => ({
+                  sourceType: `minute:${minute.section}`,
+                  chunkText: minute.content,
+                  vector: buildEmbedding(minute.content)
+                }))
+              ]
+            }
+          : undefined
+      },
+      include: {
+        project: true,
+        minutes: {
+          orderBy: { createdAt: "asc" }
+        },
+        actionItems: {
+          include: { assignee: true }
+        }
+      }
+    });
+
+    return meeting;
+  });
+
+  res.json(updated);
 });
 
 meetingRouter.patch("/action-items/:id/status", requireAuth, async (req, res) => {

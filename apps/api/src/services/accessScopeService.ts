@@ -1,4 +1,4 @@
-import { UserRole } from "@prisma/client";
+import { TenantRole, UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
 type AskAiScopeInput = {
@@ -29,6 +29,10 @@ function canBypassByRole(role: UserRole): boolean {
   return role === UserRole.ADMIN || role === UserRole.PM;
 }
 
+function canManageTenant(role: TenantRole): boolean {
+  return role === TenantRole.TENANT_ADMIN || role === TenantRole.MANAGER;
+}
+
 async function isMemberInMeeting(userId: string, meetingId: string) {
   const meeting = await prisma.meeting.findUnique({
     where: { id: meetingId },
@@ -53,6 +57,51 @@ async function isMemberInMeeting(userId: string, meetingId: string) {
     exists: true as const,
     isMeetingMember,
     projectId: meeting.projectId
+  };
+}
+
+async function canManageProjectByTenant(userId: string, projectId: string) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      id: true,
+      tenantId: true
+    }
+  });
+
+  if (!project) {
+    return { exists: false as const };
+  }
+
+  if (!project.tenantId) {
+    return { exists: true as const, allowed: false };
+  }
+
+  const membership = await prisma.tenantMembership.findUnique({
+    where: {
+      tenantId_userId: {
+        tenantId: project.tenantId,
+        userId
+      }
+    },
+    select: {
+      role: true,
+      isActive: true,
+      tenant: {
+        select: {
+          isActive: true
+        }
+      }
+    }
+  });
+
+  return {
+    exists: true as const,
+    allowed: Boolean(
+      membership?.isActive &&
+      membership.tenant.isActive &&
+      canManageTenant(membership.role)
+    )
   };
 }
 
@@ -82,12 +131,18 @@ export async function ensureProjectScopeAccess(user: AuthScopeUser, projectId: s
     return { allowed: true, projectId };
   }
 
+  const tenantAccess = await canManageProjectByTenant(user.id, projectId);
+  if (!tenantAccess.exists) {
+    return { allowed: false, reason: "PROJECT_NOT_FOUND" };
+  }
+
+  if (tenantAccess.allowed) {
+    return { allowed: true, projectId };
+  }
+
   const memberProjectIds = await listMemberProjectIds(user.id);
   if (!memberProjectIds.includes(projectId)) {
-    const exists = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
-    return exists
-      ? { allowed: false, reason: "FORBIDDEN_SCOPE" }
-      : { allowed: false, reason: "PROJECT_NOT_FOUND" };
+    return { allowed: false, reason: "FORBIDDEN_SCOPE" };
   }
 
   return { allowed: true, projectId };
@@ -114,6 +169,11 @@ export async function ensureMeetingScopeAccess(user: AuthScopeUser, meetingId: s
   const member = await isMemberInMeeting(user.id, meetingId);
   if (!member.exists) {
     return { allowed: false, reason: "MEETING_NOT_FOUND" };
+  }
+
+  const tenantAccess = await canManageProjectByTenant(user.id, member.projectId);
+  if (tenantAccess.allowed) {
+    return { allowed: true, projectId: member.projectId, meetingId };
   }
 
   if (!member.isMeetingMember) {

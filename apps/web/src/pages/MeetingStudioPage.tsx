@@ -399,17 +399,20 @@ export default function MeetingStudioPage() {
 
   useEffect(() => {
     const fetchProjects = async () => {
-      const data = await get<StudioProject[]>('/projects')
+      const url = currentTenant?.id ? `/projects?tenantId=${encodeURIComponent(currentTenant.id)}` : '/projects'
+      const data = await get<StudioProject[]>(url)
       if (Array.isArray(data)) {
         setProjects(data)
         if (!selectedProjectId && data[0]?.id) {
           setSelectedProjectId(data[0].id)
+        } else if (selectedProjectId && !data.some((project) => project.id === selectedProjectId)) {
+          setSelectedProjectId(data[0]?.id ?? '')
         }
       }
     }
 
     fetchProjects()
-  }, [get, selectedProjectId])
+  }, [currentTenant?.id, get, selectedProjectId])
 
   useEffect(() => {
     if (projectIdParam) {

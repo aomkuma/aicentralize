@@ -140,6 +140,11 @@
     "meetings": "Meetings",
     "systemSettings": "System Settings"
   },
+  "meetingHistory": {
+    "navLabel": "Minute History",
+    "title": "Meeting Minutes History",
+    "description": "Review saved meeting minutes and update the stored sections when follow-up corrections are needed."
+  },
   "adminOrganizations": {
     "title": "Organization Management",
     "description": "Manage registered organizations, organization status, and member access.",

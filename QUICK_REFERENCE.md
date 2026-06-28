@@ -10,6 +10,11 @@
 - Tenant roles still control tenant work:
   - `TENANT_ADMIN` / `MANAGER`: manage tenant members and projects.
   - `MEMBER` / `VIEWER`: normal tenant access.
+- Tenant workflow access must honor `TenantMembership.role`, not only legacy `User.role`:
+  - `TENANT_ADMIN` / `MANAGER` can list tenant projects, create saved meetings/minutes,
+    edit saved minutes, and open project continuity for projects inside their tenant.
+  - This matters for users like `korapotu@gmail.com`, who is `TENANT_ADMIN` / CTO in the
+    Aommy tenant while legacy workflow `User.role` may still be `MEMBER`.
 - Invitation flow:
   - Frontend: `/accept-invite?token=...`
   - Preview: `GET /auth/invitations/:token`
@@ -41,6 +46,17 @@
   footer bar. `guidedStep` state drives which step renders. Step navigation is manual —
   no auto-advance — so editing a field never jumps the user to another step.
 - Full handover: `docs/next-day-handover-2026-06-28.md`
+
+### Saved minutes history and continuity
+- Meeting Studio saves through `POST /meetings`; tenant admins/managers are allowed by tenant role.
+- Saved minutes can be reviewed and edited at:
+  - `/meetings/history`
+  - `/meetings/history/:meetingId`
+- Project continuity pages (`/continuity/:projectId`) show a `Saved meetings` section loaded from
+  `GET /meetings?projectId=...`, so newly saved Meeting Studio records appear without needing
+  the approved-minute-version flow.
+- If a previously attempted save shows no data, check DB `_count.meetings`; old attempts may have
+  been rejected before the tenant-admin meeting fix and need to be saved again.
 
 ## Session Update (2026-06-22)
 

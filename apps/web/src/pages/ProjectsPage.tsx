@@ -84,11 +84,12 @@ export default function ProjectsPage() {
   }
 
   const fetchProjects = useCallback(async () => {
-    const data = await getProjects<DashboardProject[]>('/projects')
+    const url = activeTenantId ? `/projects?tenantId=${encodeURIComponent(activeTenantId)}` : '/projects'
+    const data = await getProjects<DashboardProject[]>(url)
     if (Array.isArray(data)) {
       setProjects(data)
     }
-  }, [getProjects])
+  }, [activeTenantId, getProjects])
 
   useEffect(() => {
     const fetchMemberships = async () => {
