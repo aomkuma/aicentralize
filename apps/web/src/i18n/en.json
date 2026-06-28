@@ -366,8 +366,8 @@
     "whisperIntegrationEnabled": "Whisper integration enabled"
   },
   "aiChat": {
-    "title": "The Closer",
-    "description": "Loose ends, project status, overdue work — hand it over and I'll get it wrapped up in one place.",
+    "title": "Rubjob",
+    "description": "A cheerful nerdy AI teammate for loose ends, project status, and overdue work.",
     "tabs": {
       "textPrompt": "Text Prompt",
       "recordTranscript": "Record & Transcript"
@@ -391,7 +391,7 @@
       "liveTranscriptPreview": "Live transcript preview"
     },
     "placeholders": {
-      "askAnything": "Something to close out? Just tell me..."
+      "askAnything": "Ask Rubjob anything about the work..."
     },
     "status": {
       "ready": "Ready to take it on",

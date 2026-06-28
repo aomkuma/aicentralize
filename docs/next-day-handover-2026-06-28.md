@@ -135,7 +135,7 @@ Committed and pushed:
     `SUPER_ADMIN`) with a confirm prompt.
 
 UI/UX changes also shipped:
-- Dashboard AI panel rebranded with a "ตัวรับจบ" / "The Closer" persona (copy only).
+- Dashboard AI panel rebranded with a "รับจบ" / "Rubjob" cheerful nerdy female AI teammate persona.
 - Removed the AI Playground item from the sidebar (route still exists, just unlinked).
 - Reworked the Meeting Studio (`/meetings`) from all-blocks-at-once into a true
   step-by-step wizard (Import → Compose → Review & save) with a clickable stepper,
@@ -361,3 +361,44 @@ Design:
 - Prompt should return structured JSON with summary, risk level, overloaded owners, and optional suggested reassignments.
 - UI copy should stay user-friendly rather than system-ish; use gentle labels such as `Not now` / `Review action items` and human risk labels instead of raw enum values.
 - Actual reassignment remains a PM-confirmed action in the existing Action Items tab.
+
+## Follow-Up Idea (2026-06-28, CEO Ask-AI answers with app deep links)
+
+User asked whether AI can answer executive questions and generate URLs that point back to the
+source screens, for example:
+- "What did the team agree yesterday?"
+- "What did we discuss with customer xxx around the middle of last month?"
+- "Which actions are still open?"
+
+Feasibility:
+- This is feasible with the current product direction because saved meetings, meeting history,
+  continuity, and action items already exist as routable app screens.
+- The missing piece is not only retrieval/answering; it is a structured answer contract that
+  returns source references and UI links alongside the natural-language answer.
+
+Recommended implementation:
+- Add or extend an executive Ask-AI endpoint that retrieves from saved meetings, minute sections,
+  decisions, transcript snippets, customer/project names, and action items within tenant scope.
+- The AI response should return structured JSON:
+  - `answer`: concise user-friendly answer.
+  - `sources`: meeting/minute/action references with IDs, dates, project/customer context, and
+    short evidence snippets.
+  - `links`: app deep links such as `/meetings/history/:meetingId`,
+    `/continuity/:projectId`, and a future action-item focused route/filter.
+  - `followUps`: optional suggested follow-up questions.
+- UI should render links as clear buttons such as `Open meeting minutes`, `Open project actions`,
+  or `View open actions`, not raw URLs.
+- For questions like "yesterday" or "middle of last month", resolve the date range explicitly
+  before retrieval and show the interpreted range in the answer.
+- For open action questions, prefer deterministic DB filtering first, then let AI summarize the
+  grouped results; do not rely on the model to infer status from text alone.
+- Tenant access checks must remain strict. Links should only point to records the current user can
+  already open.
+- Add telemetry to Ask-AI traces showing selected sources and generated deep links so PM/admins can
+  audit why an answer was produced.
+
+Future UI note:
+- This could live in the existing dashboard AI chat, but answers should include citation cards
+  under the response.
+- If action-item detail pages are not added, use `/continuity/:projectId` with a query or state
+  filter such as `?tab=actions&status=open` so generated links land close to the relevant work.
