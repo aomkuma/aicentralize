@@ -294,6 +294,10 @@ authRouter.post("/login", async (req, res) => {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
+  if (!user.isActive) {
+    return res.status(403).json({ message: "Account suspended" });
+  }
+
   const token = signAccessToken({
     id: user.id,
     role: user.role as UserRole,
@@ -569,6 +573,10 @@ authRouter.post("/refresh", async (req, res) => {
 
   if (!item || item.revokedAt || item.expiresAt.getTime() <= Date.now()) {
     return res.status(401).json({ message: "Invalid refresh token" });
+  }
+
+  if (!item.user.isActive) {
+    return res.status(403).json({ message: "Account suspended" });
   }
 
   const newRefreshToken = await issueRefreshToken({

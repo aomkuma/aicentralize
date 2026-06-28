@@ -6,6 +6,7 @@ export interface User {
   role?: 'ADMIN' | 'PM' | 'MEMBER'
   systemRole: 'SUPER_ADMIN' | 'MODERATOR' | 'USER'
   mustChangePassword?: boolean
+  isActive?: boolean
   createdAt?: string
   updatedAt?: string
 }

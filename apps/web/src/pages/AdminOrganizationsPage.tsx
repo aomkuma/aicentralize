@@ -121,6 +121,33 @@ export default function AdminOrganizationsPage() {
     }
   }
 
+  const onToggleAccount = async (member: TenantMembership) => {
+    if (!member.user) {
+      return
+    }
+
+    const suspend = member.user.isActive !== false
+    if (suspend && !window.confirm(t('adminOrganizations.confirmSuspend'))) {
+      return
+    }
+
+    setNotice(null)
+    const updated = await patchMember<{ id: string; isActive: boolean }>(`/admin/users/${member.userId}`, {
+      isActive: !suspend,
+    })
+
+    if (updated) {
+      setMembers((items) =>
+        items.map((item) =>
+          item.userId === member.userId && item.user
+            ? { ...item, user: { ...item.user, isActive: updated.isActive } }
+            : item,
+        ),
+      )
+      setNotice(suspend ? t('adminOrganizations.accountSuspended') : t('adminOrganizations.accountRestored'))
+    }
+  }
+
   const onSaveMemberField = async (
     member: TenantMembership,
     field: 'jobTitle' | 'department',
@@ -290,6 +317,32 @@ export default function AdminOrganizationsPage() {
                       className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
                     />
                   </div>
+                  {member.user?.systemRole !== 'SUPER_ADMIN' && (
+                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 pt-3 dark:border-slate-800">
+                      <span className={`text-xs font-semibold ${
+                        member.user?.isActive === false
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-500 dark:text-slate-400'
+                      }`}>
+                        {member.user?.isActive === false
+                          ? t('adminOrganizations.accountSuspendedLabel')
+                          : t('adminOrganizations.accountActiveLabel')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onToggleAccount(member)}
+                        className={`rounded-md border px-2 py-1 text-xs font-semibold ${
+                          member.user?.isActive === false
+                            ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/20'
+                            : 'border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20'
+                        }`}
+                      >
+                        {member.user?.isActive === false
+                          ? t('adminOrganizations.restoreAccount')
+                          : t('adminOrganizations.suspendAccount')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

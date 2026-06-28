@@ -159,6 +159,7 @@ model User {
   phone         String?
   passwordHash  String
   mustChangePassword Boolean @default(false)
+  isActive      Boolean      @default(true)
   role          UserRole     @default(MEMBER)
   systemRole    SystemRole   @default(USER)
   createdAt     DateTime     @default(now())

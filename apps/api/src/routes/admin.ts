@@ -26,6 +26,10 @@ const updateMemberSchema = z.object({
   message: "At least one field is required"
 });
 
+const updateUserAccountSchema = z.object({
+  isActive: z.boolean()
+});
+
 adminRouter.use(requireAuth, requireSystemRole([SystemRole.SUPER_ADMIN, SystemRole.MODERATOR]));
 
 function createInviteToken() {
@@ -97,7 +101,8 @@ adminRouter.get("/tenants/:tenantId/members", async (req, res) => {
           phone: true,
           role: true,
           systemRole: true,
-          mustChangePassword: true
+          mustChangePassword: true,
+          isActive: true
         }
       }
     },
@@ -281,11 +286,62 @@ adminRouter.patch("/tenants/:tenantId/members/:userId", async (req, res) => {
           phone: true,
           role: true,
           systemRole: true,
-          mustChangePassword: true
+          mustChangePassword: true,
+          isActive: true
         }
       }
     }
   });
 
   res.json(membership);
+});
+
+// Platform-wide account suspension: blocks login and all authenticated
+// requests regardless of tenant membership.
+adminRouter.patch("/users/:userId", async (req, res) => {
+  const parsed = updateUserAccountSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  if (req.params.userId === req.user!.id) {
+    return res.status(400).json({ message: "You cannot change your own account status" });
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: req.params.userId },
+    select: { id: true, systemRole: true }
+  });
+
+  if (!target) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  if (target.systemRole === SystemRole.SUPER_ADMIN) {
+    return res.status(403).json({ message: "Cannot suspend a super admin account" });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.params.userId },
+    data: { isActive: parsed.data.isActive },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      systemRole: true,
+      isActive: true
+    }
+  });
+
+  // Revoke active refresh tokens so a suspended user cannot mint new access
+  // tokens until restored.
+  if (!parsed.data.isActive) {
+    await prisma.refreshToken.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+  }
+
+  res.json(user);
 });
