@@ -16,6 +16,21 @@
   - Accept: `POST /auth/invitations/:token/accept`
 - `/accept-invite` must exist in both logged-out and logged-in route trees. If it is missing for logged-in users, the page renders blank.
 - Auth clears stale `tenant-store` on user change/logout. Dashboard and projects reselect tenant from `/tenants/me`.
+
+### Access control (3 levels)
+- Platform infra ops use `requireSystemRole([SUPER_ADMIN])`, not `UserRole.ADMIN`:
+  `POST /reminders/run-now`, `POST /retrieval/backfill`, `POST /notifications/push/generate-vapid`, `POST /notifications/push/broadcast`.
+- Observability and reminder reads are tenant-scoped via `listTenantIdsForUser`
+  (`/observability/ai-runs`, `/observability/ask-ai-queries`, `/reminders/digests`, `/reminders/logs`).
+  Platform admins (returns `undefined`) are unrestricted; tenant users see only their own tenants.
+- Three ways to block access, smallest to largest scope:
+  - `TenantMembership.isActive=false`: user loses access to one organization only.
+  - `Tenant.isActive=false`: whole organization blocked.
+  - `User.isActive=false`: account suspended platform-wide — blocks login, refresh,
+    and every authenticated request immediately (`requireAuth` reads the DB per request).
+- Suspend/restore login and edit member `jobTitle`/`department` from `/admin/organizations`.
+  Admins cannot suspend themselves or a `SUPER_ADMIN`.
+- API tests live in `apps/api` (vitest): `pnpm --filter api test`.
 - Full handover: `docs/next-day-handover-2026-06-28.md`
 
 ## Session Update (2026-06-22)

@@ -101,6 +101,51 @@ Use roles consistently:
 - `TenantRole.TENANT_ADMIN` / `MANAGER`: manage members and projects inside a tenant, subject to tenant active status.
 - Platform checks should use `systemRole`, while tenant workflow checks should use `tenantRole` and tenant membership status.
 
+## Post-Handover Work Completed (2026-06-28, later same day)
+
+All hardening follow-ups below were implemented, verified, committed, and pushed to `main`.
+
+Committed and pushed:
+- Committed the entire uncommitted handover work as one feature commit; `logs/` is now gitignored.
+- Documented `APP_PUBLIC_URL` / `WEB_PUBLIC_URL` in `.env.example`.
+- Platform infra ops now use `requireSystemRole([SUPER_ADMIN])` instead of legacy `UserRole.ADMIN`:
+  `POST /reminders/run-now`, `POST /retrieval/backfill`,
+  `POST /notifications/push/generate-vapid`, `POST /notifications/push/broadcast`.
+  Tenant workflow routes (meetings, action-items, minute-drafts) keep `requireRole`
+  because they enforce per-resource tenant scope separately and tenant managers map to `UserRole.PM`.
+- Closed a cross-tenant data leak: observability and reminder read endpoints are now
+  tenant-scoped via `listTenantIdsForUser`
+  (`/observability/ai-runs` + `/:id`, `/observability/ask-ai-queries` + `/:id`,
+  `/reminders/digests`, `/reminders/logs`). Platform admins remain unrestricted;
+  detail endpoints return 404 for out-of-tenant records so existence is not leaked.
+- Added UI to edit member `jobTitle` / `department` in `/admin/organizations`
+  (saves on blur; member PATCH now passes `null` through so values can be cleared).
+- Added vitest unit tests (prisma mocked): `tenantAccessService` (inactive tenant/member,
+  platform bypass, role checks) and `reminderDigestService` tenant filter. Run with
+  `pnpm --filter api test` (17 tests pass).
+- Added platform-wide account suspension (`User.isActive`, migration
+  `20260628150000_user_is_active`):
+  - Login and refresh return `403 Account suspended` when inactive.
+  - `requireAuth` now reads the account from the DB on every request (role/systemRole
+    read fresh too), so suspension and role changes take effect immediately instead of
+    waiting for the 12h access token to expire.
+  - `PATCH /admin/users/:userId { isActive }` toggles it, revokes active refresh tokens
+    on suspend, and refuses to suspend yourself or a `SUPER_ADMIN`.
+  - `/admin/organizations` member cards have a suspend/restore login control (hidden for
+    `SUPER_ADMIN`) with a confirm prompt.
+
+Three ways to block access now exist, smallest to largest scope:
+- `TenantMembership.isActive=false`: blocked from one organization only.
+- `Tenant.isActive=false`: whole organization blocked.
+- `User.isActive=false`: account suspended platform-wide (blocks login everywhere).
+
+Still open / not done:
+- B-2 follow-up only deferred item is gone; observability/reminders are now tenant-scoped.
+- No tests yet for the suspension path at the route level (login/requireAuth/refresh).
+- No login-page banner explaining the `403 Account suspended` response to end users.
+- Explicit platform-user (moderator) management UI still not built.
+- Local Node is still v20.10.0; repo wants `>=22`.
+
 ## Remaining Implementation Plan
 
 Phase 1 is implemented locally:
