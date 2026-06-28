@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuthStore } from '../stores/authStore'
-import { getSetupOnboardingStatus, setSetupOnboardingStatus } from '../lib/setupOnboarding'
+import { setSetupOnboardingStatus } from '../lib/setupOnboarding'
 import LanguageSwitcher from '../components/LanguageSwitcher'
 import type { MemberOnboardRequest, MemberOnboardResponse, Tenant, TenantCreateRequest } from '../types'
 
@@ -53,13 +53,6 @@ export default function TenantSetupPage() {
       icon: '📧',
     },
   }
-
-  useEffect(() => {
-    const status = getSetupOnboardingStatus(userId)
-    if (status === 'skipped' || status === 'completed') {
-      navigate('/dashboard', { replace: true })
-    }
-  }, [navigate, userId])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target

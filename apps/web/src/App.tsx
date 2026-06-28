@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
 import { useFeatureFlagStore } from './stores/featureFlagStore'
-import { getSetupOnboardingStatus } from './lib/setupOnboarding'
 import LoginPage from './pages/LoginPage'
 import TenantSetupPage from './pages/TenantSetupPage'
 import DashboardPage from './pages/DashboardPage'
@@ -27,14 +26,8 @@ function isPlatformAdmin(user: ReturnType<typeof useAuthStore.getState>['user'])
 
 function SetupRoute() {
   const user = useAuthStore((state) => state.user)
-  const userId = useAuthStore((state) => state.user?.id)
-  const setupStatus = getSetupOnboardingStatus(userId)
 
   if (user?.systemRole !== 'SUPER_ADMIN') {
-    return <Navigate to="/dashboard" replace />
-  }
-
-  if (setupStatus === 'skipped' || setupStatus === 'completed') {
     return <Navigate to="/dashboard" replace />
   }
 

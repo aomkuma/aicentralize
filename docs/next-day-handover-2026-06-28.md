@@ -239,6 +239,67 @@ Local verification:
   - API: `http://localhost:4000/health` returned `{"status":"ok"}`.
   - Web: `http://localhost:5175` returned HTTP 200.
 
+## UX Review Before Next Implementation (2026-06-28, reminders and continuity)
+
+User feedback:
+- `/reminders` is confusing because digest cards look clickable, but clicking them does not
+  show useful details.
+- `/continuity` has orange missing-info/action-item rows, but the rows are not actionable,
+  so users do not know what to do next.
+
+Review findings:
+- Reminders page:
+  - Frontend `ReminderOperations` renders digest cards and calls
+    `fetchDigestDetail(selectedDigestId)` on click.
+  - `useReminders.fetchDigestDetail` calls `GET /reminders/digests/:digestId`.
+  - Backend `apps/api/src/routes/reminders.ts` currently exposes `GET /reminders/digests`
+    and `GET /reminders/logs`, but does not expose `GET /reminders/digests/:digestId`.
+  - Result: card selection has no useful detail response, and the right panel remains
+    effectively a dead-end / unclear state.
+  - The date range fields are also local state only; they are not applied to the digest query
+    because the current backend digest list endpoint has no `startDate` / `endDate` filters.
+- Continuity missing-info tab:
+  - `ContinuityDashboard` renders `missingOwnerItems` as static warning rows.
+  - Rows do not link to a meeting, action-item detail, project context, or an edit/remediation
+    workflow.
+  - The orange badge communicates "missing information" but not the next action.
+
+Recommended implementation plan:
+- Reminders:
+  - Add backend digest detail endpoint or adjust frontend to use the existing logs endpoint.
+  - Preferred: add `GET /reminders/digests/:digestId` returning digest summary plus related
+    reminder/action-item rows.
+  - Make digest cards visibly selected and show loading/error/empty detail states in the
+    right panel.
+  - Add clear copy explaining that this page is for reminder digest inspection, overdue
+    follow-up, and escalation review.
+  - Either wire date range filters to backend query support or remove/disable them until
+    they actually filter the data.
+- Continuity:
+  - Make missing-info rows actionable.
+  - At minimum, add buttons/links such as `Open minutes`, `Open project`, or `Review action`
+    depending on available IDs.
+  - Include enough context in each row: project, meeting, owner/due-date missing reason, and
+    suggested next step.
+  - If no edit target exists yet, route to `/meetings/history/:meetingId` when possible or
+    add a small remediation panel for owner/due-date fixes.
+
+## Post-Handover Fix (2026-06-28, super-admin setup access)
+
+Issue:
+- `admin@org.local` / `Admin123!` could not open `/setup` even as `SUPER_ADMIN`.
+- Cause: frontend route/page logic treated setup as first-run onboarding only.
+  `SetupRoute` and `TenantSetupPage` both read `setup-onboarding-status-by-user` from
+  localStorage and redirected to `/dashboard` when the current user had previously skipped
+  or completed setup.
+
+Fix:
+- `/setup` now allows direct access for `SystemRole.SUPER_ADMIN` regardless of local
+  onboarding skip/completed status.
+- Non-super-admin users are still redirected away from `/setup`.
+- `TenantSetupPage` still writes skip/completed status when its buttons are used, but no longer
+  blocks a super admin from opening the route later.
+
 ## Caution
 
 There are uncommitted changes. Do not revert them. `apps/web/tsconfig.tsbuildinfo` is touched by type-check; restore it after checks with:
