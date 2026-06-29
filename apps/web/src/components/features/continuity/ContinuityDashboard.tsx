@@ -296,6 +296,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   const [actionItems, setActionItems] = useState<ActionItemRow[]>([])
   const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([])
   const [isActionFilterOpen, setIsActionFilterOpen] = useState(false)
+  const [isMeetingFilterOpen, setIsMeetingFilterOpen] = useState(false)
   const [actionFilters, setActionFilters] = useState<{
     ownerUserId: string
     priority: '' | ActionPriority
@@ -331,6 +332,8 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   const [isWorkloadSuggestionOpen, setIsWorkloadSuggestionOpen] = useState(false)
   const [isAnalyzingWorkload, setIsAnalyzingWorkload] = useState(false)
   const analyzedWorkloadSignatureRef = useRef<string | null>(null)
+  const actionSaveInFlightRef = useRef<Set<string>>(new Set())
+  const meetingFilterRef = useRef<HTMLDivElement | null>(null)
   const highlightedActionItemId = searchParams.get('actionItemId') ?? ''
 
   // Check feature access
@@ -449,6 +452,25 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
     () => buildActionItemsSignature(actionableActionItems),
     [actionableActionItems]
   )
+
+  const meetingFilterOptions = useMemo(() => {
+    const byId = new Map<string, { id: string; title: string }>()
+
+    for (const item of actionItems) {
+      if (item.meeting?.id && item.meeting.title && !byId.has(item.meeting.id)) {
+        byId.set(item.meeting.id, {
+          id: item.meeting.id,
+          title: item.meeting.title,
+        })
+      }
+    }
+
+    const query = actionFilters.meetingQuery.trim().toLowerCase()
+    return Array.from(byId.values())
+      .filter((meeting) => !query || meeting.title.toLowerCase().includes(query))
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .slice(0, 12)
+  }, [actionFilters.meetingQuery, actionItems])
 
   const visibleActionItems = useMemo(() => {
     const fromTime = actionFilters.dateFrom ? new Date(`${actionFilters.dateFrom}T00:00:00`).getTime() : null
@@ -603,6 +625,38 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   }, [availableTabs, selectedTab])
 
   useEffect(() => {
+    if (!actionMessage) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setActionMessage('')
+    }, 3200)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [actionMessage])
+
+  useEffect(() => {
+    if (!isMeetingFilterOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!meetingFilterRef.current?.contains(event.target as Node)) {
+        setIsMeetingFilterOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+    }
+  }, [isMeetingFilterOpen])
+
+  useEffect(() => {
     const tab = searchParams.get('tab')
     if (
       (tab === 'summary' || tab === 'byOwner' || tab === 'byProject' || tab === 'actions' || tab === 'missing') &&
@@ -625,104 +679,130 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   const handleReassignActionItem = async (item: ActionItemRow) => {
     const ownerUserId = reassignOwnerByItemId[item.id]
     if (!ownerUserId || ownerUserId === item.ownerUserId) {
-      setActionError(t('continuity.reassignSelectOwner', { defaultValue: 'Select a different owner first.' }))
-      setActionMessage('')
       return
     }
 
+    const saveKey = `reassign:${item.id}`
+    if (actionSaveInFlightRef.current.has(saveKey)) {
+      return
+    }
+    actionSaveInFlightRef.current.add(saveKey)
     setActionError('')
     setActionMessage('')
 
-    const response = await postActionData(`/action-items/${item.id}/reassign`, {
-      ownerUserId,
-      note: reassignNoteByItemId[item.id]?.trim() || undefined,
-    })
+    try {
+      const response = await postActionData(`/action-items/${item.id}/reassign`, {
+        ownerUserId,
+        note: reassignNoteByItemId[item.id]?.trim() || undefined,
+      })
 
-    if (!response) {
-      setActionError(t('continuity.reassignFailed', { defaultValue: 'Unable to reassign action item.' }))
-      return
+      if (!response) {
+        setActionError(t('continuity.reassignFailed', { defaultValue: 'Unable to reassign action item.' }))
+        return
+      }
+
+      setActionMessage(t('continuity.reassignSuccess', { defaultValue: 'Action item reassigned.' }))
+      setReassignOwnerByItemId((current) => ({ ...current, [item.id]: '' }))
+      setReassignNoteByItemId((current) => ({ ...current, [item.id]: '' }))
+      fetchActionItems()
+      fetchSummary(projectId)
+      fetchOverdueByOwner(projectId)
+      fetchMissingOwnerItems(projectId)
+    } finally {
+      actionSaveInFlightRef.current.delete(saveKey)
     }
-
-    setActionMessage(t('continuity.reassignSuccess', { defaultValue: 'Action item reassigned.' }))
-    setReassignOwnerByItemId((current) => ({ ...current, [item.id]: '' }))
-    setReassignNoteByItemId((current) => ({ ...current, [item.id]: '' }))
-    fetchActionItems()
-    fetchSummary(projectId)
-    fetchOverdueByOwner(projectId)
-    fetchMissingOwnerItems(projectId)
   }
 
   const handleChangeActionItemStatus = async (item: ActionItemRow) => {
     const status = statusByItemId[item.id]
     if (!status || status === item.status) {
-      setActionError(t('continuity.statusSelectNew', { defaultValue: 'Select a different status first.' }))
-      setActionMessage('')
       return
     }
 
+    const saveKey = `status:${item.id}`
+    if (actionSaveInFlightRef.current.has(saveKey)) {
+      return
+    }
+    actionSaveInFlightRef.current.add(saveKey)
     setActionError('')
     setActionMessage('')
 
-    const response = await postActionData(`/action-items/${item.id}/status`, {
-      status,
-      note: statusNoteByItemId[item.id]?.trim() || undefined,
-    })
+    try {
+      const response = await postActionData(`/action-items/${item.id}/status`, {
+        status,
+        note: statusNoteByItemId[item.id]?.trim() || undefined,
+      })
 
-    if (!response) {
-      setActionError(t('continuity.statusUpdateFailed', { defaultValue: 'Unable to update action item status.' }))
-      return
+      if (!response) {
+        setActionError(t('continuity.statusUpdateFailed', { defaultValue: 'Unable to update action item status.' }))
+        return
+      }
+
+      setActionMessage(t('continuity.statusUpdateSuccess', { defaultValue: 'Action item status updated.' }))
+      setStatusByItemId((current) => {
+        const next = { ...current }
+        delete next[item.id]
+        return next
+      })
+      setStatusNoteByItemId((current) => {
+        const next = { ...current }
+        delete next[item.id]
+        return next
+      })
+      setLogsByItemId((current) => {
+        const next = { ...current }
+        delete next[item.id]
+        return next
+      })
+      fetchActionItems()
+      fetchSummary(projectId)
+      fetchOverdueByOwner(projectId)
+      fetchMissingOwnerItems(projectId)
+    } finally {
+      actionSaveInFlightRef.current.delete(saveKey)
     }
-
-    setActionMessage(t('continuity.statusUpdateSuccess', { defaultValue: 'Action item status updated.' }))
-    setStatusByItemId((current) => {
-      const next = { ...current }
-      delete next[item.id]
-      return next
-    })
-    setStatusNoteByItemId((current) => {
-      const next = { ...current }
-      delete next[item.id]
-      return next
-    })
-    fetchActionItems()
-    fetchSummary(projectId)
-    fetchOverdueByOwner(projectId)
-    fetchMissingOwnerItems(projectId)
   }
 
   const handleChangeActionItemPriority = async (item: ActionItemRow) => {
     const priority = priorityByItemId[item.id]
     if (!priority || priority === item.priority) {
-      setActionError(t('continuity.prioritySelectNew', { defaultValue: 'Select a different priority first.' }))
-      setActionMessage('')
       return
     }
 
+    const saveKey = `priority:${item.id}`
+    if (actionSaveInFlightRef.current.has(saveKey)) {
+      return
+    }
+    actionSaveInFlightRef.current.add(saveKey)
     setActionError('')
     setActionMessage('')
 
-    const response = await patchActionData(`/action-items/${item.id}`, {
-      priority,
-    })
+    try {
+      const response = await patchActionData(`/action-items/${item.id}`, {
+        priority,
+      })
 
-    if (!response) {
-      setActionError(t('continuity.priorityUpdateFailed', { defaultValue: 'Unable to update action item priority.' }))
-      return
+      if (!response) {
+        setActionError(t('continuity.priorityUpdateFailed', { defaultValue: 'Unable to update action item priority.' }))
+        return
+      }
+
+      setActionMessage(t('continuity.priorityUpdateSuccess', { defaultValue: 'Action item priority updated.' }))
+      setPriorityByItemId((current) => {
+        const next = { ...current }
+        delete next[item.id]
+        return next
+      })
+      setLogsByItemId((current) => {
+        const next = { ...current }
+        delete next[item.id]
+        return next
+      })
+      fetchActionItems()
+      fetchSummary(projectId)
+    } finally {
+      actionSaveInFlightRef.current.delete(saveKey)
     }
-
-    setActionMessage(t('continuity.priorityUpdateSuccess', { defaultValue: 'Action item priority updated.' }))
-    setPriorityByItemId((current) => {
-      const next = { ...current }
-      delete next[item.id]
-      return next
-    })
-    setLogsByItemId((current) => {
-      const next = { ...current }
-      delete next[item.id]
-      return next
-    })
-    fetchActionItems()
-    fetchSummary(projectId)
   }
 
   const handleToggleActionLogs = async (item: ActionItemRow) => {
@@ -769,6 +849,12 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
 
   return (
     <div className="space-y-6">
+      {actionMessage && (
+        <div className="fixed right-4 top-4 z-50 max-w-sm rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 shadow-lg dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
+          {actionMessage}
+        </div>
+      )}
+
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -959,13 +1045,9 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
 
         {selectedTab === 'actions' && (
           <div className="space-y-3">
-            {(actionError || actionMessage) && (
-              <div className={`rounded-lg border px-3 py-2 text-sm ${
-                actionError
-                  ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-200'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-200'
-              }`}>
-                {actionError || actionMessage}
+            {actionError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-200">
+                {actionError}
               </div>
             )}
 
@@ -1020,7 +1102,9 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                     >
                       <option value="">{t('common.all', { defaultValue: 'All' })}</option>
                       {actionPriorities.map((priority) => (
-                        <option key={priority} value={priority}>{priority}</option>
+                        <option key={priority} value={priority}>
+                          {t(`continuity.actionPriorities.${priority}`, { defaultValue: priority })}
+                        </option>
                       ))}
                     </select>
                   </label>
@@ -1049,15 +1133,69 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                       <option value="notOverdue">{t('continuity.notOverdueOnly', { defaultValue: 'Not overdue' })}</option>
                     </select>
                   </label>
-                  <label className="block sm:col-span-2">
-                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.meetingNameFilter', { defaultValue: 'Meeting name' })}</span>
-                    <input
-                      value={actionFilters.meetingQuery}
-                      onChange={(event) => setActionFilters((current) => ({ ...current, meetingQuery: event.target.value }))}
-                      placeholder={t('continuity.meetingNamePlaceholder', { defaultValue: 'Search meeting name' })}
-                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                    />
-                  </label>
+                  <div ref={meetingFilterRef} className="relative sm:col-span-2">
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        {t('continuity.meetingNameFilter', { defaultValue: 'Meeting name' })}
+                      </span>
+                      <div className="mt-1 flex rounded-md border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900">
+                        <input
+                          value={actionFilters.meetingQuery}
+                          onChange={(event) => {
+                            setActionFilters((current) => ({ ...current, meetingQuery: event.target.value }))
+                            setIsMeetingFilterOpen(true)
+                          }}
+                          onFocus={() => setIsMeetingFilterOpen(true)}
+                          placeholder={t('continuity.meetingNamePlaceholder', { defaultValue: 'Search meeting name' })}
+                          className="min-w-0 flex-1 rounded-l-md bg-transparent px-2 py-2 text-sm text-slate-900 outline-none dark:text-white"
+                        />
+                        {actionFilters.meetingQuery && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActionFilters((current) => ({ ...current, meetingQuery: '' }))
+                              setIsMeetingFilterOpen(false)
+                            }}
+                            className="px-2 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                          >
+                            {t('common.clear', { defaultValue: 'Clear' })}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setIsMeetingFilterOpen((current) => !current)}
+                          className="border-l border-slate-200 px-2 text-slate-500 hover:text-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:text-white"
+                          aria-label={t('continuity.meetingNameOpenOptions', { defaultValue: 'Open meeting options' })}
+                        >
+                          ▾
+                        </button>
+                      </div>
+                    </label>
+
+                    {isMeetingFilterOpen && (
+                      <div className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                        {meetingFilterOptions.length ? (
+                          meetingFilterOptions.map((meeting) => (
+                            <button
+                              key={meeting.id}
+                              type="button"
+                              onClick={() => {
+                                setActionFilters((current) => ({ ...current, meetingQuery: meeting.title }))
+                                setIsMeetingFilterOpen(false)
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                            >
+                              {meeting.title}
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
+                            {t('continuity.noMeetingOptions', { defaultValue: 'No matching meetings' })}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <label className="block">
                     <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.dateType', { defaultValue: 'Date type' })}</span>
                     <select
@@ -1114,6 +1252,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                         dateTo: '',
                         sort: 'focus',
                       })}
+                      onMouseDown={() => setIsMeetingFilterOpen(false)}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
                     >
                       {t('common.clear', { defaultValue: 'Clear' })}
@@ -1140,14 +1279,14 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                       : 'border-gray-200 dark:border-slate-700'
                   }`}
                 >
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="font-semibold text-gray-900 dark:text-white">
                           {item.title}
                         </h4>
                         <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-900 dark:text-blue-100">
-                          {item.status}
+                          {t(`continuity.actionStatuses.${item.status}`, { defaultValue: item.status })}
                         </span>
                         <span className={`rounded px-2 py-0.5 text-xs font-semibold ${
                           item.priority === 'CRITICAL'
@@ -1156,7 +1295,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                               ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100'
                               : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-100'
                         }`}>
-                          {item.priority}
+                          {t(`continuity.actionPriorities.${item.priority}`, { defaultValue: item.priority })}
                         </span>
                         {item.overdue && (
                           <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-900 dark:text-red-100">
@@ -1187,108 +1326,122 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                       )}
                     </div>
 
-                    <div className="w-full shrink-0 space-y-3 lg:w-80">
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          {t('continuity.statusControl', { defaultValue: 'Status' })}
-                        </p>
-                        <select
-                          value={selectedStatus}
-                          onChange={(event) => {
-                            const value = event.target.value as ActionItemStatus
-                            setStatusByItemId((current) => ({ ...current, [item.id]: value }))
-                          }}
-                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                        >
-                          {actionItemStatuses.map((status) => (
-                            <option key={status} value={status}>
-                              {t(`continuity.actionStatuses.${status}`, { defaultValue: status })}
-                            </option>
-                          ))}
-                        </select>
+                    <div className="grid grid-cols-1 gap-2 border-t border-slate-200 pt-3 dark:border-slate-700 md:grid-cols-3">
+                      <div
+                        className="rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/50"
+                        onBlur={(event) => {
+                          if (!event.currentTarget.contains(event.relatedTarget)) {
+                            void handleChangeActionItemStatus(item)
+                          }
+                        }}
+                        onMouseLeave={() => void handleChangeActionItemStatus(item)}
+                      >
+                        <label className="block">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {t('continuity.statusControl', { defaultValue: 'Status' })}
+                          </span>
+                          <select
+                            value={selectedStatus}
+                            disabled={isActionMutationLoading}
+                            onChange={(event) => {
+                              const value = event.target.value as ActionItemStatus
+                              setStatusByItemId((current) => ({ ...current, [item.id]: value }))
+                            }}
+                            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                          >
+                            {actionItemStatuses.map((status) => (
+                              <option key={status} value={status}>
+                                {t(`continuity.actionStatuses.${status}`, { defaultValue: status })}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                         <input
                           value={statusNoteByItemId[item.id] ?? ''}
+                          disabled={isActionMutationLoading}
                           onChange={(event) => {
                             const value = event.target.value
                             setStatusNoteByItemId((current) => ({ ...current, [item.id]: value }))
                           }}
                           placeholder={t('continuity.statusNotePlaceholder', { defaultValue: 'Status note (optional)' })}
-                          className="mt-2 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                          className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                         />
-                        <button
-                          type="button"
-                          onClick={() => void handleChangeActionItemStatus(item)}
-                          disabled={isActionMutationLoading || selectedStatus === item.status}
-                          className="mt-2 w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {t('continuity.updateStatus', { defaultValue: 'Update status' })}
-                        </button>
                       </div>
 
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          {t('continuity.reassignTitle', { defaultValue: 'Reassign' })}
-                        </p>
-                        <select
-                          value={selectedOwnerId}
-                          onChange={(event) => {
-                            const value = event.target.value
-                            setReassignOwnerByItemId((current) => ({ ...current, [item.id]: value }))
-                          }}
-                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                        >
-                          <option value="">{t('continuity.reassignSelectOwner', { defaultValue: 'Select new owner' })}</option>
-                          {ownerOptions.map((owner) => (
-                            <option key={owner.id} value={owner.id}>
-                              {owner.name} - {owner.email}
-                            </option>
-                          ))}
-                        </select>
+                      <div
+                        className="rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/50"
+                        onBlur={(event) => {
+                          if (!event.currentTarget.contains(event.relatedTarget)) {
+                            void handleReassignActionItem(item)
+                          }
+                        }}
+                        onMouseLeave={() => void handleReassignActionItem(item)}
+                      >
+                        <label className="block">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {t('continuity.reassignTitle', { defaultValue: 'Reassign' })}
+                          </span>
+                          <select
+                            value={selectedOwnerId}
+                            disabled={isActionMutationLoading}
+                            onChange={(event) => {
+                              const value = event.target.value
+                              setReassignOwnerByItemId((current) => ({ ...current, [item.id]: value }))
+                            }}
+                            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                          >
+                            <option value="">{t('continuity.reassignSelectOwner', { defaultValue: 'Select new owner' })}</option>
+                            {ownerOptions.map((owner) => (
+                              <option key={owner.id} value={owner.id}>
+                                {owner.name} - {owner.email}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                         <input
                           value={reassignNoteByItemId[item.id] ?? ''}
+                          disabled={isActionMutationLoading}
                           onChange={(event) => {
                             const value = event.target.value
                             setReassignNoteByItemId((current) => ({ ...current, [item.id]: value }))
                           }}
                           placeholder={t('continuity.reassignNotePlaceholder', { defaultValue: 'Note (optional)' })}
-                          className="mt-2 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                          className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                         />
-                        <button
-                          type="button"
-                          onClick={() => void handleReassignActionItem(item)}
-                          disabled={isActionMutationLoading || !selectedOwnerId || selectedOwnerId === item.ownerUserId}
-                          className="mt-2 w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {t('continuity.reassignAction', { defaultValue: 'Reassign' })}
-                        </button>
                       </div>
 
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          {t('continuity.priorityControl', { defaultValue: 'Priority' })}
+                      <div
+                        className="rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/50"
+                        onBlur={(event) => {
+                          if (!event.currentTarget.contains(event.relatedTarget)) {
+                            void handleChangeActionItemPriority(item)
+                          }
+                        }}
+                        onMouseLeave={() => void handleChangeActionItemPriority(item)}
+                      >
+                        <label className="block">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {t('continuity.priorityControl', { defaultValue: 'Priority' })}
+                          </span>
+                          <select
+                            value={selectedPriority}
+                            disabled={isActionMutationLoading}
+                            onChange={(event) => {
+                              const value = event.target.value as ActionPriority
+                              setPriorityByItemId((current) => ({ ...current, [item.id]: value }))
+                            }}
+                            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                          >
+                            {actionPriorities.map((priority) => (
+                              <option key={priority} value={priority}>
+                                {t(`continuity.actionPriorities.${priority}`, { defaultValue: priority })}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                          {t('continuity.autoSaveHint', { defaultValue: 'Auto-saves when you leave this field.' })}
                         </p>
-                        <select
-                          value={selectedPriority}
-                          onChange={(event) => {
-                            const value = event.target.value as ActionPriority
-                            setPriorityByItemId((current) => ({ ...current, [item.id]: value }))
-                          }}
-                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                        >
-                          {actionPriorities.map((priority) => (
-                            <option key={priority} value={priority}>
-                              {t(`continuity.actionPriorities.${priority}`, { defaultValue: priority })}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => void handleChangeActionItemPriority(item)}
-                          disabled={isActionMutationLoading || selectedPriority === item.priority}
-                          className="mt-2 w-full rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {t('continuity.updatePriority', { defaultValue: 'Update priority' })}
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -1316,7 +1469,9 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                               <li key={log.id} className="rounded-md bg-white px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                   <span className="font-semibold text-slate-900 dark:text-white">
-                                    {log.fromStatus ? `${log.fromStatus} -> ${log.toStatus}` : log.toStatus}
+                                    {log.fromStatus
+                                      ? `${t(`continuity.actionStatuses.${log.fromStatus}`, { defaultValue: log.fromStatus })} -> ${t(`continuity.actionStatuses.${log.toStatus}`, { defaultValue: log.toStatus })}`
+                                      : t(`continuity.actionStatuses.${log.toStatus}`, { defaultValue: log.toStatus })}
                                   </span>
                                   <span className="text-xs text-slate-500 dark:text-slate-400">
                                     {new Date(log.changedAt).toLocaleString()}
