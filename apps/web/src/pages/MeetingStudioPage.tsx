@@ -17,6 +17,7 @@ type DocxTextExtractor = {
 type DocxMinuteSummary = {
   summary: string
   objective: string
+  consultantNotes: string
   decisions: string[]
   risks: string[]
   actionItems: Array<{
@@ -49,7 +50,7 @@ type StudioProject = Project & {
   tenant?: { id: string; name: string } | null
 }
 
-type MinuteSectionKey = 'objective' | 'summary' | 'decisions' | 'risks' | 'actions' | 'nextSteps'
+type MinuteSectionKey = 'objective' | 'summary' | 'consultantNotes' | 'decisions' | 'risks' | 'actions' | 'nextSteps'
 type ProgressMode = 'docx' | 'audio' | 'save' | null
 type ProgressKey =
   | 'validatingInput'
@@ -83,6 +84,7 @@ type OwnerOption = {
 const defaultTemplate = (): MinuteTemplate => ({
   objective: '',
   summary: '',
+  consultantNotes: '',
   decisions: '',
   risks: '',
   actions: '',
@@ -431,6 +433,12 @@ const deriveDocxSummaryHeuristic = (raw: string): DocxMinuteSummary => {
   return {
     summary: clip(compact, 320),
     objective,
+    consultantNotes: uniqueNonEmpty([
+      objective ? `ควรตรวจสอบว่าวัตถุประสงค์นี้มีตัวชี้วัดความสำเร็จและเจ้าของงานที่ชัดเจนหรือไม่` : '',
+      decisions.length === 0 ? 'ยังไม่พบมติหรือการตัดสินใจที่ชัดเจน ควรเติมผลลัพธ์ที่ที่ประชุมตกลงร่วมกัน' : '',
+      actionItems.length === 0 ? 'ยังไม่พบ action items ที่ชัดเจน ควรระบุเจ้าของงานและวันครบกำหนดก่อนบันทึก' : '',
+      risks.length === 0 ? 'ยังไม่พบความเสี่ยงหรือประเด็นที่ต้องเฝ้าระวัง ควรทบทวนว่ามีข้อจำกัดหรือ dependency สำคัญหรือไม่' : ''
+    ], 4).join('\n'),
     decisions,
     risks,
     actionItems,
@@ -543,7 +551,7 @@ export default function MeetingStudioPage() {
   const activeGuideStepData = guidedSteps[activeGuideStep - 1]
   const stepOneComplete = Boolean(selectedProjectId)
   const stepTwoComplete = Boolean(recordingFile) || Boolean(transcript.trim())
-  const stepThreeComplete = Boolean(summary.trim()) || Boolean(template.objective.trim()) || Boolean(template.decisions.trim()) || Boolean(template.risks.trim()) || Boolean(template.actions.trim()) || Boolean(template.nextSteps.trim())
+  const stepThreeComplete = Boolean(summary.trim()) || Boolean(template.objective.trim()) || Boolean(template.consultantNotes.trim()) || Boolean(template.decisions.trim()) || Boolean(template.risks.trim()) || Boolean(template.actions.trim()) || Boolean(template.nextSteps.trim())
 
   const updateProgress = (mode: Exclude<ProgressMode, null>, key: ProgressKey) => {
     setProgressMode(mode)
@@ -603,6 +611,7 @@ export default function MeetingStudioPage() {
       return {
         summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : '',
         objective: typeof parsed.objective === 'string' ? parsed.objective.trim() : '',
+        consultantNotes: typeof parsed.consultantNotes === 'string' ? parsed.consultantNotes.trim() : '',
         decisions: Array.isArray(parsed.decisions) ? parsed.decisions.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean) : [],
         risks: Array.isArray(parsed.risks) ? parsed.risks.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean) : [],
         actionItems: normalizeAiActionItems(parsed.actionItems),
@@ -621,12 +630,14 @@ export default function MeetingStudioPage() {
     '{',
     '  "summary": "string",',
     '  "objective": "string",',
+    '  "consultantNotes": "string",',
     '  "decisions": ["string"],',
     '  "risks": ["string"],',
     '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime","importanceScore":50,"priority":"LOW|MEDIUM|HIGH|CRITICAL"}],',
     '  "nextSteps": "string"',
     '}',
     'Respond in Thai for all text values.',
+    'For consultantNotes, write 2-4 concise bullet-style recommendations about weaknesses of this minute, missing context, items to clarify, risks to watch, or details to add. Use a constructive consultant tone, not blame.',
     'Set importanceScore from 1-100 based on business impact, urgency, blockers, customer/executive impact, and risk.',
     'Use HIGH or CRITICAL for very important work even when the due date is later, so teams can focus earlier.',
     '',
@@ -642,6 +653,7 @@ export default function MeetingStudioPage() {
     '{',
     '  "summary": "string",',
     '  "objective": "string",',
+    '  "consultantNotes": "string",',
     '  "decisions": ["string"],',
     '  "risks": ["string"],',
     '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime","importanceScore":50,"priority":"LOW|MEDIUM|HIGH|CRITICAL"}],',
@@ -649,6 +661,7 @@ export default function MeetingStudioPage() {
     '}',
     'Respond in Thai for all text values.',
     'Preserve project-specific names, dates, owners, and action wording when present.',
+    'For consultantNotes, write 2-4 concise bullet-style recommendations about weaknesses of this minute, missing context, items to clarify, risks to watch, or details to add. Use a constructive consultant tone, not blame.',
     'Set importanceScore from 1-100 based on business impact, urgency, blockers, customer/executive impact, and risk.',
     'Use HIGH or CRITICAL for very important work even when the due date is later, so teams can focus earlier.',
     '',
@@ -697,6 +710,7 @@ export default function MeetingStudioPage() {
     setTemplate((current) => ({
       ...current,
       objective: parsedSummary.objective || current.objective,
+      consultantNotes: parsedSummary.consultantNotes || current.consultantNotes,
       decisions: parsedSummary.decisions.join('\n') || current.decisions,
       risks: parsedSummary.risks.join('\n') || current.risks,
       nextSteps: parsedSummary.nextSteps || current.nextSteps
@@ -803,16 +817,19 @@ export default function MeetingStudioPage() {
       `2. ${t('meetings.template.summary')}`,
       summary || template.summary,
       '',
-      `3. ${t('meetings.template.decisions')}`,
+      `3. ${t('meetings.template.consultantNotes')}`,
+      template.consultantNotes || '-',
+      '',
+      `4. ${t('meetings.template.decisions')}`,
       template.decisions,
       '',
-      `4. ${t('meetings.template.risks')}`,
+      `5. ${t('meetings.template.risks')}`,
       template.risks,
       '',
-      `5. ${t('meetings.template.actions')}`,
+      `6. ${t('meetings.template.actions')}`,
       checklistPreview || template.actions,
       '',
-      `6. ${t('meetings.template.nextSteps')}`,
+      `7. ${t('meetings.template.nextSteps')}`,
       template.nextSteps,
       '',
       transcript ? t('meetings.previewLabels.transcriptAttached') : t('meetings.previewLabels.noTranscript')
@@ -902,6 +919,7 @@ export default function MeetingStudioPage() {
             setTemplate((current) => ({
               ...current,
               objective: parsedSummary.objective || current.objective,
+              consultantNotes: parsedSummary.consultantNotes || current.consultantNotes,
               decisions: parsedSummary.decisions.join('\n'),
               risks: parsedSummary.risks.join('\n'),
               nextSteps: parsedSummary.nextSteps || current.nextSteps
@@ -915,6 +933,7 @@ export default function MeetingStudioPage() {
             setTemplate((current) => ({
               ...current,
               objective: heuristicSummary.objective || current.objective,
+              consultantNotes: heuristicSummary.consultantNotes || current.consultantNotes,
               decisions: heuristicSummary.decisions.join('\n') || current.decisions,
               risks: heuristicSummary.risks.join('\n') || current.risks,
               nextSteps: heuristicSummary.nextSteps || current.nextSteps
@@ -932,6 +951,7 @@ export default function MeetingStudioPage() {
           setTemplate((current) => ({
             ...current,
             objective: heuristicSummary.objective || current.objective,
+            consultantNotes: heuristicSummary.consultantNotes || current.consultantNotes,
             decisions: heuristicSummary.decisions.join('\n') || current.decisions,
             risks: heuristicSummary.risks.join('\n') || current.risks,
             nextSteps: heuristicSummary.nextSteps || current.nextSteps
@@ -1010,6 +1030,7 @@ export default function MeetingStudioPage() {
       const minutes = [
         { section: t('meetings.template.objective'), content: template.objective || '-' },
         { section: t('meetings.template.summary'), content: summary },
+        { section: t('meetings.template.consultantNotes'), content: template.consultantNotes || '-' },
         { section: t('meetings.template.decisions'), content: template.decisions || '-' },
         { section: t('meetings.template.risks'), content: template.risks || '-' },
         { section: t('meetings.template.actions'), content: template.actions || '-' },
@@ -1322,6 +1343,17 @@ export default function MeetingStudioPage() {
                 onChange={(event) => setSummary(event.target.value)}
                 rows={4}
                 className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.template.consultantNotes')}</span>
+              <textarea
+                value={template.consultantNotes}
+                onChange={(event) => updateTemplate('consultantNotes', event.target.value)}
+                rows={3}
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                placeholder={t('meetings.template.consultantNotesPlaceholder')}
               />
             </label>
 

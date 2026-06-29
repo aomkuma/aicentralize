@@ -1,4 +1,4 @@
-export type NavigationIcon = 'dashboard' | 'projects' | 'setup' | 'ai' | 'continuity' | 'reminders' | 'meetings' | 'trace' | 'settings'
+export type NavigationIcon = 'dashboard' | 'projects' | 'setup' | 'ai' | 'continuity' | 'reminders' | 'meetings' | 'trace' | 'settings' | 'users'
 
 export interface NavigationItemConfig {
   id: string
@@ -62,6 +62,12 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
     to: '/admin/organizations',
     labelKey: 'navigation.organizationAdmin',
     icon: 'setup',
+  },
+  {
+    id: 'admin-platform-users',
+    to: '/admin/platform-users',
+    labelKey: 'navigation.platformUsers',
+    icon: 'users',
   },
   {
     id: 'settings',

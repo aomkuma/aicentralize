@@ -158,6 +158,12 @@ export interface UserInvitation {
   inviteUrl?: string
 }
 
+export type PlatformUser = User & {
+  _count?: {
+    tenantMemberships: number
+  }
+}
+
 // Continuity Dashboard Types
 export interface ProjectContinuitySummary {
   projectId: string

@@ -30,6 +30,13 @@ const updateUserAccountSchema = z.object({
   isActive: z.boolean()
 });
 
+const updatePlatformUserSchema = z.object({
+  systemRole: z.union([z.literal(SystemRole.USER), z.literal(SystemRole.MODERATOR)]).optional(),
+  isActive: z.boolean().optional()
+}).refine((value) => Object.keys(value).length > 0, {
+  message: "At least one field is required"
+});
+
 adminRouter.use(requireAuth, requireSystemRole([SystemRole.SUPER_ADMIN, SystemRole.MODERATOR]));
 
 function createInviteToken() {
@@ -85,6 +92,52 @@ adminRouter.patch("/tenants/:tenantId", async (req, res) => {
   });
 
   res.json(tenant);
+});
+
+adminRouter.delete("/tenants/:tenantId", requireSystemRole([SystemRole.SUPER_ADMIN]), async (req, res) => {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: req.params.tenantId },
+    select: {
+      id: true,
+      name: true,
+      _count: {
+        select: {
+          projects: true,
+          memberships: true,
+          invitations: true
+        }
+      }
+    }
+  });
+
+  if (!tenant) {
+    return res.status(404).json({ message: "Organization not found" });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Tenant deletion cascades memberships/invitations. Projects are SetNull on
+    // tenant delete, so remove them first for a true organization hard delete.
+    await tx.project.deleteMany({
+      where: {
+        tenantId: tenant.id
+      }
+    });
+
+    await tx.tenant.delete({
+      where: {
+        id: tenant.id
+      }
+    });
+  });
+
+  res.json({
+    id: tenant.id,
+    name: tenant.name,
+    deleted: true,
+    removedProjects: tenant._count.projects,
+    removedMemberships: tenant._count.memberships,
+    removedInvitations: tenant._count.invitations
+  });
 });
 
 adminRouter.get("/tenants/:tenantId/members", async (req, res) => {
@@ -294,6 +347,92 @@ adminRouter.patch("/tenants/:tenantId/members/:userId", async (req, res) => {
   });
 
   res.json(membership);
+});
+
+adminRouter.get("/platform-users", requireSystemRole([SystemRole.SUPER_ADMIN]), async (_req, res) => {
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      phone: true,
+      role: true,
+      systemRole: true,
+      isActive: true,
+      mustChangePassword: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: {
+        select: {
+          tenantMemberships: true
+        }
+      }
+    },
+    orderBy: [
+      { systemRole: "asc" },
+      { createdAt: "desc" }
+    ]
+  });
+
+  res.json(users);
+});
+
+adminRouter.patch("/platform-users/:userId", requireSystemRole([SystemRole.SUPER_ADMIN]), async (req, res) => {
+  const parsed = updatePlatformUserSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  if (req.params.userId === req.user!.id) {
+    return res.status(400).json({ message: "You cannot change your own platform account" });
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: req.params.userId },
+    select: { id: true, systemRole: true }
+  });
+
+  if (!target) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  if (target.systemRole === SystemRole.SUPER_ADMIN) {
+    return res.status(403).json({ message: "Cannot modify a super admin account" });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: target.id },
+    data: {
+      systemRole: parsed.data.systemRole,
+      isActive: parsed.data.isActive
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      phone: true,
+      role: true,
+      systemRole: true,
+      isActive: true,
+      mustChangePassword: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: {
+        select: {
+          tenantMemberships: true
+        }
+      }
+    }
+  });
+
+  if (parsed.data.isActive === false) {
+    await prisma.refreshToken.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+  }
+
+  res.json(user);
 });
 
 // Platform-wide account suspension: blocks login and all authenticated

@@ -442,5 +442,196 @@ Verification:
 Still open / recommended follow-up:
 - Add route-level tests for the new tenant-scoped continuity behavior.
 - Add UI/e2e coverage for AI deep-link persistence after navigation.
-- Consider a dedicated action-item detail route later; for now, highlighted continuity links are
-  the practical landing point.
+
+## Post-Handover Work Completed (2026-06-29, platform users and action-item route)
+
+Implemented:
+- Added super-admin-only organization hard delete:
+  - Backend `DELETE /admin/tenants/:tenantId`.
+  - Frontend hard-delete button in `/admin/organizations`, visible only to `SUPER_ADMIN`.
+  - UI uses a confirmation dialog before deletion.
+  - Delete removes projects for the tenant first, then deletes the tenant so memberships,
+    invitations, meetings, action items, and related project/meeting data do not remain orphaned.
+- Added super-admin-only platform user management:
+  - Backend `GET /admin/platform-users`.
+  - Backend `PATCH /admin/platform-users/:userId`.
+  - Frontend page `/admin/platform-users`.
+  - Sidebar item `Platform Users` shown only to `SUPER_ADMIN`.
+- The page allows a super admin to:
+  - View all users and their platform system role.
+  - Promote/demote between normal `USER` and `MODERATOR`.
+  - Suspend/restore login access.
+  - See tenant membership count per account.
+- Super admin accounts are protected/read-only in this UI and cannot be modified from the page.
+- Added standalone action item route:
+  - `/action-items/:actionItemId`.
+  - The route fetches `/action-items/:id`, resolves the project, then redirects to
+    `/continuity/:projectId?tab=actions&actionItemId=...`.
+  - This gives AI/deep-link flows a clean action-item URL while reusing the existing continuity
+    action list, highlighting, and reassignment workflow.
+- Ask-AI action links now point to `/action-items/:actionItemId`.
+
+Verification:
+- `pnpm.cmd --filter api type-check` passed.
+- `pnpm.cmd --filter web type-check` passed.
+
+## Post-Handover Fix (2026-06-29, self-task Ask-AI scope)
+
+Issue:
+- When a user asked Dashboard AI about "my tasks" / "งานของฉัน" / "งานของตัวเอง", the project
+  snapshot still included open action items for every owner in the project.
+- Because the model could see other owners' tasks, it could incorrectly answer with another
+  person's work as if it belonged to the requester.
+
+Fix:
+- `apps/api/src/routes/ai-route.ts` now detects self-task questions in Thai and English.
+- When detected, `PROJECT_SNAPSHOT` is built with `assigneeId = current user id` before sending
+  the context to the model.
+- The prompt also marks `actionItemScope: CURRENT_USER_ONLY` and explicitly tells the model not to
+  present another owner's task as the requester's own task.
+
+Verification:
+- `pnpm.cmd --filter api type-check` passed.
+
+## Post-Handover Work Completed (2026-06-29, Meeting Studio consultant notes)
+
+Implemented:
+- Meeting Studio AI analysis now asks for `consultantNotes` from both document and audio/transcript
+  analysis prompts.
+- `consultantNotes` is intended to identify weak spots in the minute, missing context, things to
+  clarify, risks to watch, or details to add before saving.
+- Prompt tone is constructive consultant-style, not blame-oriented.
+- The minute template now has an editable `Consultant notes` / `ข้อสังเกตจากที่ปรึกษา` field.
+- Step 3 preview shows consultant notes immediately after the executive summary, before decisions.
+- Saved meeting minutes now include consultant notes as a persisted minute section.
+- DOCX heuristic fallback also fills basic consultant notes when AI analysis is unavailable.
+
+Verification:
+- `pnpm.cmd --filter web type-check` passed.
+
+## Follow-Up Idea (2026-06-29, employee communication sentiment trend)
+
+User asked whether the product can roughly analyze employee mood/emotional tone from chat text
+across the organization by looking at language trends such as phrasing, politeness markers,
+question style, profanity, irritation signals, and similar communication patterns over the last
+two to three days, then store an aggregated analysis and mood score in the database.
+
+Clarified intended UI:
+- This should appear as a small mood/status icon in `/projects`, specifically in the organization
+  team-management area.
+- The icon is a lightweight signal for PMs or direct supervisors, not a full dashboard by default.
+- Clicking/hovering the icon can reveal the latest trend summary, caveats, and supportive
+  suggestions for the PM/lead.
+- The goal is to help PMs/leads notice employee/team trends early, not to label or judge people.
+
+Feasibility:
+- Technically feasible, but it should be framed as a communication-tone trend, not a diagnosis of
+  a person's real emotion or mental state.
+- The score should be treated as a rough operational signal to help managers notice friction,
+  overload, confusion, urgency, or morale risk, not as a performance judgment.
+- This should require clear tenant-level consent/policy, role-based access, and careful copy so
+  users understand what is being analyzed and why.
+
+Recommended design:
+- Input sources:
+  - Start with messages already inside AICentralize-controlled workflows, such as AI chat prompts,
+    meeting transcripts, comments/notes, or future team chat integrations.
+  - Do not ingest private chat tools unless the organization explicitly connects them and policy
+    disclosure is in place.
+- Analysis window:
+  - Run per tenant on a rolling 2-3 day window.
+  - Store one aggregate snapshot per tenant/day and optionally per project/team, depending on
+    privacy policy.
+- Scheduler / batch processing:
+  - Add a daily scheduled batch job that runs around 02:00 local tenant time, or a configured
+    system timezone if tenant timezone is not available.
+  - The batch should collect eligible chat/message history from the previous 2-3 days and build a
+    bounded prompt for AI analysis.
+  - Include the exact sent/typed timestamp for each message because time context is important for
+    interpreting communication tone. For example, late-night repeated messages, urgent bursts,
+    long gaps followed by terse replies, or frequent after-hours questions can change the meaning
+    of the same words.
+  - Include the full message text for the analysis window when allowed by policy, but cap prompt
+    size and summarize older/lower-signal messages if needed.
+  - Keep messages ordered by timestamp and grouped by tenant/project/member where appropriate.
+  - The batch should write the validated structured result to the database and avoid re-running
+    for the same tenant/window unless manually requested or source data changes.
+  - Source message processing metadata:
+    - Do not rely on a single boolean such as `isSentimentProcessed`; it is too limited for
+      rolling 2-3 day windows and reprocessing.
+    - Add metadata on eligible chat/history rows where appropriate:
+      - `sentimentProcessedAt`
+      - `sentimentBatchId`
+      - `sentimentWindowStart`
+      - `sentimentWindowEnd`
+      - `sentimentProcessingStatus` such as `PENDING | PROCESSED | SKIPPED | FAILED`
+    - This makes failed jobs, retries, schema changes, and manual reprocessing easier to audit.
+- Data model idea:
+  - `CommunicationSentimentSnapshot`
+    - `tenantId`
+    - `projectId?`
+    - `userId?` or `memberUserId?` only if explicitly approved for supervisor-level views
+    - `windowStart`
+    - `windowEnd`
+    - `sampleCount`
+    - `moodScore` (for example -100 to 100)
+    - `stressScore`
+    - `frictionScore`
+    - `urgencyScore`
+    - `confidence`
+    - `themesJson`
+    - `signalsJson`
+    - `createdAt`
+  - `CommunicationSentimentSource`
+    - `snapshotId`
+    - `sourceType` such as `ASK_AI_QUERY`, `MEETING_TRANSCRIPT`, `COMMENT`, or future chat source
+    - `sourceId`
+    - `messageCreatedAt`
+    - `includedAt`
+    - This table records which exact source rows were used for a snapshot, so PM/admin audit and
+      reprocessing are clearer than a boolean flag alone.
+  - Prefer aggregate/team-level storage first. If using per-member signals for PM/supervisor
+    visibility, store them as soft trend indicators with strict tenant/project access rules.
+  - Avoid exposing raw message content by default.
+- Prompt/output contract:
+  - Return structured JSON only.
+  - Include score values, confidence, short human-readable summary, detected signals, and caveats.
+  - Instruct the model not to infer medical/psychological conditions.
+  - Instruct the model to separate "text tone signal" from "person's actual feeling".
+  - Instruct the model not to judge, blame, rank, or label the employee.
+  - Use careful psychologist-like language: tentative, compassionate, context-aware, and focused
+    on support. Example framing: "ข้อความช่วงนี้อาจสะท้อนความกดดันหรือความเร่งรีบมากขึ้น ควรเช็กอินอย่างอ่อนโยน"
+    rather than "คนนี้หงุดหงิด" or "ทัศนคติไม่ดี".
+  - Include a caveat that text alone can be misleading and should be used as a conversation aid.
+- UI:
+  - Add a small icon in `/projects` organization team-management area.
+  - Icon states should be gentle and non-alarming, for example:
+    - calm/normal
+    - needs attention
+    - high pressure signal
+    - insufficient data
+  - Use friendly, non-judgmental language such as `communication tone may be under pressure`
+    rather than labeling employees as angry or negative.
+  - Detail popover/modal should show trends and suggested supportive actions, not individual blame.
+- Access control:
+  - Tenant admins/managers can see aggregate tenant/project snapshots.
+  - PMs/direct supervisors can see team/member trend icons only for people they are allowed to
+    manage or projects they lead.
+  - Members should not see other people's inferred tone. Consider whether members should see their
+    own signal later, with supportive self-reflection copy only.
+  - Platform admins should only access cross-tenant data if explicitly required for operations,
+    ideally without message contents.
+- Retention/privacy:
+  - Keep source snippets short or avoid storing snippets entirely.
+  - Store aggregate signals and anonymized examples where possible.
+  - Add retention controls in system settings.
+
+Implementation plan:
+- Add Prisma model/migration for aggregate sentiment snapshots.
+- Add backend worker or scheduled route that runs at about 02:00, collects eligible text and
+  typed timestamps from the last 2-3 days per tenant/project/member, sends a bounded
+  time-ordered prompt to the configured model, validates JSON, and stores the snapshot.
+- Add tenant-scoped API endpoint for the latest snapshots.
+- Add `/projects` team-management icon UI with popover/modal detail containing trend score,
+  summary, caveats, and suggested supportive manager actions.
+- Add tests for tenant isolation and JSON validation.

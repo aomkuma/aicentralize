@@ -87,6 +87,14 @@ function SettingsIcon() {
   )
 }
 
+function UsersIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-1a4 4 0 00-4-4h-1M9 20H4v-1a4 4 0 014-4h1m0-4a4 4 0 100-8 4 4 0 000 8zm8 0a4 4 0 100-8 4 4 0 000 8z" />
+    </svg>
+  )
+}
+
 function iconFor(type: NavigationIcon) {
   if (type === 'ai') {
     return <AiIcon />
@@ -120,6 +128,10 @@ function iconFor(type: NavigationIcon) {
     return <SettingsIcon />
   }
 
+  if (type === 'users') {
+    return <UsersIcon />
+  }
+
   return <DashboardIcon />
 }
 
@@ -142,10 +154,10 @@ export default function Sidebar({
   const navItems = PRIMARY_NAVIGATION.filter((item) => {
     if (isPlatformAdmin) {
       return item.id === 'admin-organizations' ||
-        (user?.systemRole === 'SUPER_ADMIN' && (item.id === 'settings' || item.id === 'setup'))
+        (user?.systemRole === 'SUPER_ADMIN' && (item.id === 'admin-platform-users' || item.id === 'settings' || item.id === 'setup'))
     }
 
-    if (item.id === 'admin-organizations') {
+    if (item.id === 'admin-organizations' || item.id === 'admin-platform-users') {
       return false
     }
 

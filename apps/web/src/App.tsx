@@ -11,10 +11,12 @@ import ProjectsPage from './pages/ProjectsPage'
 import AiTracePage from './pages/AiTracePage'
 import MeetingStudioPage from './pages/MeetingStudioPage'
 import MeetingHistoryPage from './pages/MeetingHistoryPage'
+import ActionItemRedirectPage from './pages/ActionItemRedirectPage'
 import SystemSettingsPage from './pages/SystemSettingsPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminOrganizationsPage from './pages/AdminOrganizationsPage'
+import AdminPlatformUsersPage from './pages/AdminPlatformUsersPage'
 import AcceptInvitePage from './pages/AcceptInvitePage'
 
 // Load auth state immediately before rendering
@@ -123,9 +125,11 @@ function AppContent() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/setup" element={<SetupRoute />} />
           <Route path="/admin/organizations" element={<AdminManagementRoute><AdminOrganizationsPage /></AdminManagementRoute>} />
+          <Route path="/admin/platform-users" element={<SuperAdminRoute><AdminPlatformUsersPage /></SuperAdminRoute>} />
           <Route path="/dashboard" element={<WorkflowRoute><DashboardPage /></WorkflowRoute>} />
           <Route path="/continuity" element={<WorkflowRoute><ContinuityPage /></WorkflowRoute>} />
           <Route path="/continuity/:projectId" element={<WorkflowRoute><ContinuityPage /></WorkflowRoute>} />
+          <Route path="/action-items/:actionItemId" element={<WorkflowRoute><ActionItemRedirectPage /></WorkflowRoute>} />
           <Route path="/reminders" element={<WorkflowRoute><RemindersPage /></WorkflowRoute>} />
           <Route path="/meetings/history" element={<WorkflowRoute><MeetingHistoryPage /></WorkflowRoute>} />
           <Route path="/meetings/history/:meetingId" element={<WorkflowRoute><MeetingHistoryPage /></WorkflowRoute>} />

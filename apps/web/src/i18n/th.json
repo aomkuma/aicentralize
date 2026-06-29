@@ -145,6 +145,7 @@
     "aiTrace": "ประวัติการใช้ AI",
     "organizationSetup": "ตั้งค่าองค์กร",
     "organizationAdmin": "จัดการองค์กร",
+    "platformUsers": "ผู้ใช้แพลตฟอร์ม",
     "projects": "โปรเจค",
     "meetings": "การประชุม",
     "systemSettings": "ตั้งค่าระบบ"
@@ -160,6 +161,7 @@
     "organizations": "องค์กร",
     "organizationName": "องค์กร",
     "organizationSaved": "บันทึกข้อมูลองค์กรสำเร็จ",
+    "organizationDeleted": "ลบองค์กรถาวรสำเร็จ",
     "memberSaved": "บันทึกข้อมูลสมาชิกสำเร็จ",
     "jobTitle": "ตำแหน่งงาน",
     "department": "แผนก",
@@ -173,11 +175,14 @@
     "owner": "ผู้สร้าง",
     "members": "สมาชิก",
     "projects": "โปรเจค",
+    "actions": "การจัดการ",
     "active": "เปิดใช้งาน",
     "inactive": "ปิดใช้งาน",
     "empty": "ไม่พบองค์กร",
     "noMembers": "ไม่พบสมาชิกในองค์กรนี้",
     "toggleOrganization": "เปิดหรือปิดสถานะองค์กร",
+    "deleteOrganization": "ลบ",
+    "confirmDelete": "ต้องการลบ {{name}} แบบถาวรหรือไม่? ระบบจะลบองค์กร โปรเจค การประชุม action items คำเชิญ และสมาชิกภาพที่เกี่ยวข้องทั้งหมด การดำเนินการนี้ย้อนกลับไม่ได้",
     "toggleMember": "เปิดหรือปิดสถานะสมาชิก",
     "pendingInvitations": "คำเชิญที่รอตอบรับ",
     "resendInvite": "ส่งซ้ำ",
@@ -187,6 +192,34 @@
     "emailNotSent": "ยังไม่ได้ส่งอีเมล",
     "emailError": "ข้อผิดพลาดอีเมล",
     "noPendingInvitations": "ไม่มีคำเชิญที่รอตอบรับ"
+  },
+  "adminPlatformUsers": {
+    "title": "ผู้ใช้แพลตฟอร์ม",
+    "description": "จัดการสิทธิ์ระดับแพลตฟอร์มของ Moderator และสถานะการเข้าใช้งานบัญชี บัญชี Super Admin จะถูกป้องกันไม่ให้แก้ไขจากหน้านี้",
+    "accounts": "บัญชีผู้ใช้",
+    "user": "ผู้ใช้",
+    "systemRole": "สิทธิ์ระบบ",
+    "memberships": "องค์กร",
+    "loginStatus": "สถานะเข้าใช้งาน",
+    "actions": "การจัดการ",
+    "active": "ใช้งานได้",
+    "suspended": "ถูกระงับ",
+    "suspend": "ระงับการเข้าใช้",
+    "restore": "คืนสิทธิ์เข้าใช้",
+    "protected": "ป้องกันไว้",
+    "saved": "บันทึกข้อมูลผู้ใช้แพลตฟอร์มสำเร็จ",
+    "empty": "ไม่พบผู้ใช้",
+    "confirmSuspend": "ต้องการระงับบัญชีนี้หรือไม่? ผู้ใช้จะถูกออกจากระบบและเข้าใช้งานไม่ได้จนกว่าจะคืนสิทธิ์",
+    "roles": {
+      "SUPER_ADMIN": "Super Admin",
+      "MODERATOR": "Moderator",
+      "USER": "ผู้ใช้ทั่วไป"
+    }
+  },
+  "actionItems": {
+    "opening": "กำลังเปิดงาน",
+    "openingHelp": "กำลังพาไปยังมุมมองงานในหน้าความต่อเนื่องโปรเจกต์",
+    "openFailed": "ไม่สามารถเปิดงานนี้ได้"
   },
   "features": {
     "notAvailable": "คุณลักษณะนี้ไม่พร้อมใช้งานกับแผนปัจจุบันของคุณ อัปเกรดเพื่อเข้าถึงคุณลักษณะนี้"
@@ -376,6 +409,8 @@
     "template": {
       "objective": "วัตถุประสงค์",
       "summary": "สรุปผู้บริหาร",
+      "consultantNotes": "ข้อสังเกตจากที่ปรึกษา",
+      "consultantNotesPlaceholder": "AI จะแนะนำจุดอ่อน สิ่งที่ควรระวัง หรือข้อมูลที่ควรเติมก่อนบันทึก",
       "decisions": "ประเด็นตัดสินใจสำคัญ",
       "risks": "ความเสี่ยง / ประเด็นปัญหา",
       "actions": "งานที่ต้องดำเนินการ",

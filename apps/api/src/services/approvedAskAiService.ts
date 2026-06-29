@@ -82,7 +82,7 @@ function buildAppLinks(citations: Citation[]): AppLink[] {
     if (citation.sourceType === "ACTION_ITEM" && citation.sourceRowId) {
       links.push({
         label: "Review action item",
-        url: `/continuity/${citation.projectId}?tab=actions&actionItemId=${encodeURIComponent(citation.sourceRowId)}`,
+        url: `/action-items/${encodeURIComponent(citation.sourceRowId)}`,
         type: "action",
         sourceId: citation.sourceRowId,
         context: citation.meetingTitle

@@ -145,6 +145,7 @@
     "aiTrace": "AI Activity Log",
     "organizationSetup": "Organization Setup",
     "organizationAdmin": "Organizations",
+    "platformUsers": "Platform Users",
     "projects": "Projects",
     "meetings": "Meetings",
     "systemSettings": "System Settings"
@@ -160,6 +161,7 @@
     "organizations": "Organizations",
     "organizationName": "Organization",
     "organizationSaved": "Organization updated successfully.",
+    "organizationDeleted": "Organization permanently deleted.",
     "memberSaved": "Member updated successfully.",
     "jobTitle": "Job title",
     "department": "Department",
@@ -173,11 +175,14 @@
     "owner": "Owner",
     "members": "Members",
     "projects": "Projects",
+    "actions": "Actions",
     "active": "Active",
     "inactive": "Inactive",
     "empty": "No organizations found.",
     "noMembers": "No members found for this organization.",
     "toggleOrganization": "Toggle organization status",
+    "deleteOrganization": "Delete",
+    "confirmDelete": "Hard delete {{name}}? This permanently removes the organization, its projects, meetings, action items, invitations, and memberships. This cannot be undone.",
     "toggleMember": "Toggle member status",
     "pendingInvitations": "Pending Invitations",
     "resendInvite": "Resend",
@@ -187,6 +192,34 @@
     "emailNotSent": "Email not sent yet",
     "emailError": "Email error",
     "noPendingInvitations": "No pending invitations."
+  },
+  "adminPlatformUsers": {
+    "title": "Platform Users",
+    "description": "Manage platform-level access for moderators and account availability. Super admin accounts are protected from edits here.",
+    "accounts": "Accounts",
+    "user": "User",
+    "systemRole": "System role",
+    "memberships": "Organizations",
+    "loginStatus": "Login status",
+    "actions": "Actions",
+    "active": "Active",
+    "suspended": "Suspended",
+    "suspend": "Suspend login",
+    "restore": "Restore login",
+    "protected": "Protected",
+    "saved": "Platform user updated successfully.",
+    "empty": "No users found.",
+    "confirmSuspend": "Suspend this account? The user will be signed out and blocked from logging in until restored.",
+    "roles": {
+      "SUPER_ADMIN": "Super admin",
+      "MODERATOR": "Moderator",
+      "USER": "Normal user"
+    }
+  },
+  "actionItems": {
+    "opening": "Opening action item",
+    "openingHelp": "Redirecting to the project continuity action view.",
+    "openFailed": "Could not open this action item."
   },
   "features": {
     "notAvailable": "This feature is not available with your current plan. Upgrade to access this feature."
@@ -504,6 +537,8 @@
     "template": {
       "objective": "Objective",
       "summary": "Executive summary",
+      "consultantNotes": "Consultant notes",
+      "consultantNotesPlaceholder": "AI will suggest weak spots, things to clarify, or items to strengthen before saving.",
       "decisions": "Key decisions",
       "risks": "Risks / issues",
       "actions": "Action items",

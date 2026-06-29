@@ -79,7 +79,17 @@ function formatDateOnly(input: Date): string {
   return input.toISOString().slice(0, 10);
 }
 
-async function buildProjectContext(user: OptionalAuthUser, projectId: string): Promise<{ text: string; appLinks: AppLink[] } | null> {
+function isSelfTaskQuestion(prompt: string): boolean {
+  const normalized = prompt.toLowerCase();
+  return [
+    /งาน(?:ของ)?(?:ฉัน|ผม|เรา|ตัวเอง|ตัวฉัน|ตัวผม)/,
+    /(?:ฉัน|ผม|เรา).{0,24}(?:รับผิดชอบ|ต้องทำ|ต้องโฟกัส|มีงาน|action|task)/,
+    /(?:my|mine|me|myself).{0,24}(?:task|tasks|action|actions|work|assignment|assignments)/,
+    /(?:task|tasks|action|actions|work|assignment|assignments).{0,24}(?:my|mine|me|myself)/
+  ].some((pattern) => pattern.test(normalized));
+}
+
+async function buildProjectContext(user: OptionalAuthUser, projectId: string, prompt: string): Promise<{ text: string; appLinks: AppLink[] } | null> {
   const access = await ensureProjectScopeAccess({ id: user.id, role: user.role }, projectId);
   if (!access.allowed) {
     return null;
@@ -98,14 +108,17 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string): P
     return null;
   }
 
+  const selfTaskQuestion = isSelfTaskQuestion(prompt);
   const actionItems = await prisma.actionItem.findMany({
     where: {
       status: { notIn: ["DONE", "CANCELLED"] },
+      ...(selfTaskQuestion ? { assigneeId: user.id } : {}),
       meeting: {
         projectId
       }
     },
     select: {
+      id: true,
       task: true,
       detail: true,
       status: true,
@@ -161,6 +174,12 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string): P
     `- projectId: ${project.id}`,
     `- projectCode: ${project.code}`,
     `- projectName: ${project.name}`,
+    `- requesterUserId: ${user.id}`,
+    `- requesterEmail: ${user.email}`,
+    `- actionItemScope: ${selfTaskQuestion ? "CURRENT_USER_ONLY" : "PROJECT_OPEN_ITEMS"}`,
+    selfTaskQuestion
+      ? "- scopeRule: The user asked about their own tasks, so this snapshot includes only action items assigned to the requester."
+      : "- scopeRule: This snapshot includes open project action items across owners.",
     `- openActionItems: ${openCount}`,
     `- overdueActionItems: ${overdueCount}`,
     "- ownersSummary:",
@@ -298,13 +317,16 @@ aiRouter.post("/playground/generate", async (req, res) => {
   try {
     const authUser = parseOptionalAuthUser(req);
     const projectContext = authUser && parsed.data.projectId
-      ? await buildProjectContext(authUser, parsed.data.projectId)
+      ? await buildProjectContext(authUser, parsed.data.projectId, parsed.data.prompt)
       : null;
 
     const groundedInstructions = [
       "Grounding policy:",
       "- If PROJECT_SNAPSHOT is provided, treat it as source of truth for project task status.",
       "- Answer using the snapshot fields directly, especially overdue and owner-related counts.",
+      "- If actionItemScope is CURRENT_USER_ONLY, answer only about tasks assigned to the requester.",
+      "- Never present another owner's task as the requester's own task.",
+      "- If actionItemScope is CURRENT_USER_ONLY and actionItems is empty, say the requester currently has no open tasks in this project.",
       "- If a requested fact is not in snapshot, say it is unavailable instead of inventing.",
       "- Match the output format to the question. Do not use a fixed section order unless the user asks for an overview or report.",
       "- For narrow questions, answer only the requested fact plus one caveat if needed.",

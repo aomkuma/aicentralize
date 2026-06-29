@@ -2,13 +2,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
 import { useApi } from '../hooks/useApi'
+import { useAuthStore } from '../stores/authStore'
 import type { AdminTenant, TenantMembership, UserInvitation } from '../types'
 
 type TenantRole = 'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'
 
 export default function AdminOrganizationsPage() {
   const { t } = useTranslation()
-  const { get, patch, isLoading, error } = useApi()
+  const { get, patch, delete: deleteTenant, isLoading, error } = useApi()
+  const user = useAuthStore((state) => state.user)
   const {
     get: getMembers,
     post: postMember,
@@ -24,6 +26,7 @@ export default function AdminOrganizationsPage() {
   const [manualInviteUrl, setManualInviteUrl] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
+  const isSuperAdmin = user?.systemRole === 'SUPER_ADMIN'
   const selectedTenant = tenants.find((tenant) => tenant.id === selectedTenantId) ?? null
 
   const fetchTenants = useCallback(async () => {
@@ -70,6 +73,37 @@ export default function AdminOrganizationsPage() {
       setTenants((items) => items.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)))
       setNotice(t('adminOrganizations.organizationSaved'))
     }
+  }
+
+  const onDeleteTenant = async (tenant: AdminTenant) => {
+    const confirmed = window.confirm(t('adminOrganizations.confirmDelete', { name: tenant.name }))
+    if (!confirmed) {
+      return
+    }
+
+    setNotice(null)
+    const deleted = await deleteTenant<{ id: string; deleted: boolean }>(`/admin/tenants/${tenant.id}`)
+    if (!deleted?.deleted) {
+      return
+    }
+
+    setTenants((items) => {
+      const next = items.filter((item) => item.id !== tenant.id)
+      setSelectedTenantId((current) => {
+        if (current !== tenant.id) {
+          return current
+        }
+        return next[0]?.id ?? null
+      })
+      return next
+    })
+
+    if (selectedTenantId === tenant.id) {
+      setMembers([])
+      setInvitations([])
+    }
+    setManualInviteUrl(null)
+    setNotice(t('adminOrganizations.organizationDeleted'))
   }
 
   const onRenameTenant = async (tenant: AdminTenant, name: string) => {
@@ -218,6 +252,9 @@ export default function AdminOrganizationsPage() {
                     <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.members')}</th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.projects')}</th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.active')}</th>
+                    {isSuperAdmin && (
+                      <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.actions')}</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -249,6 +286,20 @@ export default function AdminOrganizationsPage() {
                           aria-label={t('adminOrganizations.toggleOrganization')}
                         />
                       </td>
+                      {isSuperAdmin && (
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void onDeleteTenant(tenant)
+                            }}
+                            className="rounded-md border border-red-300 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20"
+                          >
+                            {t('adminOrganizations.deleteOrganization')}
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
