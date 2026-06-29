@@ -393,6 +393,12 @@
     "placeholders": {
       "askAnything": "Ask Rubjob anything about the work..."
     },
+    "links": {
+      "title": "Related places",
+      "openMeeting": "Open meeting minutes",
+      "openProject": "Open project continuity",
+      "openActions": "View action items"
+    },
     "status": {
       "ready": "Ready to take it on",
       "generating": "On it",

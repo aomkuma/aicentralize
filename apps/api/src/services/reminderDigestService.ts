@@ -42,7 +42,6 @@ export async function generateReminderDigests(now = new Date()) {
     const items = await prisma.actionItem.findMany({
       where: {
         meeting: { projectId: project.id },
-        minuteVersionId: { not: null },
         status: { in: activeStatusesForReminder() }
       },
       include: {

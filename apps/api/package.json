@@ -16,6 +16,8 @@
     "setup:push:force": "ts-node scripts/setup-push.ts --force",
     "db:clean": "ts-node scripts/clean-data.ts",
     "db:clean:force": "ts-node scripts/clean-data.ts --force",
+    "db:clear-meetings": "ts-node scripts/clear-meeting-data.ts",
+    "db:clear-meetings:force": "ts-node scripts/clear-meeting-data.ts --force",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -311,7 +311,6 @@ async function processReminders() {
 
   const items = await prisma.actionItem.findMany({
     where: {
-      minuteVersionId: { not: null },
       status: { in: activeStatusesForReminder() },
       dueDate: { lte: lookAhead }
     },

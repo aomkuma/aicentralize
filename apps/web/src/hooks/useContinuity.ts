@@ -18,11 +18,11 @@ type UseContinuityResult = {
   memorySnapshot: ProjectMemorySnapshot | null
   isLoading: boolean
   error: ApiError | null
-  fetchSummary: (projectId?: string) => Promise<{ items: Array<{ project: { id: string; name: string; code: string }; summary: { totalOpenActionItems: number; overdueActionItems: number; dueSoonActionItems: number; staleProject: boolean; lastMeetingDate: string | null } }> } | null>
-  fetchOverdueByOwner: (projectId?: string) => Promise<{ items: Array<{ owner?: { id: string; name: string; email: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> } | null>
-  fetchOverdueByProject: () => Promise<{ items: Array<{ project: { id: string; name: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> } | null>
-  fetchMissingOwnerItems: (projectId?: string) => Promise<{ missingOwner: Array<{ id: string; task: string; status: string; dueDate: string; meeting?: { id?: string; title?: string; project?: { id: string; name?: string } } }>; missingDueDate: Array<{ id: string; task: string; status: string; meeting?: { id?: string; title?: string; project?: { id: string; name?: string } } }> } | null>
-  fetchRecentMeetings: (projectId?: string, days?: number) => Promise<RecentApprovedMeeting[] | null>
+  fetchSummary: (projectId?: string, tenantId?: string) => Promise<{ items: Array<{ project: { id: string; name: string; code: string }; summary: { totalOpenActionItems: number; overdueActionItems: number; dueSoonActionItems: number; staleProject: boolean; lastMeetingDate: string | null } }> } | null>
+  fetchOverdueByOwner: (projectId?: string, tenantId?: string) => Promise<{ items: Array<{ owner?: { id: string; name: string; email: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> } | null>
+  fetchOverdueByProject: (tenantId?: string) => Promise<{ items: Array<{ project: { id: string; name: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> } | null>
+  fetchMissingOwnerItems: (projectId?: string, tenantId?: string) => Promise<{ missingOwner: Array<{ id: string; task: string; status: string; dueDate: string; meeting?: { id?: string; title?: string; project?: { id: string; name?: string } } }>; missingDueDate: Array<{ id: string; task: string; status: string; meeting?: { id?: string; title?: string; project?: { id: string; name?: string } } }> } | null>
+  fetchRecentMeetings: (projectId?: string, days?: number, tenantId?: string) => Promise<RecentApprovedMeeting[] | null>
   fetchMemorySnapshot: (projectId: string) => Promise<ProjectMemorySnapshot | null>
 }
 
@@ -35,10 +35,11 @@ export const useContinuity = (): UseContinuityResult => {
   const [recentMeetings, setRecentMeetings] = useState<RecentApprovedMeeting[]>([])
   const [memorySnapshot, setMemorySnapshot] = useState<ProjectMemorySnapshot | null>(null)
 
-  const fetchSummary = async (projectId?: string) => {
+  const fetchSummary = async (projectId?: string, tenantId?: string) => {
     // API returns { page, pageSize, total, items: [{ project, summary }] }
     const params = new URLSearchParams()
     if (projectId) params.append('projectId', projectId)
+    if (tenantId) params.append('tenantId', tenantId)
     const raw = await get<{ items: Array<{ project: { id: string; name: string; code: string }; summary: { totalOpenActionItems: number; overdueActionItems: number; dueSoonActionItems: number; staleProject: boolean; lastMeetingDate: string | null } }> }>(
       `/continuity/summary?${params.toString()}`
     )
@@ -61,10 +62,11 @@ export const useContinuity = (): UseContinuityResult => {
     return raw
   }
 
-  const fetchOverdueByOwner = async (projectId?: string) => {
+  const fetchOverdueByOwner = async (projectId?: string, tenantId?: string) => {
     // API returns { items: [{ owner: { id, name, email }, overdueCount, items: [...] }] }
     const params = new URLSearchParams()
     if (projectId) params.append('projectId', projectId)
+    if (tenantId) params.append('tenantId', tenantId)
     const raw = await get<{ items: Array<{ owner?: { id: string; name: string; email: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> }>(
       `/continuity/overdue/by-owner?${params.toString()}`
     )
@@ -88,10 +90,12 @@ export const useContinuity = (): UseContinuityResult => {
     return raw
   }
 
-  const fetchOverdueByProject = async () => {
+  const fetchOverdueByProject = async (tenantId?: string) => {
     // API returns { items: [{ project: { id, name }, overdueCount, items: [...] }] }
+    const params = new URLSearchParams()
+    if (tenantId) params.append('tenantId', tenantId)
     const raw = await get<{ items: Array<{ project: { id: string; name: string }; overdueCount: number; items: Array<{ id: string; task: string; dueDate: string; status: string }> }> }>(
-      '/continuity/overdue/by-project'
+      `/continuity/overdue/by-project?${params.toString()}`
     )
     if (raw?.items) {
       setOverdueByProject(
@@ -112,10 +116,11 @@ export const useContinuity = (): UseContinuityResult => {
     return raw
   }
 
-  const fetchMissingOwnerItems = async (projectId?: string) => {
+  const fetchMissingOwnerItems = async (projectId?: string, tenantId?: string) => {
     // API returns { missingOwner: [...], missingDueDate: [...] }
     const params = new URLSearchParams()
     if (projectId) params.append('projectId', projectId)
+    if (tenantId) params.append('tenantId', tenantId)
     const raw = await get<{ missingOwner: Array<{ id: string; task: string; status: string; dueDate: string; meeting?: { id?: string; title?: string; project?: { id: string; name?: string } } }>; missingDueDate: Array<{ id: string; task: string; status: string; meeting?: { id?: string; title?: string; project?: { id: string; name?: string } } }> }>(
       `/continuity/action-items/missing-owner-or-due-date?${params.toString()}`
     )
@@ -149,10 +154,11 @@ export const useContinuity = (): UseContinuityResult => {
     return raw
   }
 
-  const fetchRecentMeetings = async (projectId?: string, days?: number) => {
+  const fetchRecentMeetings = async (projectId?: string, days?: number, tenantId?: string) => {
     const params = new URLSearchParams()
     if (projectId) params.append('projectId', projectId)
     if (days) params.append('days', days.toString())
+    if (tenantId) params.append('tenantId', tenantId)
     const data = await get<RecentApprovedMeeting[]>(
       `/continuity/meetings/recent-approved?${params.toString()}`
     )

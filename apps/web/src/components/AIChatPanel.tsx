@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 type SpeakerLabel = 'A' | 'B' | 'C'
@@ -23,6 +24,20 @@ type SpeakerProfile = {
   lastSeen: number
 }
 
+type AppLink = {
+  label?: string
+  url: string
+  type: 'meeting' | 'project' | 'action'
+  sourceId?: string
+  context?: string
+}
+
+type PersistedChatState = {
+  prompt: string
+  result: string
+  answerLinks: AppLink[]
+}
+
 type SpeechRecognitionCtor = new () => {
   lang: string
   continuous: boolean
@@ -43,6 +58,7 @@ type SpeechRecognitionEventLike = {
 }
 
 const DEFAULT_MODEL = 'qwen2.5:7b'
+const CHAT_STATE_KEY_PREFIX = 'aicentralize-ai-chat-state'
 
 function calculateRms(samples: Float32Array<ArrayBufferLike> | null): number {
   if (!samples || !samples.length) {
@@ -147,12 +163,45 @@ function parseEditedTranscript(rawText: string): Array<{ speaker: SpeakerLabel; 
   return parsed.filter((item) => item.text)
 }
 
+function normalizeAppLinks(raw: unknown): AppLink[] {
+  if (!Array.isArray(raw)) {
+    return []
+  }
+
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null
+      }
+
+      const value = item as Partial<AppLink>
+      const type = value.type
+      const url = typeof value.url === 'string' ? value.url : ''
+      if (!url.startsWith('/') || (type !== 'meeting' && type !== 'project' && type !== 'action')) {
+        return null
+      }
+
+      const normalized: AppLink = {
+        label: typeof value.label === 'string' ? value.label : undefined,
+        url,
+        type,
+        sourceId: typeof value.sourceId === 'string' ? value.sourceId : undefined,
+        context: typeof value.context === 'string' ? value.context : undefined
+      }
+
+      return normalized
+    })
+    .filter((item): item is AppLink => Boolean(item))
+    .slice(0, 6)
+}
+
 type AIChatPanelProps = {
   projectId?: string
 }
 
 export default function AIChatPanel({ projectId }: AIChatPanelProps) {
   const { t } = useTranslation()
+  const chatStateKey = `${CHAT_STATE_KEY_PREFIX}:${projectId || 'dashboard'}`
   const [activeTab, setActiveTab] = useState<'prompt' | 'record'>('prompt')
   const [prompt, setPrompt] = useState('')
   const [result, setResult] = useState(t('aiChat.status.ready'))
@@ -168,6 +217,7 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
   const [liveTranscriptText, setLiveTranscriptText] = useState('')
   const [notesText, setNotesText] = useState('')
   const [copyNotice, setCopyNotice] = useState('')
+  const [answerLinks, setAnswerLinks] = useState<AppLink[]>([])
 
   const statusTimerRef = useRef<number | null>(null)
   const typingTimerRef = useRef<number | null>(null)
@@ -192,6 +242,21 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
   const lastSpeakerSwitchAtRef = useRef(0)
   const lastAutoTranscriptRef = useRef('')
 
+  const persistChatState = (nextPrompt: string, nextResult: string, nextLinks: AppLink[]) => {
+    window.sessionStorage.setItem(
+      chatStateKey,
+      JSON.stringify({
+        prompt: nextPrompt,
+        result: nextResult,
+        answerLinks: nextLinks
+      } satisfies PersistedChatState)
+    )
+  }
+
+  const clearPersistedChatState = () => {
+    window.sessionStorage.removeItem(chatStateKey)
+  }
+
   const renderedTranscript = useMemo(() => {
     if (!segments.length) {
       return ''
@@ -215,6 +280,26 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
       setTranscriptText(renderedTranscript)
     }
   }, [renderedTranscript])
+
+  useEffect(() => {
+    const raw = window.sessionStorage.getItem(chatStateKey)
+    if (!raw) {
+      return
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<PersistedChatState>
+      if (typeof parsed.prompt === 'string') {
+        setPrompt(parsed.prompt)
+      }
+      if (typeof parsed.result === 'string' && parsed.result.trim()) {
+        setResult(parsed.result)
+      }
+      setAnswerLinks(normalizeAppLinks(parsed.answerLinks))
+    } catch {
+      clearPersistedChatState()
+    }
+  }, [chatStateKey])
 
   useEffect(() => {
     return () => {
@@ -869,6 +954,8 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
     setIsBusy(true)
     startStatusPulse()
     setResult('')
+    setAnswerLinks([])
+    clearPersistedChatState()
 
     try {
       const accessToken = localStorage.getItem('accessToken')
@@ -890,9 +977,16 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
         throw new Error(data.detail || data.message || t('aiChat.errors.requestFailed'))
       }
 
-      typewrite(data.output || t('aiChat.status.noOutput'), () => stopStatusPulse(t('aiChat.status.done')))
+      const output = data.output || t('aiChat.status.noOutput')
+      const links = normalizeAppLinks(data.appLinks)
+      setAnswerLinks(links)
+      typewrite(output, () => {
+        persistChatState(cleanPrompt, output, links)
+        stopStatusPulse(t('aiChat.status.done'))
+      })
     } catch (error) {
       setResult('')
+      setAnswerLinks([])
       stopStatusPulse(error instanceof Error ? error.message : t('aiChat.errors.generateFailed'))
     } finally {
       setIsBusy(false)
@@ -953,11 +1047,22 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
     setLiveTranscriptText('')
     setNotesText('')
     setCopyNotice('')
+    setAnswerLinks([])
+    clearPersistedChatState()
     resetDiarizationState()
     setTranscriptText('')
   }
 
   const canCopyResult = !!result.trim() && result !== t('aiChat.status.ready')
+  const appLinkLabel = (link: AppLink) => {
+    if (link.type === 'meeting') {
+      return t('aiChat.links.openMeeting')
+    }
+    if (link.type === 'action') {
+      return t('aiChat.links.openActions')
+    }
+    return t('aiChat.links.openProject')
+  }
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6">
@@ -1039,8 +1144,28 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
                 {t('aiChat.actions.copyAnswer')}
               </button>
             </div>
-            <div className={`max-h-[62vh] min-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-sm leading-relaxed text-gray-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 ${isBusy ? 'animate-pulse' : ''}`}>
-              {result}
+            <div className={`max-h-[62vh] min-h-[360px] overflow-auto break-words rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-sm leading-relaxed text-gray-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 ${isBusy ? 'animate-pulse' : ''}`}>
+              <div className="whitespace-pre-wrap">{result}</div>
+              {answerLinks.length > 0 && (
+                <div className="mt-3 border-t border-gray-200 pt-3 dark:border-slate-700">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                    {t('aiChat.links.title')}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {answerLinks.map((link) => (
+                      <Link
+                        key={`${link.type}-${link.url}`}
+                        to={link.url}
+                        className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-950 dark:text-blue-200 dark:hover:bg-blue-950/40"
+                        title={link.context}
+                      >
+                        {appLinkLabel(link)}
+                        {link.context ? ` · ${link.context}` : ''}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="mt-2 min-h-[1.2em] text-xs text-gray-500 dark:text-slate-400">{copyNotice}</div>
             <div className="mt-2 min-h-[1.2em] text-sm text-gray-500 dark:text-slate-400">{status}</div>

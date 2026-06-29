@@ -36,6 +36,63 @@ type UsedEvidence = Citation & {
   recencyBoost: number;
 };
 
+type AppLink = {
+  label: string;
+  url: string;
+  type: "meeting" | "project" | "action";
+  sourceId: string;
+  context?: string;
+};
+
+function uniqueByUrl(links: AppLink[]): AppLink[] {
+  const seen = new Set<string>();
+  const result: AppLink[] = [];
+
+  for (const link of links) {
+    if (seen.has(link.url)) {
+      continue;
+    }
+    seen.add(link.url);
+    result.push(link);
+  }
+
+  return result;
+}
+
+function buildAppLinks(citations: Citation[]): AppLink[] {
+  const links: AppLink[] = [];
+
+  for (const citation of citations) {
+    links.push({
+      label: "Open meeting minutes",
+      url: `/meetings/history/${citation.meetingId}`,
+      type: "meeting",
+      sourceId: citation.meetingId,
+      context: citation.meetingTitle
+    });
+
+    links.push({
+      label: "Open project continuity",
+      url: `/continuity/${citation.projectId}`,
+      type: "project",
+      sourceId: citation.projectId,
+      context: citation.meetingTitle
+    });
+
+    if (citation.sourceType === "ACTION_ITEM" && citation.sourceRowId) {
+      links.push({
+        label: "Review action item",
+        url: `/continuity/${citation.projectId}?tab=actions&actionItemId=${encodeURIComponent(citation.sourceRowId)}`,
+        type: "action",
+        sourceId: citation.sourceRowId,
+        context: citation.meetingTitle
+      });
+    }
+  }
+
+  return uniqueByUrl(links).slice(0, 6);
+}
+
 const groundedOutputSchema = z.object({
   answer: z.string().trim().min(1),
   confidence: z.enum(["low", "medium", "high"]).default("medium"),
@@ -151,6 +208,7 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
       answer: "ไม่พบหลักฐานจากข้อมูลที่อนุมัติแล้วซึ่งตรงกับคำถามนี้",
       confidence: "low" as const,
       citations: [] as Citation[],
+      appLinks: [] as AppLink[],
       usedEvidence: [] as UsedEvidence[],
       usedMeetingIds: [] as string[],
       usedActionItemIds: [] as string[],
@@ -271,6 +329,7 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
     confidence: parsed.confidence,
     uncertainties: parsed.uncertainties,
     citations,
+    appLinks: buildAppLinks(citations),
     usedEvidence,
     usedMeetingIds: [...new Set(citations.map((item) => item.meetingId))],
     usedActionItemIds: [
@@ -325,6 +384,7 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
     trace: {
       evidenceCount: usedEvidence.length,
       confidence: result.confidence,
+      appLinks: result.appLinks,
       retrievalProvider: retrieval.provider,
       retrievalStrategy: retrieval.strategy
     }

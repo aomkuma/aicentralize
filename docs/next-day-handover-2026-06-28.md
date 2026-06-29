@@ -402,3 +402,45 @@ Future UI note:
   under the response.
 - If action-item detail pages are not added, use `/continuity/:projectId` with a query or state
   filter such as `?tab=actions&status=open` so generated links land close to the relevant work.
+
+## Post-Handover Work Completed (2026-06-29, AI deep links, tenant-scoped continuity, meeting reset)
+
+Implemented:
+- Ask-AI answers can now return app deep links alongside the answer:
+  - Meeting source: `/meetings/history/:meetingId`.
+  - Project source: `/continuity/:projectId`.
+  - Action source: `/continuity/:projectId?tab=actions&actionItemId=...`.
+- Dashboard AI chat now renders related links directly inside the answer area, immediately after
+  the final answer text, instead of placing them in a separate area below the chat.
+- Dashboard AI chat now keeps the latest question, answer, and generated links in session storage
+  so navigating to one suggested link and coming back does not lose the other suggestions. The state
+  is cleared when the user asks a new question or presses clear.
+- Project continuity now reads the `tab` and `actionItemId` query params so generated AI links can
+  open the Action Items tab and highlight a relevant action item.
+- Continuity APIs now support tenant-wide scope for `TENANT_ADMIN` and `MANAGER`, instead of
+  incorrectly treating them like member-scoped users that require `projectId`.
+- Continuity frontend now passes the active tenant id to summary, overdue-by-owner,
+  overdue-by-project, and missing-owner queries so tenant data does not mix across organizations.
+- Reminder digest generation and reminder processing now include action items created from
+  Meeting Studio saved meetings, not only items attached to approved minute versions.
+- Added a meeting-data-only reset script:
+  - `pnpm --filter api db:clear-meetings` previews what will be deleted.
+  - `pnpm --filter api db:clear-meetings:force` deletes meeting-related data.
+  - The script keeps users, tenants/organizations, memberships, and projects.
+  - It removes meetings, minutes, action items, reminder logs/digests, notifications,
+    embeddings/knowledge chunks, decisions, and AI logs that can point at stale meeting data.
+
+Local data cleanup performed on 2026-06-29:
+- Ran `pnpm --filter api db:clear-meetings:force` against local `localhost:5432`.
+- Kept: 2 users, 1 tenant/organization, 1 tenant membership, 1 project.
+- Removed: 1 meeting, 6 minute entries, 7 embedding chunks, 2 action items,
+  5 reminder digests, 5 Ask-AI query logs, and 12 AI run logs.
+
+Verification:
+- `pnpm.cmd --filter api type-check` passed.
+
+Still open / recommended follow-up:
+- Add route-level tests for the new tenant-scoped continuity behavior.
+- Add UI/e2e coverage for AI deep-link persistence after navigation.
+- Consider a dedicated action-item detail route later; for now, highlighted continuity links are
+  the practical landing point.

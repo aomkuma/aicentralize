@@ -47,6 +47,14 @@ type OptionalAuthUser = {
   email: string;
 };
 
+type AppLink = {
+  label: string;
+  url: string;
+  type: "project" | "action";
+  sourceId: string;
+  context?: string;
+};
+
 function parseOptionalAuthUser(req: Request): OptionalAuthUser | null {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) {
@@ -71,7 +79,7 @@ function formatDateOnly(input: Date): string {
   return input.toISOString().slice(0, 10);
 }
 
-async function buildProjectContext(user: OptionalAuthUser, projectId: string): Promise<string | null> {
+async function buildProjectContext(user: OptionalAuthUser, projectId: string): Promise<{ text: string; appLinks: AppLink[] } | null> {
   const access = await ensureProjectScopeAccess({ id: user.id, role: user.role }, projectId);
   if (!access.allowed) {
     return null;
@@ -148,7 +156,7 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string): P
     })
     .join("\n");
 
-  return [
+  const text = [
     "PROJECT_SNAPSHOT (authoritative app data):",
     `- projectId: ${project.id}`,
     `- projectCode: ${project.code}`,
@@ -160,6 +168,26 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string): P
     "- actionItems:",
     itemLines || "- (none)"
   ].join("\n");
+
+  return {
+    text,
+    appLinks: [
+      {
+        label: "Open project continuity",
+        url: `/continuity/${project.id}`,
+        type: "project",
+        sourceId: project.id,
+        context: project.name
+      },
+      {
+        label: "View open actions",
+        url: `/continuity/${project.id}?tab=actions&status=open`,
+        type: "action",
+        sourceId: project.id,
+        context: project.name
+      }
+    ]
+  };
 }
 
 const transcribePlaygroundSchema = z.object({
@@ -287,7 +315,7 @@ aiRouter.post("/playground/generate", async (req, res) => {
     const guidedPrompt = [
       buildLanguagePolicy(parsed.data.prompt),
       groundedInstructions,
-      projectContext ? `${projectContext}` : "PROJECT_SNAPSHOT: (not provided)",
+      projectContext ? projectContext.text : "PROJECT_SNAPSHOT: (not provided)",
       "User question:",
       parsed.data.prompt
     ].join("\n\n");
@@ -322,7 +350,8 @@ aiRouter.post("/playground/generate", async (req, res) => {
 
     return res.json({
       model: data.model,
-      output: data.output
+      output: data.output,
+      appLinks: projectContext?.appLinks ?? []
     });
   } catch (error) {
     return res.status(502).json({

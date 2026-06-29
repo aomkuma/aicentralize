@@ -14,6 +14,7 @@ function toMapById<T extends { id: string }>(items: T[]) {
 
 export async function getProjectContinuitySummaries(input: {
   projectId?: string;
+  tenantIds?: string[];
   page: number;
   pageSize: number;
   staleAfterDays?: number;
@@ -22,7 +23,10 @@ export async function getProjectContinuitySummaries(input: {
   const lookAhead = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const staleAfterDays = input.staleAfterDays ?? 30;
 
-  const whereProject = input.projectId ? { id: input.projectId } : undefined;
+  const whereProject = {
+    ...(input.projectId ? { id: input.projectId } : {}),
+    ...(input.tenantIds ? { tenantId: { in: input.tenantIds } } : {})
+  };
 
   const [projects, total] = await Promise.all([
     prisma.project.findMany({
@@ -203,12 +207,15 @@ export async function getProjectContinuitySummaries(input: {
 
 export async function getOverdueByOwner(input: {
   projectId?: string;
+  tenantIds?: string[];
   limit: number;
 }) {
   const now = new Date();
   const overdueItems = await prisma.actionItem.findMany({
     where: {
-      meeting: input.projectId ? { projectId: input.projectId } : undefined,
+      meeting: input.projectId
+        ? { projectId: input.projectId }
+        : input.tenantIds ? { project: { tenantId: { in: input.tenantIds } } } : undefined,
       status: { in: ACTIVE_ACTION_STATUSES },
       dueDate: { lt: now }
     },
@@ -307,11 +314,13 @@ export async function getOverdueByOwner(input: {
 }
 
 export async function getOverdueByProject(input: {
+  tenantIds?: string[];
   limit: number;
 }) {
   const now = new Date();
   const overdueItems = await prisma.actionItem.findMany({
     where: {
+      meeting: input.tenantIds ? { project: { tenantId: { in: input.tenantIds } } } : undefined,
       status: { in: ACTIVE_ACTION_STATUSES },
       dueDate: { lt: now }
     },
@@ -387,11 +396,12 @@ export async function getOverdueByProject(input: {
 
 export async function getItemsWithMissingOwnerOrDueDate(input: {
   projectId?: string;
+  tenantIds?: string[];
   limit: number;
 }) {
   const baseWhere = input.projectId
     ? { meeting: { projectId: input.projectId } }
-    : undefined;
+    : input.tenantIds ? { meeting: { project: { tenantId: { in: input.tenantIds } } } } : undefined;
 
   const missingOwner = await prisma.actionItem.findMany({
     where: {
@@ -434,6 +444,7 @@ export async function getItemsWithMissingOwnerOrDueDate(input: {
 
 export async function getRecentApprovedMeetingsWithActionCounts(input: {
   projectId?: string;
+  tenantIds?: string[];
   days: number;
   limit: number;
 }) {
@@ -443,7 +454,9 @@ export async function getRecentApprovedMeetingsWithActionCounts(input: {
   const versions = await prisma.minuteVersion.findMany({
     where: {
       approvedAt: { gte: from },
-      meeting: input.projectId ? { projectId: input.projectId } : undefined
+      meeting: input.projectId
+        ? { projectId: input.projectId }
+        : input.tenantIds ? { project: { tenantId: { in: input.tenantIds } } } : undefined
     },
     select: {
       id: true,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useTenantStore } from '../../../stores/tenantStore'
 import { useFeatureFlagStore } from '../../../stores/featureFlagStore'
@@ -239,6 +239,7 @@ const buildWorkloadSuggestionPrompt = (
 
 export default function ContinuityDashboard({ projectId }: ContinuityDashboardProps) {
   const { t } = useTranslation()
+  const [searchParams] = useSearchParams()
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
   const { get: getMeetings } = useApi()
@@ -270,6 +271,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   const [isWorkloadSuggestionOpen, setIsWorkloadSuggestionOpen] = useState(false)
   const [isAnalyzingWorkload, setIsAnalyzingWorkload] = useState(false)
   const analyzedWorkloadSignatureRef = useRef<string | null>(null)
+  const highlightedActionItemId = searchParams.get('actionItemId') ?? ''
 
   // Check feature access
   const canAccessFull = canAccessFeature('CONTINUITY_FULL')
@@ -292,13 +294,14 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   useEffect(() => {
     if (!canAccessSummary) return
 
-    fetchSummary(projectId)
+    const tenantId = currentTenant?.id
+    fetchSummary(projectId, tenantId)
     if (canAccessFull) {
-      fetchOverdueByOwner(projectId)
-      fetchOverdueByProject()
-      fetchMissingOwnerItems(projectId)
+      fetchOverdueByOwner(projectId, tenantId)
+      fetchOverdueByProject(tenantId)
+      fetchMissingOwnerItems(projectId, tenantId)
     }
-  }, [projectId, canAccessSummary, canAccessFull])
+  }, [projectId, currentTenant?.id, canAccessSummary, canAccessFull])
 
   useEffect(() => {
     if (!projectId) {
@@ -482,6 +485,16 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
       setSelectedTab(availableTabs[0] || 'summary')
     }
   }, [availableTabs, selectedTab])
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (
+      (tab === 'summary' || tab === 'byOwner' || tab === 'byProject' || tab === 'actions' || tab === 'missing') &&
+      availableTabs.includes(tab)
+    ) {
+      setSelectedTab(tab)
+    }
+  }, [availableTabs, searchParams])
 
   if (!canAccessFeature('CONTINUITY_SUMMARY')) {
     return (
@@ -752,10 +765,15 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
 
             {actionItems.map((item) => {
               const selectedOwnerId = reassignOwnerByItemId[item.id] ?? ''
+              const isHighlighted = highlightedActionItemId === item.id
               return (
                 <div
                   key={item.id}
-                  className="rounded-lg border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800"
+                  className={`rounded-lg border bg-white p-4 dark:bg-slate-800 ${
+                    isHighlighted
+                      ? 'border-blue-400 ring-2 ring-blue-200 dark:border-blue-500 dark:ring-blue-900/60'
+                      : 'border-gray-200 dark:border-slate-700'
+                  }`}
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">

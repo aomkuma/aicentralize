@@ -533,6 +533,12 @@
     "placeholders": {
       "askAnything": "ถามรับจบเรื่องงานได้เลย..."
     },
+    "links": {
+      "title": "จุดที่เกี่ยวข้อง",
+      "openMeeting": "เปิดรายงานประชุม",
+      "openProject": "เปิดความต่อเนื่องโปรเจกต์",
+      "openActions": "ดูรายการงาน"
+    },
     "status": {
       "ready": "พร้อมรับงาน",
       "generating": "กำลังจัดการให้",
