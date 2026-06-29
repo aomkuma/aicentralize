@@ -147,6 +147,7 @@ export async function listActionItems(input: ListActionItemsInput) {
       dueDate: item.dueDate,
       priority: item.priority,
       status: item.status,
+      createdAt: item.createdAt,
       meeting: {
         id: item.meeting.id,
         title: item.meeting.title,
@@ -245,16 +246,32 @@ export async function updateActionItem(
   payload: UpdateActionItemInput,
   user: { id: string; role: UserRole }
 ) {
-  await assertCanMutate(id, user);
+  const current = await assertCanMutate(id, user);
 
-  const updated = await prisma.actionItem.update({
-    where: { id },
-    data: {
-      detail: payload.detail,
-      dueDate: payload.dueDate,
-      priority: payload.priority,
-      ownerDisplayName: payload.ownerDisplayName
+  const updated = await prisma.$transaction(async (tx) => {
+    const item = await tx.actionItem.update({
+      where: { id },
+      data: {
+        detail: payload.detail,
+        dueDate: payload.dueDate,
+        priority: payload.priority,
+        ownerDisplayName: payload.ownerDisplayName
+      }
+    });
+
+    if (payload.priority && payload.priority !== current.priority) {
+      await tx.actionItemStatusHistory.create({
+        data: {
+          actionItemId: id,
+          fromStatus: current.status,
+          toStatus: current.status,
+          changedById: user.id,
+          note: `Priority changed from ${current.priority} to ${payload.priority}`
+        }
+      });
     }
+
+    return item;
   });
 
   return updated;

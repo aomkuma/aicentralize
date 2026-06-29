@@ -36,6 +36,7 @@ type ActionItemRow = {
   dueDate: string
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
   status: string
+  createdAt?: string
   overdue: boolean
   meeting?: {
     id: string
@@ -43,6 +44,29 @@ type ActionItemRow = {
     meetingDate: string
   }
 }
+
+type ActionItemLogRow = {
+  id: string
+  fromStatus?: string | null
+  toStatus: string
+  note?: string | null
+  changedAt: string
+  changedBy?: {
+    id: string
+    name: string
+    email: string
+  } | null
+}
+
+type ActionItemDetail = ActionItemRow & {
+  statusHistory?: ActionItemLogRow[]
+}
+
+type ActionItemStatus = 'TODO' | 'OPEN' | 'IN_PROGRESS' | 'BLOCKED' | 'DONE' | 'CANCELLED'
+type ActionPriority = ActionItemRow['priority']
+type ActionOverdueFilter = 'all' | 'overdue' | 'notOverdue'
+type ActionFilterDateType = 'createdAt' | 'dueDate'
+type ActionSortMode = 'focus' | 'dueDateAsc' | 'priorityDesc' | 'createdAtDesc'
 
 type OwnerOption = {
   id: string
@@ -83,6 +107,14 @@ const workloadSuggestionCacheKey = (projectId: string) => `aic-workload-suggesti
 const todayCacheDate = () => new Date().toISOString().slice(0, 10)
 
 const isClosedActionStatus = (status: string) => ['DONE', 'CANCELLED'].includes(status)
+const actionItemStatuses: ActionItemStatus[] = ['TODO', 'OPEN', 'IN_PROGRESS', 'BLOCKED', 'DONE', 'CANCELLED']
+const actionPriorities: ActionPriority[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+const priorityWeight: Record<ActionPriority, number> = {
+  LOW: 1,
+  MEDIUM: 2,
+  HIGH: 3,
+  CRITICAL: 4,
+}
 
 const normalizeAiEnum = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T => {
   if (typeof value !== 'string') {
@@ -243,7 +275,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
   const { get: getMeetings } = useApi()
-  const { get: getActionData, post: postActionData, isLoading: isActionMutationLoading } = useApi()
+  const { get: getActionData, post: postActionData, patch: patchActionData, isLoading: isActionMutationLoading } = useApi()
   const {
     summary,
     overdueByOwner,
@@ -263,8 +295,36 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   const [savedMeetings, setSavedMeetings] = useState<SavedMeeting[]>([])
   const [actionItems, setActionItems] = useState<ActionItemRow[]>([])
   const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([])
+  const [isActionFilterOpen, setIsActionFilterOpen] = useState(false)
+  const [actionFilters, setActionFilters] = useState<{
+    ownerUserId: string
+    priority: '' | ActionPriority
+    overdue: ActionOverdueFilter
+    status: '' | ActionItemStatus
+    meetingQuery: string
+    dateType: ActionFilterDateType
+    dateFrom: string
+    dateTo: string
+    sort: ActionSortMode
+  }>({
+    ownerUserId: '',
+    priority: '',
+    overdue: 'all',
+    status: '',
+    meetingQuery: '',
+    dateType: 'dueDate',
+    dateFrom: '',
+    dateTo: '',
+    sort: 'focus',
+  })
   const [reassignOwnerByItemId, setReassignOwnerByItemId] = useState<Record<string, string>>({})
   const [reassignNoteByItemId, setReassignNoteByItemId] = useState<Record<string, string>>({})
+  const [statusByItemId, setStatusByItemId] = useState<Record<string, ActionItemStatus>>({})
+  const [statusNoteByItemId, setStatusNoteByItemId] = useState<Record<string, string>>({})
+  const [priorityByItemId, setPriorityByItemId] = useState<Record<string, ActionPriority>>({})
+  const [openLogsByItemId, setOpenLogsByItemId] = useState<Record<string, boolean>>({})
+  const [logsByItemId, setLogsByItemId] = useState<Record<string, ActionItemLogRow[]>>({})
+  const [loadingLogsByItemId, setLoadingLogsByItemId] = useState<Record<string, boolean>>({})
   const [actionMessage, setActionMessage] = useState('')
   const [actionError, setActionError] = useState('')
   const [workloadSuggestion, setWorkloadSuggestion] = useState<WorkloadSuggestionResult | null>(null)
@@ -389,6 +449,62 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
     () => buildActionItemsSignature(actionableActionItems),
     [actionableActionItems]
   )
+
+  const visibleActionItems = useMemo(() => {
+    const fromTime = actionFilters.dateFrom ? new Date(`${actionFilters.dateFrom}T00:00:00`).getTime() : null
+    const toTime = actionFilters.dateTo ? new Date(`${actionFilters.dateTo}T23:59:59`).getTime() : null
+    const meetingQuery = actionFilters.meetingQuery.trim().toLowerCase()
+
+    return actionItems
+      .filter((item) => {
+        if (actionFilters.ownerUserId && item.ownerUserId !== actionFilters.ownerUserId) {
+          return false
+        }
+        if (actionFilters.priority && item.priority !== actionFilters.priority) {
+          return false
+        }
+        if (actionFilters.status && item.status !== actionFilters.status) {
+          return false
+        }
+        if (actionFilters.overdue === 'overdue' && !item.overdue) {
+          return false
+        }
+        if (actionFilters.overdue === 'notOverdue' && item.overdue) {
+          return false
+        }
+        if (meetingQuery && !item.meeting?.title?.toLowerCase().includes(meetingQuery)) {
+          return false
+        }
+
+        const rawDate = actionFilters.dateType === 'createdAt' ? item.createdAt : item.dueDate
+        const timestamp = rawDate ? new Date(rawDate).getTime() : Number.NaN
+        if (fromTime !== null && (Number.isNaN(timestamp) || timestamp < fromTime)) {
+          return false
+        }
+        if (toTime !== null && (Number.isNaN(timestamp) || timestamp > toTime)) {
+          return false
+        }
+
+        return true
+      })
+      .sort((a, b) => {
+        if (actionFilters.sort === 'createdAtDesc') {
+          return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+        }
+        if (actionFilters.sort === 'priorityDesc') {
+          return priorityWeight[b.priority] - priorityWeight[a.priority] || new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+        }
+        if (actionFilters.sort === 'dueDateAsc') {
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+        }
+
+        const aClosed = isClosedActionStatus(a.status) ? 1 : 0
+        const bClosed = isClosedActionStatus(b.status) ? 1 : 0
+        return aClosed - bClosed ||
+          priorityWeight[b.priority] - priorityWeight[a.priority] ||
+          new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+      })
+  }, [actionFilters, actionItems])
 
   useEffect(() => {
     if (!projectId || !canAccessFull || !actionItemsSignature) {
@@ -534,6 +650,96 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
     fetchSummary(projectId)
     fetchOverdueByOwner(projectId)
     fetchMissingOwnerItems(projectId)
+  }
+
+  const handleChangeActionItemStatus = async (item: ActionItemRow) => {
+    const status = statusByItemId[item.id]
+    if (!status || status === item.status) {
+      setActionError(t('continuity.statusSelectNew', { defaultValue: 'Select a different status first.' }))
+      setActionMessage('')
+      return
+    }
+
+    setActionError('')
+    setActionMessage('')
+
+    const response = await postActionData(`/action-items/${item.id}/status`, {
+      status,
+      note: statusNoteByItemId[item.id]?.trim() || undefined,
+    })
+
+    if (!response) {
+      setActionError(t('continuity.statusUpdateFailed', { defaultValue: 'Unable to update action item status.' }))
+      return
+    }
+
+    setActionMessage(t('continuity.statusUpdateSuccess', { defaultValue: 'Action item status updated.' }))
+    setStatusByItemId((current) => {
+      const next = { ...current }
+      delete next[item.id]
+      return next
+    })
+    setStatusNoteByItemId((current) => {
+      const next = { ...current }
+      delete next[item.id]
+      return next
+    })
+    fetchActionItems()
+    fetchSummary(projectId)
+    fetchOverdueByOwner(projectId)
+    fetchMissingOwnerItems(projectId)
+  }
+
+  const handleChangeActionItemPriority = async (item: ActionItemRow) => {
+    const priority = priorityByItemId[item.id]
+    if (!priority || priority === item.priority) {
+      setActionError(t('continuity.prioritySelectNew', { defaultValue: 'Select a different priority first.' }))
+      setActionMessage('')
+      return
+    }
+
+    setActionError('')
+    setActionMessage('')
+
+    const response = await patchActionData(`/action-items/${item.id}`, {
+      priority,
+    })
+
+    if (!response) {
+      setActionError(t('continuity.priorityUpdateFailed', { defaultValue: 'Unable to update action item priority.' }))
+      return
+    }
+
+    setActionMessage(t('continuity.priorityUpdateSuccess', { defaultValue: 'Action item priority updated.' }))
+    setPriorityByItemId((current) => {
+      const next = { ...current }
+      delete next[item.id]
+      return next
+    })
+    setLogsByItemId((current) => {
+      const next = { ...current }
+      delete next[item.id]
+      return next
+    })
+    fetchActionItems()
+    fetchSummary(projectId)
+  }
+
+  const handleToggleActionLogs = async (item: ActionItemRow) => {
+    const nextOpen = !openLogsByItemId[item.id]
+    setOpenLogsByItemId((current) => ({ ...current, [item.id]: nextOpen }))
+
+    if (!nextOpen || logsByItemId[item.id]) {
+      return
+    }
+
+    setLoadingLogsByItemId((current) => ({ ...current, [item.id]: true }))
+    const detail = await getActionData<ActionItemDetail>(`/action-items/${item.id}`)
+    setLoadingLogsByItemId((current) => ({ ...current, [item.id]: false }))
+
+    if (detail?.statusHistory) {
+      setLogsByItemId((current) => ({ ...current, [item.id]: detail.statusHistory ?? [] }))
+    }
   }
 
   const dismissWorkloadSuggestion = () => {
@@ -763,8 +969,167 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
               </div>
             )}
 
-            {actionItems.map((item) => {
+            <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {t('continuity.actionFiltersTitle', { defaultValue: 'Action list' })}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t('continuity.actionFiltersCount', {
+                      defaultValue: '{{shown}} of {{total}} tasks. Default sorting puts high-priority and near-due work first.',
+                      shown: visibleActionItems.length,
+                      total: actionItems.length,
+                    })}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsActionFilterOpen((current) => !current)}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
+                >
+                  {isActionFilterOpen
+                    ? t('continuity.hideFilters', { defaultValue: 'Hide filters' })
+                    : t('continuity.showFilters', { defaultValue: 'Show filters' })}
+                </button>
+              </div>
+
+              {isActionFilterOpen && (
+                <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 dark:border-slate-700 sm:grid-cols-2 xl:grid-cols-4">
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.owner')}</span>
+                    <select
+                      value={actionFilters.ownerUserId}
+                      onChange={(event) => setActionFilters((current) => ({ ...current, ownerUserId: event.target.value }))}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">{t('common.all', { defaultValue: 'All' })}</option>
+                      {ownerOptions.map((owner) => (
+                        <option key={owner.id} value={owner.id}>
+                          {owner.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.priority', { defaultValue: 'Priority' })}</span>
+                    <select
+                      value={actionFilters.priority}
+                      onChange={(event) => setActionFilters((current) => ({ ...current, priority: event.target.value as '' | ActionPriority }))}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">{t('common.all', { defaultValue: 'All' })}</option>
+                      {actionPriorities.map((priority) => (
+                        <option key={priority} value={priority}>{priority}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.statusControl', { defaultValue: 'Status' })}</span>
+                    <select
+                      value={actionFilters.status}
+                      onChange={(event) => setActionFilters((current) => ({ ...current, status: event.target.value as '' | ActionItemStatus }))}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="">{t('common.all', { defaultValue: 'All' })}</option>
+                      {actionItemStatuses.map((status) => (
+                        <option key={status} value={status}>{t(`continuity.actionStatuses.${status}`, { defaultValue: status })}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.overdue')}</span>
+                    <select
+                      value={actionFilters.overdue}
+                      onChange={(event) => setActionFilters((current) => ({ ...current, overdue: event.target.value as ActionOverdueFilter }))}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="all">{t('common.all', { defaultValue: 'All' })}</option>
+                      <option value="overdue">{t('continuity.overdueOnly', { defaultValue: 'Overdue only' })}</option>
+                      <option value="notOverdue">{t('continuity.notOverdueOnly', { defaultValue: 'Not overdue' })}</option>
+                    </select>
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.meetingNameFilter', { defaultValue: 'Meeting name' })}</span>
+                    <input
+                      value={actionFilters.meetingQuery}
+                      onChange={(event) => setActionFilters((current) => ({ ...current, meetingQuery: event.target.value }))}
+                      placeholder={t('continuity.meetingNamePlaceholder', { defaultValue: 'Search meeting name' })}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.dateType', { defaultValue: 'Date type' })}</span>
+                    <select
+                      value={actionFilters.dateType}
+                      onChange={(event) => setActionFilters((current) => ({ ...current, dateType: event.target.value as ActionFilterDateType }))}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="dueDate">{t('continuity.dueDate')}</option>
+                      <option value="createdAt">{t('continuity.createdDate', { defaultValue: 'Created date' })}</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.dateFrom', { defaultValue: 'From' })}</span>
+                    <input
+                      type="date"
+                      value={actionFilters.dateFrom}
+                      onChange={(event) => setActionFilters((current) => ({ ...current, dateFrom: event.target.value }))}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.dateTo', { defaultValue: 'To' })}</span>
+                    <input
+                      type="date"
+                      value={actionFilters.dateTo}
+                      onChange={(event) => setActionFilters((current) => ({ ...current, dateTo: event.target.value }))}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('continuity.sortBy', { defaultValue: 'Sort by' })}</span>
+                    <select
+                      value={actionFilters.sort}
+                      onChange={(event) => setActionFilters((current) => ({ ...current, sort: event.target.value as ActionSortMode }))}
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                    >
+                      <option value="focus">{t('continuity.sortFocus', { defaultValue: 'Priority and due date' })}</option>
+                      <option value="dueDateAsc">{t('continuity.sortDueDate', { defaultValue: 'Due date soonest' })}</option>
+                      <option value="priorityDesc">{t('continuity.sortPriority', { defaultValue: 'Priority highest' })}</option>
+                      <option value="createdAtDesc">{t('continuity.sortCreated', { defaultValue: 'Newest task' })}</option>
+                    </select>
+                  </label>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => setActionFilters({
+                        ownerUserId: '',
+                        priority: '',
+                        overdue: 'all',
+                        status: '',
+                        meetingQuery: '',
+                        dateType: 'dueDate',
+                        dateFrom: '',
+                        dateTo: '',
+                        sort: 'focus',
+                      })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
+                    >
+                      {t('common.clear', { defaultValue: 'Clear' })}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {visibleActionItems.map((item) => {
               const selectedOwnerId = reassignOwnerByItemId[item.id] ?? ''
+              const selectedStatus = statusByItemId[item.id] ?? item.status
+              const selectedPriority = priorityByItemId[item.id] ?? item.priority
+              const isLogsOpen = Boolean(openLogsByItemId[item.id])
+              const logs = logsByItemId[item.id] ?? []
+              const isLoadingLogs = Boolean(loadingLogsByItemId[item.id])
               const isHighlighted = highlightedActionItemId === item.id
               return (
                 <div
@@ -822,48 +1187,169 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                       )}
                     </div>
 
-                    <div className="w-full shrink-0 space-y-2 lg:w-80">
-                      <select
-                        value={selectedOwnerId}
-                        onChange={(event) => {
-                          const value = event.target.value
-                          setReassignOwnerByItemId((current) => ({ ...current, [item.id]: value }))
-                        }}
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                      >
-                        <option value="">{t('continuity.reassignSelectOwner', { defaultValue: 'Select new owner' })}</option>
-                        {ownerOptions.map((owner) => (
-                          <option key={owner.id} value={owner.id}>
-                            {owner.name} - {owner.email}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        value={reassignNoteByItemId[item.id] ?? ''}
-                        onChange={(event) => {
-                          const value = event.target.value
-                          setReassignNoteByItemId((current) => ({ ...current, [item.id]: value }))
-                        }}
-                        placeholder={t('continuity.reassignNotePlaceholder', { defaultValue: 'Note (optional)' })}
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void handleReassignActionItem(item)}
-                        disabled={isActionMutationLoading || !selectedOwnerId || selectedOwnerId === item.ownerUserId}
-                        className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {t('continuity.reassignAction', { defaultValue: 'Reassign' })}
-                      </button>
+                    <div className="w-full shrink-0 space-y-3 lg:w-80">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          {t('continuity.statusControl', { defaultValue: 'Status' })}
+                        </p>
+                        <select
+                          value={selectedStatus}
+                          onChange={(event) => {
+                            const value = event.target.value as ActionItemStatus
+                            setStatusByItemId((current) => ({ ...current, [item.id]: value }))
+                          }}
+                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                        >
+                          {actionItemStatuses.map((status) => (
+                            <option key={status} value={status}>
+                              {t(`continuity.actionStatuses.${status}`, { defaultValue: status })}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          value={statusNoteByItemId[item.id] ?? ''}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setStatusNoteByItemId((current) => ({ ...current, [item.id]: value }))
+                          }}
+                          placeholder={t('continuity.statusNotePlaceholder', { defaultValue: 'Status note (optional)' })}
+                          className="mt-2 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleChangeActionItemStatus(item)}
+                          disabled={isActionMutationLoading || selectedStatus === item.status}
+                          className="mt-2 w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {t('continuity.updateStatus', { defaultValue: 'Update status' })}
+                        </button>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          {t('continuity.reassignTitle', { defaultValue: 'Reassign' })}
+                        </p>
+                        <select
+                          value={selectedOwnerId}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setReassignOwnerByItemId((current) => ({ ...current, [item.id]: value }))
+                          }}
+                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                        >
+                          <option value="">{t('continuity.reassignSelectOwner', { defaultValue: 'Select new owner' })}</option>
+                          {ownerOptions.map((owner) => (
+                            <option key={owner.id} value={owner.id}>
+                              {owner.name} - {owner.email}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          value={reassignNoteByItemId[item.id] ?? ''}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setReassignNoteByItemId((current) => ({ ...current, [item.id]: value }))
+                          }}
+                          placeholder={t('continuity.reassignNotePlaceholder', { defaultValue: 'Note (optional)' })}
+                          className="mt-2 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleReassignActionItem(item)}
+                          disabled={isActionMutationLoading || !selectedOwnerId || selectedOwnerId === item.ownerUserId}
+                          className="mt-2 w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {t('continuity.reassignAction', { defaultValue: 'Reassign' })}
+                        </button>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          {t('continuity.priorityControl', { defaultValue: 'Priority' })}
+                        </p>
+                        <select
+                          value={selectedPriority}
+                          onChange={(event) => {
+                            const value = event.target.value as ActionPriority
+                            setPriorityByItemId((current) => ({ ...current, [item.id]: value }))
+                          }}
+                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                        >
+                          {actionPriorities.map((priority) => (
+                            <option key={priority} value={priority}>
+                              {t(`continuity.actionPriorities.${priority}`, { defaultValue: priority })}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => void handleChangeActionItemPriority(item)}
+                          disabled={isActionMutationLoading || selectedPriority === item.priority}
+                          className="mt-2 w-full rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {t('continuity.updatePriority', { defaultValue: 'Update priority' })}
+                        </button>
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => void handleToggleActionLogs(item)}
+                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
+                    >
+                      {isLogsOpen
+                        ? t('continuity.hideActionLogs', { defaultValue: 'Hide action logs' })
+                        : t('continuity.showActionLogs', { defaultValue: 'Show action logs' })}
+                    </button>
+
+                    {isLogsOpen && (
+                      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                        {isLoadingLogs ? (
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            {t('common.loading', { defaultValue: 'Loading' })}...
+                          </p>
+                        ) : logs.length ? (
+                          <ol className="space-y-2">
+                            {logs.map((log) => (
+                              <li key={log.id} className="rounded-md bg-white px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="font-semibold text-slate-900 dark:text-white">
+                                    {log.fromStatus ? `${log.fromStatus} -> ${log.toStatus}` : log.toStatus}
+                                  </span>
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                                    {new Date(log.changedAt).toLocaleString()}
+                                  </span>
+                                </div>
+                                {log.changedBy && (
+                                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                    {t('continuity.changedBy', { defaultValue: 'Changed by' })}: {log.changedBy.name} ({log.changedBy.email})
+                                  </p>
+                                )}
+                                {log.note && (
+                                  <p className="mt-1 text-slate-600 dark:text-slate-300">{log.note}</p>
+                                )}
+                              </li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            {t('continuity.noActionLogs', { defaultValue: 'No action logs yet.' })}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )
             })}
 
-            {!actionItems.length && (
+            {!visibleActionItems.length && (
               <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-slate-700 dark:text-slate-400">
-                {t('continuity.noActionItems', { defaultValue: 'No action items found for this project.' })}
+                {actionItems.length
+                  ? t('continuity.noFilteredActionItems', { defaultValue: 'No action items match these filters.' })
+                  : t('continuity.noActionItems', { defaultValue: 'No action items found for this project.' })}
               </div>
             )}
           </div>

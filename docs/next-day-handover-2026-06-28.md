@@ -475,6 +475,27 @@ Verification:
 - `pnpm.cmd --filter api type-check` passed.
 - `pnpm.cmd --filter web type-check` passed.
 
+## Post-Handover Fix (2026-06-29, action item audit logs)
+
+User asked whether action item operations are logged and visible from the action list:
+- Assignee changes.
+- Status updates such as done/cancelled/blocked.
+- Priority changes.
+
+Implemented:
+- Status changes continue to write `ActionItemStatusHistory`.
+- Reassign continues to write a history row with the same from/to status and a reassignment note.
+- Priority changes now write a history row with a note such as
+  `Priority changed from HIGH to CRITICAL`.
+- `/continuity/:projectId?tab=actions` now has a per-action `Show action logs` toggle that fetches
+  `/action-items/:id` and displays the timeline with status movement, note, timestamp, and actor.
+- The same action list also supports PM-friendly controls for status updates, priority changes,
+  reassignment, and focused filtering/sorting for high-priority or near-due work.
+
+Verification:
+- `pnpm.cmd --filter api type-check` passed.
+- `pnpm.cmd --filter web type-check` passed.
+
 ## Post-Handover Fix (2026-06-29, self-task Ask-AI scope)
 
 Issue:
