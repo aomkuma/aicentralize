@@ -2,21 +2,20 @@
 
 ## Latest Status (2026-07-01)
 
-**Pending push:** subscription packages, feeling-log privacy, general-notes UX, and full documentation refresh (see commit after `2d1cd5d`).
+**`main` is current through `73c80a2`.** Feature catalog: [`docs/FEATURES.md`](./FEATURES.md). Quick commands: [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md).
 
-**`main` through `2d1cd5d` on remote.** Feature catalog: [`docs/FEATURES.md`](./FEATURES.md). Quick commands: [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md).
+### Day summary — what shipped
 
-### This commit — what ships
-
-| Area | What users get |
-|------|----------------|
-| **Subscription packages** | `SUPER_ADMIN` → `/admin/packages`; assign package on org setup + admin orgs; project quota (`maxProjects`) |
-| **Feeling log privacy** | Manager insights sanitized — no raw-entry quotes in batch output |
-| **General notes** | Clickable links open in new tab; PUBLIC notes feed Ask-AI evidence |
-| **Feature flags** | Package `features[]` mapped to `featureFlagStore` entitlements |
-| **Docs** | Handover, FEATURES, QUICK_REFERENCE, frontend module guides completed |
+| Area | Commit | What users get |
+|------|--------|----------------|
+| **Subscription packages** | `73c80a2` | `/admin/packages`; tenant package assignment; project quota |
+| **Feeling log privacy** | `73c80a2` | Sanitized manager insights (no raw-entry quotes) |
+| **General notes** | `73c80a2` | Clickable links; PUBLIC notes in Ask-AI evidence |
+| **Documentation** | `73c80a2` | Full handover, FEATURES, QUICK_REFERENCE, frontend guides |
 
 **New migration:** `20260630223000_subscription_packages`.
+
+**Prior push (`2d1cd5d`):** My Tasks, tenant-admin assignees, Kora welcome spotlight.
 
 ---
 
@@ -1368,8 +1367,7 @@ still open.
 | Local Node >= 22 | **Open** | Local still v20.10.0 |
 
 Commit status:
-- Prior push: **`2d1cd5d`** (2026-06-30 late session) on `main`.
-- This session adds subscription packages, privacy polish, and documentation (commit pending push).
+- Everything through **`73c80a2`** (2026-07-01) is on `main`.
 - Migrations on deploy: `20260630210000_action_item_project_scope`, `20260630223000_subscription_packages`.
 - Production DB migrations apply automatically via `docker/start.sh` on API container boot.
 - Product feature map: [`docs/FEATURES.md`](./FEATURES.md).

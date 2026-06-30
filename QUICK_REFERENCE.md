@@ -2,7 +2,7 @@
 
 ## Session Update (2026-06-30, late session)
 
-**`main` through `2d1cd5d`.** Full feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Handover + roadmap: `docs/next-day-handover-2026-06-28.md`.
+**`main` through `73c80a2`.** Full feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Handover + roadmap: `docs/next-day-handover-2026-06-28.md`.
 
 Recent product changes:
 - **Kora welcome:** `/` guest landing — hero copy, full-width banner, spotlight **Knowledge Hub** + **Feeling Log**.

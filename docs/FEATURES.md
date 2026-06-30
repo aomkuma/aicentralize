@@ -1,6 +1,6 @@
 # AICentralize — Feature Catalog
 
-**Last updated:** 2026-07-01 · **`main` through `2d1cd5d`** (this commit adds packages + docs)
+**Last updated:** 2026-07-01 · **`main` through `73c80a2`**
 
 This document is the product feature map (main modules and sub-features). For day-to-day commands and access rules, see [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md). For chronological implementation notes, see [`next-day-handover-2026-06-28.md`](./next-day-handover-2026-06-28.md).
 

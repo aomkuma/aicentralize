@@ -43,7 +43,7 @@ Sprint 1 turns the project from playground-style AI usage into an operational wo
 ## Sprint 2 Progress (Current)
 
 > **Feature catalog (2026-06-30):** [`docs/FEATURES.md`](docs/FEATURES.md) — main modules and sub-features (includes Kora welcome, My Tasks, Knowledge Hub, Feeling Log).  
-> **Latest handover:** [`docs/next-day-handover-2026-06-28.md`](docs/next-day-handover-2026-06-28.md) · **`main` through `2d1cd5d`**
+> **Latest handover:** [`docs/next-day-handover-2026-06-28.md`](docs/next-day-handover-2026-06-28.md) · **`main` through `73c80a2`**
 > **Quick commands:** [`QUICK_REFERENCE.md`](QUICK_REFERENCE.md)
 
 Completed modules:
