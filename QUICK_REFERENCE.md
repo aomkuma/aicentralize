@@ -2,17 +2,21 @@
 
 ## Session Update (2026-06-30)
 
-**`main` through `54457cd`.** Full log: `docs/next-day-handover-2026-06-28.md` (see **Latest Status** at top).
+**`main` through `db369f8`.** Full feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Handover log: `docs/next-day-handover-2026-06-28.md`.
 
 Recent product changes:
+- **Push / PWA:** Profile wizard (install app → enable push); iPhone requires Home Screen install; `PushOnboardingBanner` in layout; VAPID on API.
+- **Action-item push:** Alerts on reassign, due date, priority, status changes (+ reminder worker).
+- **Prompt limit:** Playground / Meeting Studio up to **120,000** chars (`61127ae`).
+- **ASR:** 1-hour timeout (`ASR_REQUEST_TIMEOUT_MS=3600000`); nginx `/ai/` **3700s**.
 - **Meeting Studio:** background audio transcription (`MeetingStudioJobBanner`); uploads TXT/MD/CSV/TSV/DOCX/PDF/XLSX.
-- **Continuity:** not in sidebar; open from `/projects` → project card → `/continuity/:projectId`. Bare `/continuity` redirects to `/projects`.
-- **Communication sentiment:** mood badges on `/projects` team table (`TENANT_ADMIN` / `MANAGER`); cron + `POST .../communication-sentiment/run`.
-- **Project knowledge + general notes:** `/projects/:projectId/knowledge`, `/projects/:projectId/notes` (committed `4cb67d5`).
+- **Continuity:** not in sidebar; open from `/projects` → project card → `/continuity/:projectId`.
+- **Communication sentiment:** mood badges on `/projects` team table (`TENANT_ADMIN` / `MANAGER`).
+- **Project knowledge + general notes:** `/projects/:projectId/knowledge`, `/projects/:projectId/notes`.
 - **User-facing UI:** AI model/confidence labels hidden via `redactAiMetadata.ts`.
-- **Deploy:** API Docker runs `npx prisma migrate deploy` on boot (`docker/start.sh`) — no manual migrate on Railway.
+- **Deploy:** API Docker runs `npx prisma migrate deploy` on boot (`docker/start.sh`).
 
-## Session Update (2026-06-28)
+## Session Update (2026-06-28, earlier)
 
 - Platform roles are separated from tenant/workflow roles:
   - `SystemRole.SUPER_ADMIN`: full platform + system settings.
@@ -244,6 +248,25 @@ pnpm type-check
 # API should be running on port 4000
 # Check apps/web/vite.config.ts proxy setting
 # Verify VITE_API_URL in apps/web/.env.local
+# Production web uses same-origin /api when VITE_API_URL is localhost/unset
+```
+
+### iPhone push does not show Allow dialog
+```text
+1. Must use Safari → Share → Add to Home Screen
+2. Open AICentralize from the Home Screen icon (not a Safari tab)
+3. Profile → Step 1 install → Step 2 Enable push
+4. If blocked before: Settings → Notifications → AICentralize → Allow
+5. API needs VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
+```
+
+### Long audio transcription times out
+```bash
+# API env:
+ASR_REQUEST_TIMEOUT_MS=3600000
+
+# nginx web template already sets /ai/ proxy_read_timeout 3700s
+# Redeploy both API and Web after changing
 ```
 
 ## ✅ Dashboard AI Chat Smoke Test

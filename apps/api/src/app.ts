@@ -17,6 +17,7 @@ import {
   notificationRouter,
   continuityRouter,
   communicationSentimentRouter,
+  feelingLogRouter,
   observabilityRouter,
   projectRouter,
   reminderRouter,
@@ -315,6 +316,7 @@ export function createApp() {
   app.use("/observability", observabilityRouter);
   app.use("/tenants", tenantRouter);
   app.use("/tenants/:tenantId/communication-sentiment", communicationSentimentRouter);
+  app.use("/tenants/:tenantId/feeling-logs", feelingLogRouter);
   app.use("/ai", aiRouter);
   app.use("/notifications", notificationRouter);
   app.use("/system-settings", systemSettingsRouter);

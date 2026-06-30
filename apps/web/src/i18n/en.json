@@ -211,6 +211,7 @@
     "organizationAdmin": "Organizations",
     "platformUsers": "Platform Users",
     "generalNotes": "General Notes",
+    "feelingLogs": "Feeling Log",
     "projects": "Projects",
     "meetings": "Meetings",
     "systemSettings": "System Settings"
@@ -433,6 +434,34 @@
         "description": "Store the note with the selected visibility for later search and AI context."
       }
     }
+  },
+  "feelingLogs": {
+    "title": "Feeling Log",
+    "description": "Private reflections for yourself. Rubjob analyzes your entry gently and only shares derived insights with leaders when needed.",
+    "organization": "Organization",
+    "tabJournal": "My journal",
+    "tabInsights": "Team insights",
+    "newEntry": "New entry",
+    "privacyNote": "Only you can read your raw entries. Managers see derived summaries without your name.",
+    "placeholder": "Write how you feel today. Type @ to mention a teammate if relevant.",
+    "mentionHint": "Use @ in the text or pick someone from suggestions. Mentions stay contextual, not public gossip.",
+    "removeMention": "Remove mention",
+    "save": "Save entry",
+    "saved": "Entry saved and analyzed.",
+    "history": "My history",
+    "empty": "No entries yet. Start with how you feel today.",
+    "mentions": "Mentions",
+    "recommendation": "Suggestion",
+    "validationTenant": "Choose an organization first.",
+    "validationContent": "Please write something before saving.",
+    "insightsPrivacy": "This view shows derived insights only. Raw journal text and author identity are hidden.",
+    "frequentMentions": "Frequently mentioned people",
+    "frequentMentionsHelp": "Shown when someone is mentioned more than 5 times in the last 30 days.",
+    "mentionCount": "{{count}} mentions",
+    "recentInsights": "Recent derived insights",
+    "insightsEmpty": "No leadership insights yet for this period.",
+    "relatedPeople": "Related people",
+    "mentionTarget": "Mention context"
   },
   "continuity": {
     "title": "Project Continuity Dashboard",

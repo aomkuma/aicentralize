@@ -205,6 +205,7 @@ enum AiRunOperation {
   ASK_AI_ANSWER
   REMINDER_RUN
   MORNING_BRIEFING
+  FEELING_LOG_ANALYSIS
 }
 
 enum AiRunStatus {
@@ -224,6 +225,12 @@ enum CommunicationSentimentSourceType {
   MEETING_TRANSCRIPT
   COMMENT
   MORNING_BRIEFING_ACK
+}
+
+enum FeelingLogAnalysisAudience {
+  PERSONAL
+  LEADERSHIP
+  MENTION_TARGET
 }
 
 enum MorningBriefingStatus {
@@ -274,6 +281,9 @@ model User {
   communicationSentimentSnapshots CommunicationSentimentSnapshot[] @relation("MemberSentimentSnapshots")
   morningBriefings MorningBriefing[] @relation("MorningBriefingUser")
   morningBriefingAcknowledgements MorningBriefingAcknowledgement[] @relation("MorningBriefingAckUser")
+  feelingLogsAuthored FeelingLog[] @relation("FeelingLogAuthor")
+  feelingLogMentions FeelingLogMention[] @relation("FeelingLogMentionTarget")
+  feelingLogAnalysisTargets FeelingLogAnalysis[] @relation("FeelingLogAnalysisTarget")
   aiRunLogs AiRunLog[]
   projectKnowledgeSourcesUploaded ProjectKnowledgeSource[] @relation("ProjectKnowledgeSourceUploader")
   projectMemoryItemsApproved ProjectMemoryItem[] @relation("ProjectMemoryItemApprover")
@@ -315,6 +325,7 @@ model Tenant {
   projectGeneralNotes ProjectGeneralNote[]
   communicationSentimentSnapshots CommunicationSentimentSnapshot[]
   morningBriefings MorningBriefing[]
+  feelingLogs FeelingLog[] @relation("FeelingLogTenant")
 
   @@index([createdAt])
 }
@@ -493,6 +504,60 @@ model ProjectGeneralNote {
   @@index([projectId, visibility, createdAt])
   @@index([tenantId, createdAt])
   @@index([authorId, createdAt])
+}
+
+model FeelingLog {
+  id         String     @id @default(cuid())
+  tenantId   String
+  authorId   String
+  content    String
+  emoji      String?
+  isPrivate  Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  tenant     Tenant     @relation("FeelingLogTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  author     User       @relation("FeelingLogAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  mentions   FeelingLogMention[]
+  analyses   FeelingLogAnalysis[]
+
+  @@index([tenantId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model FeelingLogMention {
+  id              String     @id @default(cuid())
+  feelingLogId    String
+  mentionedUserId  String
+  mentionLabel    String
+  createdAt       DateTime   @default(now())
+
+  feelingLog      FeelingLog @relation(fields: [feelingLogId], references: [id], onDelete: Cascade)
+  mentionedUser   User       @relation("FeelingLogMentionTarget", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+
+  @@index([feelingLogId])
+  @@index([mentionedUserId, createdAt])
+}
+
+model FeelingLogAnalysis {
+  id             String                  @id @default(cuid())
+  feelingLogId   String
+  audience       FeelingLogAnalysisAudience
+  targetUserId   String?
+  title          String
+  summary        String
+  interpretation String
+  recommendation String?
+  riskLevel      String?
+  model          String?
+  promptVersion  String?
+  createdAt      DateTime                @default(now())
+
+  feelingLog     FeelingLog              @relation(fields: [feelingLogId], references: [id], onDelete: Cascade)
+  targetUser     User?                   @relation("FeelingLogAnalysisTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([feelingLogId, audience, createdAt])
+  @@index([targetUserId, createdAt])
 }
 
 model Meeting {

@@ -1,253 +1,101 @@
-# ✅ Frontend Feature Modules - Complete Implementation Summary
+# Frontend Features — Summary
 
-**Date:** June 23, 2026  
-**Status:** ✅ **COMPLETE** - All modules created and integrated
+**Last updated:** 2026-06-30 · includes Feeling Log (pending commit)
 
----
-
-## 📦 What Was Built
-
-A comprehensive, modular frontend feature system with **3 complete modules**, **billing/feature-flag support**, and **best-practice architecture**.
-
-### Module 1: **Continuity Dashboard** 🏛️
-- Monitor project health with risk levels (low/medium/high/critical)
-- View overdue items grouped by owner or project
-- Audit items missing owner or due date information
-- 4 tabs: Summary, By Owner, By Project, Missing Info
-- Feature-gated: FREE tier gets summary, STARTER+ gets full access
-
-### Module 2: **Reminder Operations** 🔔
-- Inspect reminder digests with escalation metrics
-- View detailed breakdowns by owner
-- Date range filtering for historical analysis
-- Escalation rate visualization (progress bar)
-- Feature-gated: PRO+ only
-
-### Module 3: **Ask-AI Trace Panel** 🔍
-- Inspect AI run logs with retrieval evidence
-- Filter by operation type (Minute Extraction, Retrieval Query, Ask-AI Answer, Reminder Run)
-- Filter by status (Success, Failed)
-- View retrieved documents and trace information
-- Error message display for debugging
-- Feature-gated: PRO+ only
+> **Canonical product map:** [`docs/FEATURES.md`](../../docs/FEATURES.md) (all main modules + sub-features).  
+> **Handover / changelog:** [`docs/next-day-handover-2026-06-28.md`](../../docs/next-day-handover-2026-06-28.md)
 
 ---
 
-## 🏗️ Architecture: Modular & Scalable
+## Main modules (web)
+
+| # | Module | Route(s) | Key UI |
+|---|--------|----------|--------|
+| 1 | **Dashboard & AI Chat** | `/dashboard` | `AIChatPanel.tsx` — prompt, record, upload, analyze |
+| 2 | **Meeting Studio** | `/meetings` | 3-step wizard, live record, upload, background job banner |
+| 3 | **Meeting history** | `/meetings/history` | Saved minutes list + edit |
+| 4 | **Projects** | `/projects` | Project cards, sentiment badges, links to continuity/knowledge |
+| 5 | **Continuity** | `/continuity/:projectId` | `ContinuityDashboard` — risk, overdue, missing info, workload hint |
+| 6 | **Project knowledge** | `/projects/:id/knowledge` | Onboarding Q&A, file import, AI extraction |
+| 7 | **General notes** | `/projects/:id/notes`, `/general-notes` | Free-form notes for Ask-AI |
+| 8 | **Reminders** | `/reminders` | Digest inspection, escalation metrics |
+| 9 | **Ask-AI trace** | `/ai-trace` | AI run logs, filters, evidence |
+| 10 | **Feeling log** | `/feeling-logs` | Journal + manager insights (`FeelingLogsPage`) |
+| 11 | **Profile & notifications** | `/profile` | In-app / email / push toggles, `PushSetupPanel` |
+| 12 | **System settings** | `/settings` | ASR, AI providers, prompt limits (`SUPER_ADMIN`) |
+| 13 | **Admin** | `/admin/organizations`, `/admin/platform-users` | Org registry, suspension, invites |
+| 14 | **Auth** | `/login`, `/accept-invite`, `/change-password` | Invitation flow, forced password change |
+
+---
+
+## Sub-features by area
+
+### Meeting Studio
+- Import: audio/video (ASR), documents (TXT→XLSX), paste, live record
+- Background transcription + `MeetingStudioJobBanner`
+- AI analysis → compose template → save
+- Prompt builder: `lib/meetingStudio/meetingAnalysisPrompt.ts` (120k budget)
+
+### Continuity (`components/features/continuity/`)
+- Tabs: Summary, By Owner, By Project, Missing Info
+- Saved meetings section (from `GET /meetings?projectId=`)
+- Workload balancing suggestion popup
+- Entry from project card only (not sidebar)
+
+### Reminders (`components/features/reminders/`)
+- Digest list + detail split view
+- Date range filters, escalation rate bar
+- Feature-gated via `featureFlagStore` (billing-ready scaffold)
+
+### Ask-AI trace (`components/features/aiTrace/`)
+- Filter by operation + status
+- Evidence list, error display
+- Model/confidence redacted in user views
+
+### Push & PWA
+- `PushSetupPanel` — Step 1 install, Step 2 allow notifications
+- `PushOnboardingBanner` in `Layout.tsx`
+- `public/push-sw.js`, `public/manifest.json`
+- Hooks: `usePushSetup.ts`, `usePWA.ts`
+
+### i18n
+- English + Thai (`i18n/en.json`, `th.json`)
+- Navigation labels via `config/navigation.ts`
+
+---
+
+## Architecture (frontend)
 
 ```
-components/features/
-├── continuity/               [5 files: Dashboard + 3 sub-components + index]
-├── reminders/                [3 files: Operations + Card + index]
-├── aiTrace/                  [4 files: Panel + Card + Detail + index]
-└── index.ts                  [Re-exports all modules]
-
-stores/
-└── featureFlagStore.ts       [Zustand store for billing/feature flags]
-
-hooks/
-├── useContinuity.ts          [Continuity API wrapper]
-├── useReminders.ts           [Reminders API wrapper]
-└── useAiRunLogs.ts           [AI logs API wrapper]
-
-pages/
-├── ContinuityPage.tsx        [Continuity page + layout]
-├── RemindersPage.tsx         [Reminders page + layout]
-└── AiTracePage.tsx           [AI Trace page + layout]
-
-types/
-├── features.ts               [Feature flags + billing definitions]
-└── index.ts                  [Updated with API response types]
-
-config/
-└── navigation.ts             [Updated with new routes]
-
-i18n/
-├── en.json                   [English translations (30+ keys)]
-└── th.json                   [Thai translations (30+ keys)]
-```
-
----
-
-## 🎯 Key Features
-
-### ✨ Feature Flag System (Billing-Ready)
-```typescript
-// 4 billing tiers with automatic entitlements
-FREE → STARTER → PRO → ENTERPRISE
-
-// Easy-to-use API
-canAccessFeature('CONTINUITY_FULL')  // boolean
-setPlan('PRO')                        // Update plan
-getEnabledFeatures()                  // Get all available features
-```
-
-### 🎨 UI/UX Best Practices
-- ✅ Split-view layouts for comparison (Reminders, AI Trace)
-- ✅ Tabbed interfaces with feature gating (Continuity)
-- ✅ Color-coded risk levels & statuses
-- ✅ Expandable sections for progressive disclosure
-- ✅ Responsive design (mobile-first, all breakpoints)
-- ✅ Dark mode support throughout
-- ✅ Smooth transitions & animations
-
-### 🔌 API Integration
-- ✅ 3 custom hooks with automatic data fetching
-- ✅ Error handling & loading states
-- ✅ Auto-refetch on parameter changes
-- ✅ Type-safe responses (full TypeScript support)
-- ✅ Request deduplication ready
-
-### 🌍 Internationalization
-- ✅ English (en.json)
-- ✅ Thai (th.json)
-- ✅ Easy to add more languages
-- ✅ 30+ translation keys per feature
-
----
-
-## ✅ Checklist: What's Ready
-
-- [x] Feature flag system with 4 billing tiers
-- [x] Continuity Dashboard with 4 tabs
-- [x] Reminder Operations with digest inspection
-- [x] Ask-AI Trace Panel with filtering
-- [x] 12 sub-components (modular, reusable)
-- [x] 3 custom hooks (API integration)
-- [x] Extended type definitions (API responses)
-- [x] 3 page wrappers (routing ready)
-- [x] Navigation integration (sidebar + routes)
-- [x] i18n support (English + Thai, 30+ keys)
-- [x] Responsive design (all breakpoints)
-- [x] Dark mode (full coverage)
-- [x] Error handling (loading states, errors)
-- [x] TypeScript (fully typed)
-- [x] Documentation (2 guides + inline comments)
-
----
-
-## 📱 Responsive Design
-
-All components are mobile-first responsive:
-- **xs/sm:** Single column, hamburger navigation
-- **md:** Two-column layouts
-- **lg:** Three-column splits possible
-- **xl/2xl:** Optimized spacing and typography
-
----
-
-## 🛣️ Routing
-
-**New Routes Added:**
-```
-/continuity                     → Project continuity dashboard
-/continuity/:projectId          → Project-specific view
-/reminders                      → Reminder operations
-/reminders/:projectId           → Project-specific reminders
-/ai-trace                       → AI run log inspection
-/ai-trace/:projectId            → Project-specific traces
-/ai-trace/:projectId/:meetingId → Meeting-specific traces
-```
-
-**Sidebar Navigation:**
-- Continuity Dashboard (icon: chart bars)
-- Reminder Operations (icon: bell)
-- Ask-AI Trace Panel (icon: checkmark)
-
----
-
-## 📚 Documentation Files
-
-1. **FRONTEND_MODULES_GUIDE.md**
-   - Complete technical guide with architecture overview
-
-2. **FRONTEND_QUICK_START.md**
-   - Quick reference guide for developers
-
-3. **Code Comments**
-   - Inline JSDoc comments throughout
-
----
-
-## 🚀 Next Steps
-
-### To Start Using These Features:
-
-1. **Verify API endpoints** - Ensure endpoints return expected data
-2. **Update feature plan initialization** - Change `setPlan('PRO')` in App.tsx to fetch from user API
-3. **Test with real data** - Load from database
-4. **Run tests** - Add Jest/Playwright tests as needed
-5. **Deploy** - Build and deploy to production
-
-### Optional Enhancements:
-
-- Add pagination for large lists
-- Add CSV/PDF export
-- Add WebSocket for real-time updates
-- Add custom dashboard widgets
-- Add advanced filtering (multi-select, date ranges)
-
----
-
-## 📋 Files Created/Modified
-
-**Created: 27 files**
-- 5 feature components (continuity)
-- 3 feature components (reminders)
-- 4 feature components (aiTrace)
-- 3 custom hooks
-- 3 page components
-- 1 feature flag store
-- 1 features type file
-- 2 documentation files
-- 2 i18n files (updated)
-- 1 navigation config (updated)
-- Plus index files and exports
-
-**Modified: 4 files**
-- App.tsx (added routes, feature flag initialization)
-- config/navigation.ts (added new navigation items)
-- i18n/en.json (added 30+ keys)
-- i18n/th.json (added 30+ keys)
-- types/index.ts (extended with API types)
-- components/Sidebar.tsx (added icons for new routes)
-
----
-
-## 💡 Quick Start Example
-
-```typescript
-// Import the module
-import { ContinuityDashboard } from '@/components/features/continuity'
-
-// Use in your page
-export function ProjectPage() {
-  const { projectId } = useParams()
-  return <ContinuityDashboard projectId={projectId} />
-}
+apps/web/src/
+├── components/
+│   ├── features/continuity|reminders|aiTrace/
+│   ├── AIChatPanel.tsx
+│   ├── MeetingStudioJobBanner.tsx
+│   ├── NotificationPreferences.tsx
+│   ├── PushSetupPanel.tsx
+│   └── PushOnboardingBanner.tsx
+├── lib/
+│   ├── meetingStudio/          # audioJob, prompts, job store
+│   ├── pushNotifications.ts
+│   └── pwaUtils.ts
+├── pages/                      # Route pages
+├── stores/                     # auth, tenant, feature flags, meeting jobs
+└── hooks/                      # useApi, usePushSetup, useContinuity, …
 ```
 
 ---
 
-## 🔐 Feature Flag System
+## Related docs
 
-### Check if feature is available
-```typescript
-import { useFeatureFlagStore } from '@/stores/featureFlagStore'
-
-const can = useFeatureFlagStore(s => s.canAccessFeature)
-
-if (!can('CONTINUITY_FULL')) {
-  return <UpgradePrompt />
-}
-```
-
-### Set user's billing plan
-```typescript
-const setPlan = useFeatureFlagStore(s => s.setPlan)
-setPlan('PRO')  // or 'FREE', 'STARTER', 'ENTERPRISE'
-```
+| File | Purpose |
+|------|---------|
+| [`docs/FEATURES.md`](../../docs/FEATURES.md) | Full product catalog (API + web) |
+| [`QUICK_REFERENCE.md`](../../QUICK_REFERENCE.md) | Commands, roles, troubleshooting |
+| [`FRONTEND_MODULES_GUIDE.md`](./FRONTEND_MODULES_GUIDE.md) | Technical module guide |
+| [`FRONTEND_QUICK_START.md`](./FRONTEND_QUICK_START.md) | Developer quick start |
+| [`PWA_RESPONSIVE_GUIDE.md`](./PWA_RESPONSIVE_GUIDE.md) | PWA + responsive notes |
 
 ---
 
-**Status: ✅ Ready for Integration Testing & Production Deployment**
+**Status:** Production features through `db369f8`. Open items (tests, timeline tab, vector retrieval) tracked in handover doc.

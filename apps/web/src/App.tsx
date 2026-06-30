@@ -19,6 +19,7 @@ import ChangePasswordPage from './pages/ChangePasswordPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminOrganizationsPage from './pages/AdminOrganizationsPage'
 import AdminPlatformUsersPage from './pages/AdminPlatformUsersPage'
+import FeelingLogsPage from './pages/FeelingLogsPage'
 import AcceptInvitePage from './pages/AcceptInvitePage'
 
 // Load auth state immediately before rendering
@@ -144,6 +145,7 @@ function AppContent() {
           <Route path="/projects/:projectId/knowledge" element={<WorkflowRoute><ProjectKnowledgePage /></WorkflowRoute>} />
           <Route path="/projects/:projectId/notes" element={<WorkflowRoute><ProjectGeneralNotesPage /></WorkflowRoute>} />
           <Route path="/general-notes" element={<WorkflowRoute><ProjectGeneralNotesPage /></WorkflowRoute>} />
+          <Route path="/feeling-logs" element={<WorkflowRoute><FeelingLogsPage /></WorkflowRoute>} />
           <Route path="/reminders/:projectId" element={<WorkflowRoute><RemindersPage /></WorkflowRoute>} />
           <Route path="/ai-trace" element={<WorkflowRoute><AiTracePage /></WorkflowRoute>} />
           <Route path="/ai-trace/:projectId" element={<WorkflowRoute><AiTracePage /></WorkflowRoute>} />

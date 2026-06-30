@@ -369,7 +369,7 @@ export interface ReminderDigestDetail extends ReminderDigest {
 }
 
 // AI Run Log Types
-export type AiRunOperation = 'MINUTE_EXTRACTION' | 'RETRIEVAL_QUERY' | 'ASK_AI_ANSWER' | 'REMINDER_RUN' | 'MORNING_BRIEFING'
+export type AiRunOperation = 'MINUTE_EXTRACTION' | 'RETRIEVAL_QUERY' | 'ASK_AI_ANSWER' | 'REMINDER_RUN' | 'MORNING_BRIEFING' | 'FEELING_LOG_ANALYSIS'
 export type AiRunStatus = 'SUCCESS' | 'FAILED'
 
 export interface AiRunLog {
@@ -483,4 +483,53 @@ export interface MorningBriefing {
     reviewAgain?: boolean | null
     createdAt: string
   } | null
+}
+
+export type FeelingLogAnalysisAudience = 'PERSONAL' | 'LEADERSHIP' | 'MENTION_TARGET'
+
+export interface FeelingLogMention {
+  id: string
+  mentionLabel: string
+  createdAt: string
+  mentionedUser: Pick<User, 'id' | 'name' | 'email'>
+}
+
+export interface FeelingLogAnalysis {
+  id: string
+  audience: FeelingLogAnalysisAudience
+  targetUserId?: string | null
+  title: string
+  summary: string
+  interpretation: string
+  recommendation?: string | null
+  riskLevel?: string | null
+  createdAt: string
+}
+
+export interface FeelingLog {
+  id: string
+  tenantId: string
+  authorId: string
+  content: string
+  emoji?: string | null
+  isPrivate: boolean
+  createdAt: string
+  updatedAt: string
+  mentions: FeelingLogMention[]
+  analyses: FeelingLogAnalysis[]
+}
+
+export interface FeelingLogInboxItem {
+  id: string
+  audience: FeelingLogAnalysisAudience
+  title: string
+  summary: string
+  interpretation: string
+  recommendation?: string | null
+  riskLevel?: string | null
+  createdAt: string
+  emoji?: string | null
+  mentionCount: number
+  mentionedPeople: string[]
+  targetUser?: Pick<User, 'id' | 'name' | 'email'> | null
 }

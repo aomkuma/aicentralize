@@ -42,6 +42,9 @@ Sprint 1 turns the project from playground-style AI usage into an operational wo
 
 ## Sprint 2 Progress (Current)
 
+> **Feature catalog (2026-06-30):** [`docs/FEATURES.md`](docs/FEATURES.md) — main modules and sub-features.  
+> **Quick commands:** [`QUICK_REFERENCE.md`](QUICK_REFERENCE.md)
+
 Completed modules:
 1. Prompt 01: Hybrid retrieval foundation
 - Retrieval chunk indexing and backfill

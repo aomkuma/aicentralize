@@ -2,15 +2,17 @@
 
 ## Latest Status (2026-06-30, evening)
 
-**`main` is current through `db369f8`.** Feature catalog: [`docs/FEATURES.md`](./FEATURES.md).
+**`main` is current through `ab2611f`.** Feature catalog: [`docs/FEATURES.md`](./FEATURES.md).
 
 | Commit | Summary |
 |--------|---------|
-| `db369f8` | iPhone push setup wizard (install + notification steps), onboarding banner, iOS PWA detection |
-| `61127ae` | Playground / Meeting Studio prompt limit **120k** chars; shared `meetingAnalysisPrompt.ts` |
-| `4e69563` | ASR default timeout **1 hour** (`ASR_REQUEST_TIMEOUT_MS=3600000`) |
-| `5f1d652` | nginx `/ai/` proxy timeouts **3700s** for long transcription |
-| `4e9aaf6` | Action-item push (reassign, due date, priority, status); Meeting Studio audio job fixes |
+| `ab2611f` | Morning briefing scheduler status panel in AI Trace |
+| `ae26706` | Rubjob morning briefings, general note visibility, dashboard dialog |
+| `db369f8` | iPhone push setup wizard (install + notification steps), onboarding banner |
+| `61127ae` | Playground / Meeting Studio prompt limit **120k** chars |
+| `4e69563` | ASR default timeout **1 hour** |
+| `5f1d652` | nginx `/ai/` proxy timeouts **3700s** |
+| `4e9aaf6` | Action-item push; Meeting Studio audio job fixes |
 | `648c1b3` | Handover + QUICK_REFERENCE refresh |
 | `54457cd` | Fix Railway deploy: `pnpm-lock.yaml` + `jszip` |
 | `627a446` | Communication sentiment + team mood badges |
@@ -1032,6 +1034,21 @@ Implemented and pushed:
 Verification:
 - `pnpm --filter web type-check` passed
 
+## Post-Handover Work Completed (2026-06-30, Feeling Log)
+
+Implemented locally (pending commit):
+
+**Feeling log API + web (`/feeling-logs`)**
+- Prisma models `FeelingLog`, `FeelingLogMention`, `FeelingLogAnalysis`; migration `20260630183000_feeling_logs`.
+- `feelingLogService.ts`: Rubjob AI analysis with heuristic fallback; personal, leadership, mention-target audiences.
+- API: `GET/POST /tenants/:tenantId/feeling-logs/me`, `GET .../inbox` (managers), `POST /`.
+- Web: `FeelingLogsPage` with emoji picker, `@mention` autocomplete, personal history, manager insights tab.
+- Navigation: sidebar item **บันทึกความรู้สึก** / Feeling Log.
+
+Verification:
+- `pnpm --filter api type-check` passed (after `prisma generate`)
+- `pnpm --filter web type-check` passed
+
 ## Open Items Tracker (2026-06-30 doc audit)
 
 Reconciled against the codebase. Items marked done below are implemented; remaining items are
@@ -1058,6 +1075,9 @@ still open.
 | Long ASR / nginx transcription timeouts | **Done** | Committed `5f1d652`, `4e69563` |
 | Playground prompt 120k limit | **Done** | Committed `61127ae` |
 | iPhone push setup wizard + PWA banner | **Done** | Committed `db369f8` |
+| Morning briefing engine (Rubjob) | **Done** | Committed `ae26706`, `ab2611f` |
+| General note PUBLIC/PRIVATE visibility | **Done** | Committed `ae26706` |
+| Feeling log / private mood journal | **Done** | API + web `/feeling-logs` (pending commit) |
 | Account suspension route-level tests | **Open** | No vitest coverage for login/requireAuth/refresh suspend path |
 | Login-page friendly suspended-account message | **Open** | `LoginPage` shows generic `error.message` only |
 | PM date-ordered timeline view | **Open** | Continuity has summary/tabs but no timeline tab |
@@ -1178,3 +1198,46 @@ Follow-up completed locally - Morning Briefing cron health/admin visibility:
   - Panel has `Run now` button wired to `POST /morning-briefings/run-now`.
 - Remaining risk:
   - If API has multiple replicas in the future, document or implement singleton/lock behavior to prevent duplicate scheduled runs.
+
+## New Requirement - Feeling Log / Private Mood Journal
+
+User wants a new menu called "บันทึกความรู้สึก" available to everyone, not limited to work-related entries.
+
+Core product shape:
+- Add a private feeling log entry screen with:
+  - free-text `textarea`
+  - emoji selector
+  - `@mention` autocomplete for coworkers inside the organization
+  - free text allowed even without mentioning anyone
+- When the user saves an entry:
+  - the entry must remain confidential from other people in the organization
+  - AI should still process the content and produce a psychological-style interpretation
+  - if the entry contains mentions of people, process the mention-target context as a separate analysis stream
+  - do not expose the author name in executive or manager-facing output
+- If any person is mentioned more than 5 times across logs, the system should surface the mentioned person's name in the analysis/output summary
+
+Handover / implementation notes:
+- Add a new navigation item and page for feeling logs.
+- Reuse organization member lookup for `@` suggestions.
+- Store entry privacy as private by default; other org members must not be able to read raw entries.
+- Add AI processing that produces:
+  - personal psychological interpretation
+  - mention-target analysis when relevant
+  - executive/manager summary cards in their inbox or dashboard message area
+- Keep language factual and non-harmful:
+  - do not write emotionally escalating or psychologically aggressive text
+  - avoid unsupported claims about diagnoses or intent
+  - keep the tone observational and cautious
+  - if the content is sensitive, summarize carefully and neutrally
+- If the feature later integrates with sentiment or wellbeing metrics, keep the source separated from work-performance analytics.
+
+Suggested data model:
+- `FeelingLog`
+- `FeelingLogMention`
+- `FeelingLogAnalysis`
+- optional `FeelingLogVisibility` or `isPrivate` flag
+
+Suggested delivery rule:
+- End users see only their own log history and AI interpretation.
+- Executives / team leads see only aggregate or derived insights, not the raw writer identity.
+- Mentioned people can be included in a separate “frequently mentioned” summary once the count threshold is exceeded.

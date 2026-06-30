@@ -1,4 +1,4 @@
-export type NavigationIcon = 'dashboard' | 'projects' | 'setup' | 'ai' | 'continuity' | 'reminders' | 'meetings' | 'trace' | 'settings' | 'users'
+export type NavigationIcon = 'dashboard' | 'projects' | 'setup' | 'ai' | 'continuity' | 'reminders' | 'meetings' | 'trace' | 'settings' | 'users' | 'journal'
 
 export interface NavigationItemConfig {
   id: string
@@ -32,6 +32,12 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
     to: '/general-notes',
     labelKey: 'navigation.generalNotes',
     icon: 'continuity',
+  },
+  {
+    id: 'feeling-logs',
+    to: '/feeling-logs',
+    labelKey: 'navigation.feelingLogs',
+    icon: 'journal',
   },
   {
     id: 'reminders',
