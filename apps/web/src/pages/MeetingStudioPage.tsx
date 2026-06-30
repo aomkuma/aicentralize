@@ -4,6 +4,13 @@ import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
 import LiveMeetingRecorder, { type LiveMeetingRecordingResult } from '../components/LiveMeetingRecorder'
 import { useApi } from '../hooks/useApi'
+import {
+  playgroundErrorMessage,
+  playgroundResponseMessage,
+  playgroundUrl,
+  postPlaygroundFormData,
+  readPlaygroundJson
+} from '../lib/playgroundApi'
 import { useTenantStore } from '../stores/tenantStore'
 import type { Project } from '../types'
 
@@ -728,17 +735,14 @@ export default function MeetingStudioPage() {
     }
 
     updateProgress('audio', 'uploadingRecording')
-    const uploadForm = new FormData()
-    uploadForm.append('audio', audioFile)
 
-    const uploadResponse = await fetch('/ai/playground/record/upload', {
-      method: 'POST',
-      body: uploadForm,
-    })
-
-    const uploadData = await uploadResponse.json()
-    if (!uploadResponse.ok) {
-      throw new Error(uploadData.message || t('meetings.errors.uploadFailed'))
+    let uploadData: { fileName?: string }
+    try {
+      const uploadForm = new FormData()
+      uploadForm.append('audio', audioFile)
+      uploadData = await postPlaygroundFormData<{ fileName?: string }>('/record/upload', uploadForm)
+    } catch (uploadError) {
+      throw new Error(playgroundErrorMessage(uploadError, t('meetings.errors.uploadFailed'), t))
     }
 
     setRecordingInfo(`${t('meetings.status.uploadedOnly')}: ${uploadData.fileName}`)
@@ -750,19 +754,38 @@ export default function MeetingStudioPage() {
 
     updateProgress('audio', 'transcribingRecording')
 
-    const response = await fetch('/ai/playground/transcribe', {
+    const response = await fetch(playgroundUrl('/transcribe'), {
       method: 'POST',
       body: formData,
     })
 
-    const data = await response.json()
+    let data: { message?: string; detail?: string; transcript?: string }
+    try {
+      data = await readPlaygroundJson(response)
+    } catch (readError) {
+      if (response.status === 502 || response.status === 504) {
+        setError(t('meetings.errors.transcriptionUnavailable'))
+        setStatus(t('meetings.status.uploadedOnly'))
+        updateProgress('audio', 'completed')
+        return
+      }
+      throw new Error(playgroundErrorMessage(readError, t('meetings.errors.transcriptionFailed'), t))
+    }
+
     if (!response.ok) {
       if (response.status === 403 || /Whisper transcription is disabled/i.test(data.message || '')) {
         setStatus(t('meetings.status.uploadedOnly'))
+        updateProgress('audio', 'completed')
+        return
+      }
+      if (response.status === 502 || response.status === 504) {
+        setError(t('meetings.errors.transcriptionUnavailable'))
+        setStatus(t('meetings.status.uploadedOnly'))
+        updateProgress('audio', 'completed')
         return
       }
       const detail = typeof data.detail === 'string' ? data.detail : ''
-      throw new Error(detail || data.message || t('meetings.errors.transcriptionFailed'))
+      throw new Error(detail || playgroundResponseMessage(data, t('meetings.errors.transcriptionFailed')))
     }
 
     if (data.transcript) {

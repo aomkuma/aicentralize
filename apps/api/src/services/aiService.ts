@@ -471,6 +471,15 @@ export async function transcribeWithWhisper(input: WhisperTranscribeInput): Prom
     const stderr = typeof error === "object" && error && "stderr" in error && typeof (error as { stderr?: unknown }).stderr === "string"
       ? (error as { stderr: string }).stderr
       : "";
+    const spawnCode = typeof error === "object" && error && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+
+    if (spawnCode === "ENOENT" || /spawn .* ENOENT/i.test(message)) {
+      throw new Error(
+        "Whisper runtime is not available on this API server. Upload succeeded; paste or edit the transcript manually, or configure a production ASR service."
+      );
+    }
 
     throw new Error([
       `Whisper transcription failed: ${message}`,

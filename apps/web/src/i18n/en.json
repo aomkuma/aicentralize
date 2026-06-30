@@ -816,7 +816,11 @@
       "saveFailed": "Unable to save the meeting.",
       "ownerRequiredForChecklist": "Please assign an owner for every checklist item before saving",
       "dueDateRequiredForChecklist": "Please set a valid due date for every checklist item before saving",
-      "uploadFailed": "Audio upload failed"
+      "uploadFailed": "Audio upload failed",
+      "fileTooLarge": "File is too large (max 100 MB). Please use a smaller recording and try again.",
+      "playgroundNotFound": "Upload service was not found. Please refresh the page and try again.",
+      "playgroundGateway": "The audio processing server is unavailable. Please try again later.",
+      "transcriptionUnavailable": "Upload succeeded, but automatic transcription is unavailable. Please type or edit the transcript below."
     }
   }
 }

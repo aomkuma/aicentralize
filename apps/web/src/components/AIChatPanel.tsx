@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import {
+  playgroundResponseMessage,
+  playgroundUrl,
+  postPlaygroundFormData,
+  readPlaygroundJson
+} from '../lib/playgroundApi'
 
 type SpeakerLabel = 'A' | 'B' | 'C'
 
@@ -700,16 +706,7 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
   const uploadAudio = async (blob: Blob) => {
     const fd = new FormData()
     fd.append('audio', blob, `meeting-${Date.now()}.webm`)
-
-    const response = await fetch('/ai/playground/record/upload', {
-      method: 'POST',
-      body: fd
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      throw new Error(data.message || t('aiChat.errors.uploadFailed'))
-    }
-    return data as { fileName: string; size: number }
+    return postPlaygroundFormData<{ fileName: string; size: number }>('/record/upload', fd)
   }
 
   const buildFallbackTranscript = () => {
@@ -738,26 +735,29 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
     const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
     try {
-      const response = await fetch('/ai/playground/transcribe', {
+      const response = await fetch(playgroundUrl('/transcribe'), {
         method: 'POST',
         body: fd,
         signal: controller.signal
       })
 
-      const data = await response.json()
-      if (!response.ok) {
-        const detail = typeof data.detail === 'string' ? data.detail : ''
-        throw new Error(detail || data.message || t('aiChat.errors.transcriptionFailed'))
-      }
-
-      return data as {
+      const data = await readPlaygroundJson<{
+        message?: string
+        detail?: string
         transcript?: string
         language?: string
         languageProbability?: number
         segmentCount?: number
         fileName?: string
         fileUrl?: string
+      }>(response)
+
+      if (!response.ok) {
+        const detail = typeof data.detail === 'string' ? data.detail : ''
+        throw new Error(detail || playgroundResponseMessage(data, t('aiChat.errors.transcriptionFailed')))
       }
+
+      return data
     } finally {
       window.clearTimeout(timeoutId)
     }
