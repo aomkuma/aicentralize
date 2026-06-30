@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Plus, Save, Trash2 } from 'lucide-react'
 import Layout from '../components/Layout'
@@ -137,6 +137,7 @@ export default function AdminPackagesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState<PackageForm>(emptyForm)
   const [notice, setNotice] = useState<string | null>(null)
+  const hasInitializedSelection = useRef(false)
 
   const selectedPackage = packages.find((item) => item.id === selectedId) ?? null
   const enabledFeatureCount = useMemo(
@@ -148,12 +149,17 @@ export default function AdminPackagesPage() {
     const data = await get<SubscriptionPackage[]>('/admin/packages')
     if (Array.isArray(data)) {
       setPackages(data)
-      setSelectedId((current) => current ?? data[0]?.id ?? null)
-      if (!selectedId && data[0]) {
-        setForm(formFromPackage(data[0]))
+
+      if (!hasInitializedSelection.current) {
+        hasInitializedSelection.current = true
+        const first = data[0]
+        if (first) {
+          setSelectedId(first.id)
+          setForm(formFromPackage(first))
+        }
       }
     }
-  }, [get, selectedId])
+  }, [get])
 
   useEffect(() => {
     fetchPackages()

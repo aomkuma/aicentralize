@@ -8,6 +8,7 @@ import path from "node:path";
 import {
   actionItemRouter,
   adminRouter,
+  packagesRouter,
   aiRouter,
   askAiRouter,
   authRouter,
@@ -304,6 +305,7 @@ export function createApp() {
   });
 
   app.use("/auth", authRouter);
+  app.use("/packages", packagesRouter);
   app.use("/admin", adminRouter);
   app.use("/projects", projectRouter);
   app.use("/meetings", meetingRouter);

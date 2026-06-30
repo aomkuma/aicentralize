@@ -1,6 +1,15 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from '../components/LanguageSwitcher'
+import { useApi } from '../hooks/useApi'
+import {
+  effectivePackagePriceCents,
+  formatPackageMoney,
+  packageDiscountLabel,
+  packageFeatureLabels,
+} from '../lib/packagePricing'
+import type { SubscriptionPackage } from '../types'
 
 const FEATURE_ICONS = {
   meetingStudio: (
@@ -53,8 +62,34 @@ const SPOTLIGHT_POINT_KEYS = {
   feelingLogs: ['private', 'insights', 'culture'],
 } as const
 
+function billingIntervalLabel(interval: string, t: (key: string) => string) {
+  return t(`landing.packagesIntervals.${interval}`)
+}
+
 export default function WelcomePage() {
   const { t } = useTranslation()
+  const { get } = useApi()
+  const [packages, setPackages] = useState<SubscriptionPackage[]>([])
+  const [packagesLoading, setPackagesLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    ;(async () => {
+      setPackagesLoading(true)
+      const data = await get<SubscriptionPackage[]>('/packages')
+      if (!cancelled && Array.isArray(data)) {
+        setPackages(data)
+      }
+      if (!cancelled) {
+        setPackagesLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [get])
 
   return (
     <div className="min-h-screen bg-[#030712] text-white">
@@ -138,7 +173,7 @@ export default function WelcomePage() {
                 {t('landing.getStarted')}
               </Link>
               <a
-                href="#spotlight"
+                href="#packages"
                 className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 {t('landing.exploreFeatures')}
@@ -225,6 +260,140 @@ export default function WelcomePage() {
                 </article>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section id="packages" className="border-t border-white/10 bg-black/20 py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-3xl text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400 sm:text-sm">
+                {t('navigation.packages')}
+              </p>
+              <h2 className="mt-4 text-2xl font-bold sm:text-3xl">{t('landing.packagesTitle')}</h2>
+              <p className="mt-3 text-base text-slate-400 sm:text-lg">{t('landing.packagesSubtitle')}</p>
+            </div>
+
+            {packagesLoading ? (
+              <p className="mt-12 text-center text-sm text-slate-400">{t('landing.packagesLoading')}</p>
+            ) : !packages.length ? (
+              <p className="mt-12 text-center text-sm text-slate-400">{t('landing.packagesEmpty')}</p>
+            ) : (
+              <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {packages.map((pkg) => {
+                  const effectivePrice = effectivePackagePriceCents(pkg)
+                  const discountLabel = packageDiscountLabel(pkg)
+                  const featurePreview = packageFeatureLabels(pkg, 4)
+                  const remainingFeatures = Math.max(0, pkg.features.length - featurePreview.length)
+                  const intervalLabel = billingIntervalLabel(pkg.billingInterval, t)
+
+                  return (
+                    <article
+                      key={pkg.id}
+                      className={`relative flex h-full flex-col rounded-3xl border bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-6 shadow-xl sm:p-7 ${
+                        pkg.isDefault
+                          ? 'border-cyan-500/40 shadow-cyan-950/30 ring-1 ring-cyan-500/20'
+                          : 'border-white/10 shadow-blue-950/20'
+                      }`}
+                    >
+                      {pkg.isDefault && (
+                        <span className="absolute -top-3 left-6 rounded-full border border-cyan-500/40 bg-cyan-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-200">
+                          {t('landing.packagesDefaultBadge')}
+                        </span>
+                      )}
+
+                      <div className="mb-5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{pkg.code}</p>
+                        <h3 className="mt-2 text-2xl font-bold text-white">{pkg.name}</h3>
+                        {pkg.description && (
+                          <p className="mt-3 text-sm leading-relaxed text-slate-400">{pkg.description}</p>
+                        )}
+                      </div>
+
+                      <div className="mb-6">
+                        <div className="flex flex-wrap items-end gap-2">
+                          {discountLabel && pkg.priceCents > 0 && (
+                            <span className="text-sm text-slate-500 line-through">
+                              {formatPackageMoney(pkg.priceCents, pkg.currency)}
+                            </span>
+                          )}
+                          <span className="text-3xl font-bold text-white">
+                            {effectivePrice === 0
+                              ? t('landing.packagesFree')
+                              : formatPackageMoney(effectivePrice, pkg.currency)}
+                          </span>
+                          {effectivePrice > 0 && (
+                            <span className="pb-1 text-sm text-slate-400">{intervalLabel}</span>
+                          )}
+                        </div>
+                        {discountLabel && (
+                          <p className="mt-2 text-sm font-medium text-emerald-300">
+                            {t('landing.packagesDiscount', { value: discountLabel })}
+                          </p>
+                        )}
+                      </div>
+
+                      <ul className="mb-6 space-y-2 text-sm text-slate-300">
+                        <li className="flex gap-2">
+                          <span className="text-cyan-400" aria-hidden>•</span>
+                          <span>{t('landing.packagesProjects', { count: pkg.maxProjects })}</span>
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="text-cyan-400" aria-hidden>•</span>
+                          <span>{t('landing.packagesUsers', { count: pkg.maxUsers })}</span>
+                        </li>
+                        {pkg.additionalUserPriceCents > 0 && (
+                          <li className="flex gap-2">
+                            <span className="text-cyan-400" aria-hidden>•</span>
+                            <span>
+                              {t('landing.packagesAdditionalUser', {
+                                price: formatPackageMoney(pkg.additionalUserPriceCents, pkg.currency),
+                              })}
+                            </span>
+                          </li>
+                        )}
+                        {pkg.features.length > 0 && (
+                          <li className="flex gap-2">
+                            <span className="text-cyan-400" aria-hidden>•</span>
+                            <span>{t('landing.packagesFeatures', { count: pkg.features.length })}</span>
+                          </li>
+                        )}
+                      </ul>
+
+                      {featurePreview.length > 0 && (
+                        <ul className="mb-6 space-y-2 border-t border-white/10 pt-4">
+                          {featurePreview.map((feature) => (
+                            <li key={feature} className="flex gap-2 text-sm text-slate-400">
+                              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-cyan-500/15 text-[10px] font-bold text-cyan-300">
+                                ✓
+                              </span>
+                              <span>{feature}</span>
+                            </li>
+                          ))}
+                          {remainingFeatures > 0 && (
+                            <li className="text-xs text-slate-500">
+                              {t('landing.packagesMoreFeatures', { count: remainingFeatures })}
+                            </li>
+                          )}
+                        </ul>
+                      )}
+
+                      <div className="mt-auto">
+                        <Link
+                          to="/auth/login"
+                          className={`inline-flex w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                            pkg.isDefault
+                              ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white hover:from-blue-500 hover:to-cyan-400'
+                              : 'border border-white/15 bg-white/5 text-white hover:bg-white/10'
+                          }`}
+                        >
+                          {t('landing.packagesChoosePlan')}
+                        </Link>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </section>
 
