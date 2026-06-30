@@ -38,8 +38,6 @@ const FEATURE_KEYS = [
   'reminders',
 ] as const
 
-const HERO_HIGHLIGHT_KEYS = ['meetings', 'knowledge', 'ai'] as const
-
 export default function WelcomePage() {
   const { t } = useTranslation()
 
@@ -76,72 +74,28 @@ export default function WelcomePage() {
       </header>
 
       <main className="relative z-10">
-        <section className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6 sm:pb-20 sm:pt-10 lg:px-8 lg:pb-24">
-          <div className="grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-12 xl:gap-16">
-            <div className="order-2 space-y-5 lg:order-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400 sm:text-sm">
-                {t('landing.eyebrow')}
-              </p>
-              <h1 className="text-[1.75rem] font-bold leading-[1.2] tracking-tight sm:text-4xl lg:text-[2.65rem] lg:leading-[1.15]">
-                {t('landing.heroTitle')}
-              </h1>
-              <p className="max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg sm:leading-8">
-                {t('landing.heroSubtitle')}
-              </p>
-            </div>
-
-            <div className="order-1 flex w-full items-center justify-center lg:order-2">
-              <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-blue-950/40 p-1 shadow-2xl shadow-blue-950/60 ring-1 ring-white/10">
-                <img
-                  src="/brand/kora-banner-visual.png"
-                  alt=""
-                  className="block h-auto w-full object-contain"
-                />
-              </div>
-            </div>
+        <section className="mx-auto max-w-7xl px-4 pb-12 pt-6 sm:px-6 sm:pb-16 sm:pt-8 lg:px-8 lg:pb-20">
+          <div className="overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-blue-950/60 ring-1 ring-white/10">
+            <img
+              src="/brand/kora-landing-banner.png"
+              alt={t('landing.heroBannerAlt')}
+              className="block h-auto w-full"
+            />
           </div>
 
-          <div className="mt-10 lg:mt-12">
-            <ul className="grid gap-3 lg:grid-cols-3">
-              {HERO_HIGHLIGHT_KEYS.map((key) => (
-                <li
-                  key={key}
-                  className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3.5 backdrop-blur-sm transition hover:border-cyan-500/25 hover:bg-cyan-500/[0.04]"
-                >
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-xs font-bold text-white shadow shadow-cyan-900/40">
-                    ✓
-                  </span>
-                  <div>
-                    <p className="font-semibold text-white">{t(`landing.heroHighlights.${key}.title`)}</p>
-                    <p className="mt-0.5 text-sm leading-relaxed text-slate-400">
-                      {t(`landing.heroHighlights.${key}.description`)}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-              <Link
-                to="/auth/login"
-                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-3 text-sm font-bold text-white shadow-xl shadow-blue-900/50 transition hover:from-blue-500 hover:to-cyan-400"
-              >
-                {t('landing.getStarted')}
-              </Link>
-              <a
-                href="#features"
-                className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-              >
-                {t('landing.exploreFeatures')}
-              </a>
-            </div>
-
-            <p className="mt-8 flex justify-center lg:justify-start">
-              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-100">
-                <span className="text-cyan-400" aria-hidden>✦</span>
-                {t('landing.heroBadge')}
-              </span>
-            </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              to="/auth/login"
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-3 text-sm font-bold text-white shadow-xl shadow-blue-900/50 transition hover:from-blue-500 hover:to-cyan-400"
+            >
+              {t('landing.getStarted')}
+            </Link>
+            <a
+              href="#features"
+              className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              {t('landing.exploreFeatures')}
+            </a>
           </div>
         </section>
 
