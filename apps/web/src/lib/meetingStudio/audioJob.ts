@@ -13,6 +13,7 @@ import type {
   MeetingStudioJobResult
 } from './jobTypes'
 import { parseTranscriptSummary, toChecklistItems, type OwnerOption } from './shared'
+import { buildTranscriptAnalysisPrompt } from './meetingAnalysisPrompt'
 
 type AudioJobInput = {
   audioFile: File
@@ -22,30 +23,6 @@ type AudioJobInput = {
   messages: MeetingStudioJobMessages
   onProgress: (key: MeetingStudioJobProgressKey) => void
 }
-
-const buildTranscriptAnalysisPrompt = (text: string) => [
-  'You are a senior meeting minute analyst.',
-  'Analyze the following meeting transcript and return ONLY valid JSON.',
-  'No markdown, no code fences, no extra explanation.',
-  'Use this schema exactly:',
-  '{',
-  '  "summary": "string",',
-  '  "objective": "string",',
-  '  "consultantNotes": "string",',
-  '  "decisions": ["string"],',
-  '  "risks": ["string"],',
-  '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime","importanceScore":50,"priority":"LOW|MEDIUM|HIGH|CRITICAL"}],',
-  '  "nextSteps": "string"',
-  '}',
-  'Respond in Thai for all text values.',
-  'Preserve project-specific names, dates, owners, and action wording when present.',
-  'For consultantNotes, write 2-4 concise bullet-style recommendations about weaknesses of this minute, missing context, items to clarify, risks to watch, or details to add. Use a constructive consultant tone, not blame.',
-  'Set importanceScore from 1-100 based on business impact, urgency, blockers, customer/executive impact, and risk.',
-  'Use HIGH or CRITICAL for very important work even when the due date is later, so teams can focus earlier.',
-  '',
-  'Transcript excerpt:',
-  text.slice(0, 4000)
-].join('\n')
 
 async function analyzeTranscript(
   text: string,

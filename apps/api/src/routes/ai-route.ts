@@ -10,6 +10,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { ensureProjectScopeAccess } from "../services/accessScopeService";
 import { askMinutes, generateWithLocalModel, transcribeWithWhisper } from "../services/aiService";
+import { MAX_PLAYGROUND_PROMPT_CHARS } from "../constants/aiLimits";
 import { getSystemSettings } from "../services/systemSettingsService";
 
 export const aiRouter = Router();
@@ -19,7 +20,7 @@ const askSchema = z.object({
 });
 
 const promptPlaygroundSchema = z.object({
-  prompt: z.string().min(1).max(4000),
+  prompt: z.string().min(1).max(MAX_PLAYGROUND_PROMPT_CHARS),
   model: z.string().min(1).default("qwen2.5:7b"),
   projectId: z.string().min(1).optional()
 });
@@ -312,6 +313,14 @@ aiRouter.post("/playground/generate", async (req, res) => {
   const parsed = promptPlaygroundSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  const settings = await getSystemSettings();
+  const configuredMax = settings.ai.generation.maxPromptChars;
+  if (parsed.data.prompt.length > configuredMax) {
+    return res.status(400).json({
+      message: `Prompt exceeds configured limit of ${configuredMax.toLocaleString()} characters`
+    });
   }
 
   try {

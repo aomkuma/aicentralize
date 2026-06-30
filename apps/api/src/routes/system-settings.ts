@@ -35,7 +35,7 @@ const updateSystemSettingsSchema = z
         generation: z
           .object({
             defaultModel: z.string().min(1).max(100).optional(),
-            maxPromptChars: z.number().int().min(256).max(12000).optional(),
+            maxPromptChars: z.number().int().min(256).max(120000).optional(),
             provider: aiProviderSchema.optional(),
             fallbackProviders: z.array(aiProviderSchema).max(3).optional(),
           })

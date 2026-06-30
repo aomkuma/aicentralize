@@ -52,7 +52,7 @@ const whisperLanguageOptions = [
   { value: 'en', label: 'English' },
   { value: 'auto', label: 'Auto detect' }
 ]
-const maxPromptOptions = [2000, 4000, 8000, 12000]
+const maxPromptOptions = [4000, 8000, 12000, 32000, 64000, 120000]
 const sessionTtlOptions = [8, 12, 24, 72, 168, 720]
 
 export default function SystemSettingsPage() {
@@ -326,7 +326,7 @@ export default function SystemSettingsPage() {
                   {t('settings.maxPromptChars')}
                   <select
                     value={settings.ai.generation.maxPromptChars}
-                    onChange={(e) => setValue('ai', { ...settings.ai, generation: { ...settings.ai.generation, maxPromptChars: Number(e.target.value) || 4000 } })}
+                    onChange={(e) => setValue('ai', { ...settings.ai, generation: { ...settings.ai.generation, maxPromptChars: Number(e.target.value) || 120000 } })}
                     className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2"
                   >
                     {maxPromptOptions.map((value) => (

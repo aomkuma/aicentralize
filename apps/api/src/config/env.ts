@@ -64,5 +64,5 @@ export const env = {
   vapidSubject: process.env.VAPID_SUBJECT,
   asrBaseUrl: process.env.ASR_BASE_URL?.trim() || "",
   asrApiKey: process.env.ASR_API_KEY?.trim() || "",
-  asrRequestTimeoutMs: Number(process.env.ASR_REQUEST_TIMEOUT_MS ?? 600000)
+  asrRequestTimeoutMs: Number(process.env.ASR_REQUEST_TIMEOUT_MS ?? 3600000)
 };

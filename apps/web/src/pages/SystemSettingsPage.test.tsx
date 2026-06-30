@@ -36,7 +36,7 @@ const settingsFixture: SystemSettings = {
     asrMode: 'hybrid',
     generation: {
       defaultModel: 'qwen2.5:7b',
-      maxPromptChars: 4000,
+      maxPromptChars: 120000,
       provider: 'ollama',
       fallbackProviders: ['openai']
     },

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import crypto from "node:crypto";
+import { MAX_PLAYGROUND_PROMPT_CHARS } from "../constants/aiLimits";
 import { env } from "../config/env";
 
 type AsrMode = "whisper" | "browser" | "hybrid";
@@ -96,7 +97,7 @@ const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     },
     generation: {
       defaultModel: env.geminiModel ?? "gemini-2.0-flash",
-      maxPromptChars: 4000,
+      maxPromptChars: MAX_PLAYGROUND_PROMPT_CHARS,
       provider: "gemini",
       fallbackProviders: [],
     },
@@ -197,7 +198,11 @@ function normalizeSettings(input: unknown): SystemSettings {
   const merged = deepMerge(DEFAULT_SYSTEM_SETTINGS, input) as SystemSettings;
 
   merged.ai.whisper.timeoutMs = Math.max(3000, Math.min(180000, Number(merged.ai.whisper.timeoutMs) || 30000));
-  merged.ai.generation.maxPromptChars = Math.max(256, Math.min(12000, Number(merged.ai.generation.maxPromptChars) || 4000));
+  let maxPromptChars = Number(merged.ai.generation.maxPromptChars) || MAX_PLAYGROUND_PROMPT_CHARS;
+  if (maxPromptChars <= 12_000) {
+    maxPromptChars = MAX_PLAYGROUND_PROMPT_CHARS;
+  }
+  merged.ai.generation.maxPromptChars = Math.max(256, Math.min(MAX_PLAYGROUND_PROMPT_CHARS, maxPromptChars));
   merged.security.sessionTtlHours = Math.max(1, Math.min(720, Number(merged.security.sessionTtlHours) || 12));
 
   if (!["whisper", "browser", "hybrid"].includes(merged.ai.asrMode)) {
