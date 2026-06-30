@@ -1,6 +1,7 @@
 type PlaygroundErrorBody = {
   message?: string
   detail?: string | { message?: string }
+  code?: string
 }
 
 export function playgroundUrl(path: string) {
@@ -77,6 +78,25 @@ export function playgroundResponseMessage(data: PlaygroundErrorBody | null | und
   }
 
   return data.message?.trim() || fallback
+}
+
+export function isTranscriptionUnavailable(
+  response: Response,
+  data?: PlaygroundErrorBody | null
+) {
+  const detail = typeof data?.detail === 'string' ? data.detail : ''
+
+  return (
+    data?.code === 'WHISPER_UNAVAILABLE' ||
+    response.status === 403 ||
+    response.status === 503 ||
+    response.status === 502 ||
+    response.status === 504 ||
+    /Whisper transcription is disabled/i.test(data?.message || '') ||
+    /Whisper transcription unavailable/i.test(data?.message || '') ||
+    /Whisper runtime is not available/i.test(detail) ||
+    /configure a production ASR service/i.test(detail)
+  )
 }
 
 export async function postPlaygroundFormData<T>(path: string, formData: FormData) {

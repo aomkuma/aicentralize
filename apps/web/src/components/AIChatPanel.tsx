@@ -203,9 +203,10 @@ function normalizeAppLinks(raw: unknown): AppLink[] {
 
 type AIChatPanelProps = {
   projectId?: string
+  showModeTabs?: boolean
 }
 
-export default function AIChatPanel({ projectId }: AIChatPanelProps) {
+export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPanelProps) {
   const { t } = useTranslation()
   const chatStateKey = `${CHAT_STATE_KEY_PREFIX}:${projectId || 'dashboard'}`
   const [activeTab, setActiveTab] = useState<'prompt' | 'record'>('prompt')
@@ -1071,33 +1072,35 @@ export default function AIChatPanel({ projectId }: AIChatPanelProps) {
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{t('aiChat.title')}</h2>
           <p className="text-sm text-gray-600 dark:text-slate-400">{t('aiChat.description')}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('prompt')}
-            className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
-              activeTab === 'prompt'
-                ? 'border-blue-600 bg-blue-600 text-white'
-                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            {t('aiChat.tabs.textPrompt')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('record')}
-            className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
-              activeTab === 'record'
-                ? 'border-blue-600 bg-blue-600 text-white'
-                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            {t('aiChat.tabs.recordTranscript')}
-          </button>
-        </div>
+        {showModeTabs && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('prompt')}
+              className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+                activeTab === 'prompt'
+                  ? 'border-blue-600 bg-blue-600 text-white'
+                  : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {t('aiChat.tabs.textPrompt')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('record')}
+              className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+                activeTab === 'record'
+                  ? 'border-blue-600 bg-blue-600 text-white'
+                  : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {t('aiChat.tabs.recordTranscript')}
+            </button>
+          </div>
+        )}
       </div>
 
-      {activeTab === 'prompt' ? (
+      {(showModeTabs ? activeTab === 'prompt' : true) ? (
         <div className="mt-5 space-y-4">
           <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
             <textarea

@@ -5,6 +5,7 @@ import Layout from '../components/Layout'
 import LiveMeetingRecorder, { type LiveMeetingRecordingResult } from '../components/LiveMeetingRecorder'
 import { useApi } from '../hooks/useApi'
 import {
+  isTranscriptionUnavailable,
   playgroundErrorMessage,
   playgroundResponseMessage,
   playgroundUrl,
@@ -747,6 +748,12 @@ export default function MeetingStudioPage() {
 
     setRecordingInfo(`${t('meetings.status.uploadedOnly')}: ${uploadData.fileName}`)
 
+    const finishWithoutTranscript = () => {
+      setError('')
+      setStatus(t('meetings.errors.transcriptionUnavailable'))
+      updateProgress('audio', 'completed')
+    }
+
     const formData = new FormData()
     formData.append('audio', audioFile)
     formData.append('model', 'small')
@@ -759,29 +766,20 @@ export default function MeetingStudioPage() {
       body: formData,
     })
 
-    let data: { message?: string; detail?: string; transcript?: string }
+    let data: { message?: string; detail?: string; transcript?: string; code?: string }
     try {
       data = await readPlaygroundJson(response)
     } catch (readError) {
-      if (response.status === 502 || response.status === 504) {
-        setError(t('meetings.errors.transcriptionUnavailable'))
-        setStatus(t('meetings.status.uploadedOnly'))
-        updateProgress('audio', 'completed')
+      if (isTranscriptionUnavailable(response)) {
+        finishWithoutTranscript()
         return
       }
       throw new Error(playgroundErrorMessage(readError, t('meetings.errors.transcriptionFailed'), t))
     }
 
     if (!response.ok) {
-      if (response.status === 403 || /Whisper transcription is disabled/i.test(data.message || '')) {
-        setStatus(t('meetings.status.uploadedOnly'))
-        updateProgress('audio', 'completed')
-        return
-      }
-      if (response.status === 502 || response.status === 504) {
-        setError(t('meetings.errors.transcriptionUnavailable'))
-        setStatus(t('meetings.status.uploadedOnly'))
-        updateProgress('audio', 'completed')
+      if (isTranscriptionUnavailable(response, data)) {
+        finishWithoutTranscript()
         return
       }
       const detail = typeof data.detail === 'string' ? data.detail : ''
@@ -808,7 +806,18 @@ export default function MeetingStudioPage() {
     try {
       await processAudioFile(liveFile, result.transcript)
     } catch (recordingError) {
-      setError(recordingError instanceof Error ? recordingError.message : t('meetings.errors.transcriptionFailed'))
+      const message = recordingError instanceof Error ? recordingError.message : ''
+      if (
+        /Whisper runtime is not available/i.test(message) ||
+        /configure a production ASR service/i.test(message) ||
+        /Whisper transcription unavailable/i.test(message)
+      ) {
+        setError('')
+        setStatus(t('meetings.errors.transcriptionUnavailable'))
+        updateProgress('audio', 'completed')
+        return
+      }
+      setError(message || t('meetings.errors.transcriptionFailed'))
       updateProgress('audio', 'failed')
     } finally {
       setIsTranscribing(false)
@@ -996,7 +1005,18 @@ export default function MeetingStudioPage() {
 
       await processAudioFile(recordingFile)
     } catch (transcribeError) {
-      setError(transcribeError instanceof Error ? transcribeError.message : t('meetings.errors.transcriptionFailed'))
+      const message = transcribeError instanceof Error ? transcribeError.message : ''
+      if (
+        /Whisper runtime is not available/i.test(message) ||
+        /configure a production ASR service/i.test(message) ||
+        /Whisper transcription unavailable/i.test(message)
+      ) {
+        setError('')
+        setStatus(t('meetings.errors.transcriptionUnavailable'))
+        updateProgress(isDocxFile(recordingFile) ? 'docx' : 'audio', 'completed')
+        return
+      }
+      setError(message || t('meetings.errors.transcriptionFailed'))
       updateProgress(isDocxFile(recordingFile) ? 'docx' : 'audio', 'failed')
     } finally {
       setIsTranscribing(false)

@@ -428,9 +428,13 @@ aiRouter.post("/playground/transcribe", upload.single("audio"), async (req, res)
       fileUrl: `/ai/playground/recordings/${encodeURIComponent(req.file.filename)}`
     });
   } catch (error) {
-    return res.status(502).json({
-      message: "Whisper transcription failed",
-      detail: error instanceof Error ? error.message : "unknown error"
+    const detail = error instanceof Error ? error.message : "unknown error";
+    const unavailable = /Whisper runtime is not available/i.test(detail);
+
+    return res.status(unavailable ? 503 : 502).json({
+      message: unavailable ? "Whisper transcription unavailable" : "Whisper transcription failed",
+      code: unavailable ? "WHISPER_UNAVAILABLE" : "WHISPER_FAILED",
+      detail
     });
   }
 });

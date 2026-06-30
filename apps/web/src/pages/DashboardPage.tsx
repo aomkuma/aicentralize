@@ -298,7 +298,7 @@ export default function DashboardPage() {
         */}
 
         <div>
-          <AIChatPanel projectId={selectedProjectId || undefined} />
+          <AIChatPanel projectId={selectedProjectId || undefined} showModeTabs={false} />
         </div>
       </div>
     </Layout>

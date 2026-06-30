@@ -60,5 +60,8 @@ export const env = {
   mailFrom: process.env.MAIL_FROM ?? "noreply@aicentralize.local",
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
-  vapidSubject: process.env.VAPID_SUBJECT
+  vapidSubject: process.env.VAPID_SUBJECT,
+  asrBaseUrl: process.env.ASR_BASE_URL?.trim() || "",
+  asrApiKey: process.env.ASR_API_KEY?.trim() || "",
+  asrRequestTimeoutMs: Number(process.env.ASR_REQUEST_TIMEOUT_MS ?? 600000)
 };

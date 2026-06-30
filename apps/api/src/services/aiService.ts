@@ -3,6 +3,7 @@ import { env } from "../config/env";
 import { buildEmbedding, cosineSimilarity } from "./embeddingService";
 import { getSystemSettings, resolveActiveProviderCredential } from "./systemSettingsService";
 import { execFile } from "node:child_process";
+import fs from "node:fs";
 import { promisify } from "node:util";
 import path from "node:path";
 
@@ -72,8 +73,128 @@ const DEFAULT_AI_PROVIDER: AiProvider = "gemini";
 const GEMINI_MAX_ATTEMPTS = 3;
 const GEMINI_RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_WHISPER_MODEL = "tiny";
+const WHISPER_UNAVAILABLE_MESSAGE =
+  "Whisper runtime is not available on this API server. Upload succeeded; paste or edit the transcript manually, or configure a production ASR service.";
 const execFileAsync = promisify(execFile);
-const DEFAULT_PYTHON_EXECUTABLE = "C:\\Users\\korap\\AppData\\Local\\Programs\\Python\\Python311\\python.exe";
+
+function normalizeWhisperPayload(raw: unknown, fallbackModel: string, fallbackLanguage: string): WhisperTranscribeResult {
+  const payload = (raw ?? {}) as {
+    model?: unknown;
+    language?: unknown;
+    language_probability?: unknown;
+    languageProbability?: unknown;
+    transcript?: unknown;
+    segment_count?: unknown;
+    segmentCount?: unknown;
+    segments?: Array<{ start?: unknown; end?: unknown; text?: unknown }>;
+  };
+
+  const segments = Array.isArray(payload.segments)
+    ? payload.segments
+      .map((segment) => ({
+        start: Number(segment.start ?? 0),
+        end: Number(segment.end ?? 0),
+        text: typeof segment.text === "string" ? segment.text.trim() : ""
+      }))
+      .filter((segment) => segment.text.length > 0)
+    : [];
+
+  const transcript = typeof payload.transcript === "string" && payload.transcript.trim()
+    ? payload.transcript.trim()
+    : segments.map((segment) => `[${segment.start.toFixed(2)}s - ${segment.end.toFixed(2)}s] Speaker A: ${segment.text}`).join("\n");
+
+  return {
+    model: typeof payload.model === "string" && payload.model.trim() ? payload.model.trim() : fallbackModel,
+    language: typeof payload.language === "string" && payload.language.trim() ? payload.language.trim() : fallbackLanguage,
+    language_probability: Number(payload.language_probability ?? payload.languageProbability ?? 0),
+    transcript,
+    segment_count: Number(payload.segment_count ?? payload.segmentCount ?? segments.length),
+    segments
+  };
+}
+
+async function transcribeWithRemoteAsr(input: WhisperTranscribeInput): Promise<WhisperTranscribeResult> {
+  const baseUrl = env.asrBaseUrl.replace(/\/$/, "");
+  const model = input.model?.trim() || DEFAULT_WHISPER_MODEL;
+  const language = input.language?.trim() || "th";
+  const fileName = path.basename(input.audioPath);
+  const fileBuffer = fs.readFileSync(input.audioPath);
+  const form = new FormData();
+
+  form.append("audio", new Blob([fileBuffer]), fileName);
+  form.append("model", model);
+  form.append("language", language);
+
+  const headers: Record<string, string> = {};
+  if (env.asrApiKey) {
+    headers.Authorization = `Bearer ${env.asrApiKey}`;
+  }
+
+  const response = await fetch(`${baseUrl}/transcribe`, {
+    method: "POST",
+    body: form,
+    headers,
+    signal: AbortSignal.timeout(env.asrRequestTimeoutMs)
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Remote ASR failed (${response.status}): ${text.slice(0, 240)}`);
+  }
+
+  const payload = await response.json();
+  return normalizeWhisperPayload(payload, model, language);
+}
+
+async function transcribeWithLocalWhisper(input: WhisperTranscribeInput): Promise<WhisperTranscribeResult> {
+  const scriptPath = path.resolve(process.cwd(), "scripts", "transcribe_whisper.py");
+  const model = input.model?.trim() || DEFAULT_WHISPER_MODEL;
+  const language = input.language?.trim() || "th";
+  const pythonExecutable = process.env.PYTHON_EXECUTABLE || (process.platform === "win32" ? "python" : "python3");
+
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      pythonExecutable,
+      [scriptPath, input.audioPath, model, language],
+      {
+        maxBuffer: 20 * 1024 * 1024,
+        timeout: 10 * 60 * 1000,
+        windowsHide: true
+      }
+    );
+
+    if (stderr && stderr.trim()) {
+      console.warn("[transcribeWithWhisper] stderr:", stderr);
+    }
+
+    return JSON.parse(stdout) as WhisperTranscribeResult;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    const stderr = typeof error === "object" && error && "stderr" in error && typeof (error as { stderr?: unknown }).stderr === "string"
+      ? (error as { stderr: string }).stderr
+      : "";
+    const spawnCode = typeof error === "object" && error && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+
+    if (spawnCode === "ENOENT" || /spawn .* ENOENT/i.test(message)) {
+      throw new Error(WHISPER_UNAVAILABLE_MESSAGE);
+    }
+
+    throw new Error([
+      `Whisper transcription failed: ${message}`,
+      stderr ? `stderr: ${stderr.trim()}` : ""
+    ].filter(Boolean).join(" | "));
+  }
+}
+
+export async function transcribeWithWhisper(input: WhisperTranscribeInput): Promise<WhisperTranscribeResult> {
+  if (env.asrBaseUrl) {
+    return transcribeWithRemoteAsr(input);
+  }
+
+  return transcribeWithLocalWhisper(input);
+}
 
 function normalize(text: string): string {
   return text.toLowerCase().trim();
@@ -442,50 +563,6 @@ export async function generateWithLocalModel(input: LocalGenerateInput): Promise
   }
 
   throw new Error(`All AI providers failed. ${errors.join(" | ")}`);
-}
-
-export async function transcribeWithWhisper(input: WhisperTranscribeInput): Promise<WhisperTranscribeResult> {
-  const scriptPath = path.resolve(process.cwd(), "scripts", "transcribe_whisper.py");
-  const model = input.model?.trim() || DEFAULT_WHISPER_MODEL;
-  const language = input.language?.trim() || "th";
-  const pythonExecutable = process.env.PYTHON_EXECUTABLE || DEFAULT_PYTHON_EXECUTABLE;
-
-  try {
-    const { stdout, stderr } = await execFileAsync(
-      pythonExecutable,
-      [scriptPath, input.audioPath, model, language],
-      {
-        maxBuffer: 20 * 1024 * 1024,
-        timeout: 10 * 60 * 1000,
-        windowsHide: true
-      }
-    );
-
-    if (stderr && stderr.trim()) {
-      console.warn("[transcribeWithWhisper] stderr:", stderr);
-    }
-
-    return JSON.parse(stdout) as WhisperTranscribeResult;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error";
-    const stderr = typeof error === "object" && error && "stderr" in error && typeof (error as { stderr?: unknown }).stderr === "string"
-      ? (error as { stderr: string }).stderr
-      : "";
-    const spawnCode = typeof error === "object" && error && "code" in error
-      ? String((error as { code?: unknown }).code ?? "")
-      : "";
-
-    if (spawnCode === "ENOENT" || /spawn .* ENOENT/i.test(message)) {
-      throw new Error(
-        "Whisper runtime is not available on this API server. Upload succeeded; paste or edit the transcript manually, or configure a production ASR service."
-      );
-    }
-
-    throw new Error([
-      `Whisper transcription failed: ${message}`,
-      stderr ? `stderr: ${stderr.trim()}` : ""
-    ].filter(Boolean).join(" | "));
-  }
 }
 
 export async function askMinutes(question: string): Promise<AskResult> {
