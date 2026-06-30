@@ -1,5 +1,22 @@
 # Next-Day Handover - 2026-06-28
 
+## Latest Status (2026-06-30)
+
+**`main` is current through `54457cd`.** Recent pushes:
+
+| Commit | Summary |
+|--------|---------|
+| `4cb67d5` | Project knowledge onboarding + general notes for Ask-AI |
+| `e0e836b` | Meeting Studio background transcription, multi-format uploads, hide AI model/confidence labels, continuity nav removed from sidebar |
+| `627a446` | Communication sentiment snapshots + Projects team mood badges |
+| `54457cd` | Fix Railway deploy: sync `pnpm-lock.yaml` with `jszip` |
+
+**Migrations on production:** API Docker entrypoint runs `npx prisma migrate deploy` on boot (`docker/start.sh`). No manual migrate step needed on Railway after deploy.
+
+**Still open:** PM date-ordered timeline tab, sentiment tenant-level tests, project memory vector retrieval, item-level knowledge review UI, account suspension route tests.
+
+Sections below are a chronological log; use this table and the **Open Items Tracker** at the bottom for current truth.
+
 ## Current Working State
 
 Repository has uncommitted work for first-login password handling, personal profile management, and admin organization management.
@@ -326,9 +343,9 @@ Verification:
 - `pnpm.cmd --filter api type-check` passed.
 - `pnpm.cmd --filter web type-check` passed.
 
-## Caution
+## Caution (type-check artifact)
 
-There are uncommitted changes. Do not revert them. `apps/web/tsconfig.tsbuildinfo` is touched by type-check; restore it after checks with:
+`apps/web/tsconfig.tsbuildinfo` may change after `tsc`; restore before commit if needed:
 
 ```powershell
 git restore -- apps/web/tsconfig.tsbuildinfo
@@ -339,9 +356,10 @@ git restore -- apps/web/tsconfig.tsbuildinfo
 User asked whether roles above `MEMBER` already have a project analysis/evaluation panel with a Project Manager timeline.
 
 Current state:
-- There is a `Project Continuity Dashboard` at `/continuity` and `/continuity/:projectId`.
-- Dashboard/Projects link each project to Continuity, Reminders, and AI Trace.
-- Continuity currently shows summary, overdue by owner, overdue by project, missing info, and saved meetings.
+- There is a `Project Continuity Dashboard` at `/continuity/:projectId` (project-scoped).
+- `/continuity` without `projectId` redirects to `/projects`.
+- **Continuity is not in the sidebar** (2026-06-30, `e0e836b`); users open it from each project card on `/projects`.
+- Continuity shows summary, overdue by owner, overdue by project, missing info, and saved meetings.
 
 Gap:
 - There is not yet a dedicated PM timeline view that lays out milestones/action items/meeting sequence/workload by date.
@@ -537,7 +555,9 @@ Implemented:
 Verification:
 - `pnpm.cmd --filter web type-check` passed.
 
-## Follow-Up Idea (2026-06-29, employee communication sentiment trend)
+## Communication Sentiment Trend (2026-06-29 design → 2026-06-30 shipped)
+
+**Status: implemented and pushed `627a446`.**
 
 User asked whether the product can roughly analyze employee mood/emotional tone from chat text
 across the organization by looking at language trends such as phrasing, politeness markers,
@@ -662,11 +682,41 @@ Implementation plan:
 - Add tenant-scoped API endpoint for the latest snapshots.
 - Add `/projects` team-management icon UI with popover/modal detail containing trend score,
   summary, caveats, and suggested supportive manager actions.
-- Add tests for tenant isolation and JSON validation.
+- Add tests for tenant isolation and JSON validation. **Still open.**
 
-## Post-Handover Implementation (2026-06-29, ongoing project knowledge onboarding)
+## Post-Handover Work Completed (2026-06-30, communication sentiment)
 
-**Status: first slice implemented locally, not yet committed. File import + AI extraction v2 added 2026-06-30.**
+Implemented and pushed (`627a446`):
+- Prisma migration `20260630120000_communication_sentiment`:
+  - `CommunicationSentimentSnapshot`, `CommunicationSentimentSource`
+  - `AskAiQueryLog` sentiment processing metadata fields
+- `communicationSentimentService.ts`:
+  - Rolling 3-day window from `AskAiQueryLog.question` (v1 input source)
+  - Thai/English heuristics for profanity, urgency, stress, friction, after-hours signals
+  - Optional AI summary via `generateWithLocalModel`
+  - Daily cron at 02:00 (`SENTIMENT_CRON`, default `0 2 * * *`)
+- API (`/tenants/:tenantId/communication-sentiment`):
+  - `GET /latest`, `GET /members`, `POST /run`
+  - `TENANT_ADMIN` and `MANAGER` only
+- Web:
+  - `TeamSentimentBadge` on `/projects` team table
+  - Manual refresh button calls `POST /run`
+  - i18n `communicationSentiment.*` (TH/EN)
+
+Still open from original design:
+- Per-project snapshots (v1 is tenant + per-member only)
+- `MEETING_TRANSCRIPT` / `COMMENT` source types (enum exists, not wired in v1)
+- Tenant isolation and JSON validation tests
+- Tenant-level mood summary in team section header (per-member badges only today)
+
+Verification:
+- `pnpm --filter api type-check` passed
+- `pnpm --filter web type-check` passed
+- Local `prisma migrate deploy` applied; production applies via `docker/start.sh` on container boot
+
+## Post-Handover Implementation (2026-06-29, project knowledge onboarding)
+
+**Status: implemented and pushed `4cb67d5`.**
 
 User asked how "Rubjob / รับจบ" should work with projects that are already ongoing rather than
 newly created projects. The key concern is making sure baseline project knowledge is imported in
@@ -696,9 +746,9 @@ Implemented first slice:
   project-scoped question is asked, so Rubjob can use the imported baseline immediately.
 
 Current limitations after first slice (superseded partially — see 2026-06-30 knowledge v2 below):
-- ~~Upload is text/paste based. DOCX/PDF parsing is still a follow-up.~~ **Done locally 2026-06-30** —
+- ~~Upload is text/paste based. DOCX/PDF parsing is still a follow-up.~~ **Done** (`4cb67d5`) —
   client-side import for DOCX, PDF (text-based), XLSX, CSV, TXT, and MD.
-- ~~Extraction is deterministic keyword/line based, not yet LLM-powered.~~ **Done locally 2026-06-30** —
+- ~~Extraction is deterministic keyword/line based, not yet LLM-powered.~~ **Done** (`4cb67d5`) —
   AI extraction first (`project-knowledge-onboarding-v2-ai`), heuristic fallback on failure.
 - Review UI approves the latest extraction as a batch; item-level edit/merge/discard is still a
   follow-up.
@@ -818,7 +868,7 @@ Important safeguards:
 
 Suggested first implementation slice:
 - ~~Build upload + source registry for ongoing project knowledge.~~ **Done** (first slice + file import v2).
-- ~~Support DOCX/PDF/text extraction for TOR, requirements, and old minutes.~~ **Done locally 2026-06-30**.
+- ~~Support DOCX/PDF/text extraction for TOR, requirements, and old minutes.~~ **Done** (`4cb67d5`).
 - ~~Generate a structured `Project Baseline Summary`.~~ **Done** via extraction + baseline status card.
 - ~~Add PM review/approve screen.~~ **Done** via extract + approve on `/projects/:projectId/knowledge`.
 - Store approved baseline as `ProjectMemoryItem` plus retrieval chunks. **Partial** — memory items yes, vector chunks no.
@@ -826,7 +876,7 @@ Suggested first implementation slice:
 
 ## Post-Handover Work Completed (2026-06-30, project general notes)
 
-**Status: implemented locally, not yet committed.**
+**Status: implemented and pushed `4cb67d5`.**
 
 Implemented:
 - Added a new project-level `General Notes` surface for extra human knowledge that does not
@@ -887,7 +937,7 @@ Still open from original design:
 
 ## Post-Handover Work Completed (2026-06-30, project knowledge v2)
 
-Implemented locally (uncommitted alongside first slice):
+Implemented and pushed (`4cb67d5`):
 - `ProjectKnowledgePage` now supports batch file import, not only paste:
   - DOCX via mammoth
   - PDF text extraction (text-based PDFs; image-only PDFs fail with a clear error)
@@ -907,6 +957,34 @@ Verification:
 - `pnpm.cmd --filter api type-check` passed.
 - `pnpm.cmd --filter web type-check` passed.
 
+## Post-Handover Work Completed (2026-06-30, Meeting Studio UX)
+
+Implemented and pushed (`e0e836b`):
+
+**Background audio transcription**
+- Long ASR runs in a client-side background job (`meetingStudioJobStore`, `audioJob.ts`).
+- Global `MeetingStudioJobBanner` in `Layout` shows top progress bar; browser notification on completion.
+- User can navigate away while transcription runs.
+
+**Multi-format document upload**
+- `documentText.ts` supports TXT, MD, CSV, TSV, DOCX, PDF (text-based), XLSX (via `jszip`).
+- Uploaded file name and `lastModified` stored in studio settings and persisted on save.
+
+**Hide AI model/confidence from user-facing UI**
+- `redactAiMetadata.ts` strips labels like model name and confidence from trace/continuity/knowledge views.
+
+**Continuity navigation**
+- Removed standalone Continuity item from sidebar (`navigation.ts`).
+- `/continuity` redirects to `/projects`; project cards still link to `/continuity/:projectId`.
+
+Deploy note:
+- `jszip` was added to `apps/web/package.json` without updating `pnpm-lock.yaml` in the first push;
+  fixed in `54457cd` (Railway `frozen-lockfile` install).
+
+Verification:
+- `pnpm --filter api type-check` passed
+- `pnpm --filter web type-check` passed
+
 ## Open Items Tracker (2026-06-30 doc audit)
 
 Reconciled against the codebase. Items marked done below are implemented; remaining items are
@@ -917,17 +995,22 @@ still open.
 | Platform user management UI (`/admin/platform-users`) | **Done** | Committed `3ecf3f4` |
 | Admin org member `jobTitle` / `department` edit | **Done** | `/admin/organizations`, save on blur |
 | Inactive tenant/member unit tests | **Done** | `tenantAccessService.test.ts`, `reminderDigestService.test.ts` |
-| Ask-AI deep links + session persistence | **Done** | Committed `58d5a65`; `knowledge` link type uncommitted |
+| Ask-AI deep links + session persistence | **Done** | Committed `58d5a65`; `knowledge` link type in `4cb67d5` |
 | Reminders digest detail + date filters | **Done** | 2026-06-28 section |
 | Continuity missing-info actionable rows | **Done** | 2026-06-28 section |
 | Workload balancing suggestion popup | **Done** | Committed `e62e610` |
-| Project knowledge onboarding (first slice) | **Done locally** | Uncommitted |
-| Project knowledge file import + AI extraction | **Done locally** | Uncommitted |
-| Project general notes | **Done locally** | Uncommitted |
+| Project knowledge onboarding (first slice) | **Done** | Committed `4cb67d5` |
+| Project knowledge file import + AI extraction | **Done** | Committed `4cb67d5` |
+| Project general notes | **Done** | Committed `4cb67d5` |
+| Meeting Studio background transcription | **Done** | Committed `e0e836b` |
+| Meeting Studio multi-format document upload | **Done** | Committed `e0e836b`; lockfile `54457cd` |
+| Hide AI model/confidence in user UI | **Done** | Committed `e0e836b` |
+| Continuity sidebar removed (Projects entry only) | **Done** | Committed `e0e836b` |
+| Communication sentiment trend | **Done** | Committed `627a446`; tests still open |
 | Account suspension route-level tests | **Open** | No vitest coverage for login/requireAuth/refresh suspend path |
 | Login-page friendly suspended-account message | **Open** | `LoginPage` shows generic `error.message` only |
 | PM date-ordered timeline view | **Open** | Continuity has summary/tabs but no timeline tab |
-| Communication sentiment trend | **Open** | Design only; no Prisma models or API |
+| Sentiment tenant isolation + JSON tests | **Open** | Service shipped without automated tests |
 | Project memory vector retrieval | **Open** | Lexical scoring only |
 | Project knowledge item-level review | **Open** | Batch approve only |
 | Continuity tenant-scope route tests | **Open** | |
@@ -935,12 +1018,6 @@ still open.
 | Review `requireRole([ADMIN, PM])` vs tenant-role routes | **Open** | |
 | Local Node >= 22 | **Open** | Local still v20.10.0 |
 
-Uncommitted work (do not revert):
-- Project knowledge onboarding + migrations + services + page
-- Project general notes + migration + service + page
-- Ask-AI `knowledge` link type in `AIChatPanel.tsx`
-- This handover doc update
-
 Commit status:
-- Everything through `e62e610` (2026-06-29) is on `main`.
-- 2026-06-30 knowledge v2 and general notes are implemented locally but not yet committed.
+- Everything through `54457cd` (2026-06-30) is on `main`.
+- Production DB migrations apply automatically via `docker/start.sh` on API container boot.

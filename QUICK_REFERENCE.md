@@ -1,5 +1,17 @@
 # Quick Reference - Common Commands
 
+## Session Update (2026-06-30)
+
+**`main` through `54457cd`.** Full log: `docs/next-day-handover-2026-06-28.md` (see **Latest Status** at top).
+
+Recent product changes:
+- **Meeting Studio:** background audio transcription (`MeetingStudioJobBanner`); uploads TXT/MD/CSV/TSV/DOCX/PDF/XLSX.
+- **Continuity:** not in sidebar; open from `/projects` → project card → `/continuity/:projectId`. Bare `/continuity` redirects to `/projects`.
+- **Communication sentiment:** mood badges on `/projects` team table (`TENANT_ADMIN` / `MANAGER`); cron + `POST .../communication-sentiment/run`.
+- **Project knowledge + general notes:** `/projects/:projectId/knowledge`, `/projects/:projectId/notes` (committed `4cb67d5`).
+- **User-facing UI:** AI model/confidence labels hidden via `redactAiMetadata.ts`.
+- **Deploy:** API Docker runs `npx prisma migrate deploy` on boot (`docker/start.sh`) — no manual migrate on Railway.
+
 ## Session Update (2026-06-28)
 
 - Platform roles are separated from tenant/workflow roles:
@@ -42,6 +54,8 @@
   1. Import — project + time, upload/live-record/paste transcript, transcribe/analyze.
   2. Compose — review/edit minute template (objective, summary, decisions, risks, tasks).
   3. Review & save — full minutes preview, then Save.
+- Audio transcription runs in the background (2026-06-30): progress banner in layout, notification when done.
+- Document import supports TXT, MD, CSV, TSV, DOCX, PDF (text), XLSX in addition to paste.
 - The clickable stepper header tracks completion (✓) per step; Back/Next/Save live in a
   footer bar. `guidedStep` state drives which step renders. Step navigation is manual —
   no auto-advance — so editing a field never jumps the user to another step.
@@ -52,11 +66,9 @@
 - Saved minutes can be reviewed and edited at:
   - `/meetings/history`
   - `/meetings/history/:meetingId`
-- Project continuity pages (`/continuity/:projectId`) show a `Saved meetings` section loaded from
-  `GET /meetings?projectId=...`, so newly saved Meeting Studio records appear without needing
-  the approved-minute-version flow.
-- If a previously attempted save shows no data, check DB `_count.meetings`; old attempts may have
-  been rejected before the tenant-admin meeting fix and need to be saved again.
+- Project continuity (`/continuity/:projectId`) is reached from each project card on `/projects`
+  (Continuity is not a sidebar item as of 2026-06-30).
+- Continuity pages show a `Saved meetings` section loaded from `GET /meetings?projectId=...`.
 
 ## Session Update (2026-06-22)
 
