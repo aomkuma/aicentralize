@@ -18,7 +18,7 @@ const updateTenantSchema = z.object({
   message: "At least one field is required"
 });
 
-const packageSchema = z.object({
+const packageBaseSchema = z.object({
   code: z.string().trim().min(2).max(40).regex(/^[A-Z0-9_-]+$/),
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().max(500).optional().nullable(),
@@ -33,12 +33,19 @@ const packageSchema = z.object({
   features: z.array(z.string().trim().min(1).max(80)).max(200).default([]),
   isActive: z.boolean().default(true),
   isDefault: z.boolean().default(false)
-}).superRefine((value, ctx) => {
+});
+
+function refinePackageDiscount(
+  value: { discountType?: "FIXED" | "PERCENT" | null; discountValue?: number },
+  ctx: z.RefinementCtx
+) {
   if (!value.discountType) {
     return;
   }
 
-  if (value.discountValue <= 0) {
+  const discountValue = value.discountValue ?? 0;
+
+  if (discountValue <= 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Discount value must be greater than zero when a discount type is set",
@@ -46,16 +53,18 @@ const packageSchema = z.object({
     });
   }
 
-  if (value.discountType === "PERCENT" && value.discountValue > 100) {
+  if (value.discountType === "PERCENT" && discountValue > 100) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Percentage discount cannot exceed 100",
       path: ["discountValue"]
     });
   }
-});
+}
 
-const updatePackageSchema = packageSchema.partial().refine((value) => Object.keys(value).length > 0, {
+const packageSchema = packageBaseSchema.superRefine(refinePackageDiscount);
+
+const updatePackageSchema = packageBaseSchema.partial().superRefine(refinePackageDiscount).refine((value) => Object.keys(value).length > 0, {
   message: "At least one field is required"
 });
 
