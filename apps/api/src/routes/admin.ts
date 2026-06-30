@@ -121,7 +121,7 @@ async function normalizeDefaultPackage(packageId: string, isDefault?: boolean) {
 
 adminRouter.get("/packages", requireSystemRole([SystemRole.SUPER_ADMIN]), async (_req, res) => {
   const packages = await prisma.subscriptionPackage.findMany({
-    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }]
+    orderBy: [{ priceCents: "asc" }, { name: "asc" }]
   });
 
   res.json(packages);

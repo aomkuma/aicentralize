@@ -35,6 +35,17 @@ export function packageDiscountLabel(pkg: SubscriptionPackage): string | null {
   return formatPackageMoney(pkg.discountValue, pkg.currency)
 }
 
+export function sortPackagesByPrice(packages: SubscriptionPackage[]): SubscriptionPackage[] {
+  return [...packages].sort((left, right) => {
+    const priceDiff = effectivePackagePriceCents(left) - effectivePackagePriceCents(right)
+    if (priceDiff !== 0) {
+      return priceDiff
+    }
+
+    return left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
+  })
+}
+
 export function packageFeatureLabels(pkg: SubscriptionPackage, limit = 4): string[] {
   const knownFeatures = new Map<string, string>(
     Object.values(FEATURES).map((feature) => [feature.id, feature.name]),

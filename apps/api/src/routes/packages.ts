@@ -6,7 +6,7 @@ export const packagesRouter = Router();
 packagesRouter.get("/", async (_req, res) => {
   const packages = await prisma.subscriptionPackage.findMany({
     where: { isActive: true },
-    orderBy: [{ isDefault: "desc" }, { priceCents: "asc" }, { createdAt: "asc" }]
+    orderBy: [{ priceCents: "asc" }, { name: "asc" }]
   });
 
   res.json(packages);

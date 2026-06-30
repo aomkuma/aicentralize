@@ -8,6 +8,7 @@ import {
   formatPackageMoney,
   packageDiscountLabel,
   packageFeatureLabels,
+  sortPackagesByPrice,
 } from '../lib/packagePricing'
 import type { SubscriptionPackage } from '../types'
 
@@ -79,7 +80,7 @@ export default function WelcomePage() {
       setPackagesLoading(true)
       const data = await get<SubscriptionPackage[]>('/packages')
       if (!cancelled && Array.isArray(data)) {
-        setPackages(data)
+        setPackages(sortPackagesByPrice(data))
       }
       if (!cancelled) {
         setPackagesLoading(false)
@@ -270,7 +271,6 @@ export default function WelcomePage() {
                 {t('navigation.packages')}
               </p>
               <h2 className="mt-4 text-2xl font-bold sm:text-3xl">{t('landing.packagesTitle')}</h2>
-              <p className="mt-3 text-base text-slate-400 sm:text-lg">{t('landing.packagesSubtitle')}</p>
             </div>
 
             {packagesLoading ? (
@@ -278,7 +278,7 @@ export default function WelcomePage() {
             ) : !packages.length ? (
               <p className="mt-12 text-center text-sm text-slate-400">{t('landing.packagesEmpty')}</p>
             ) : (
-              <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-12 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
                 {packages.map((pkg) => {
                   const effectivePrice = effectivePackagePriceCents(pkg)
                   const discountLabel = packageDiscountLabel(pkg)
