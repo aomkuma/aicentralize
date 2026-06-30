@@ -1,11 +1,13 @@
 import { ActionItemPriority, ActionStatus, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole } from "../middleware/auth";
-import { ensureActionItemScopeAccess, listMemberProjectIds } from "../services/accessScopeService";
+import { requireAuth } from "../middleware/auth";
+import { ensureActionItemScopeAccess, listAccessibleProjectIds, listMemberProjectIds } from "../services/accessScopeService";
 import {
   actionItemErrors,
+  canAssignActionItemsToOthers,
   changeActionItemStatus,
+  createActionItem,
   getActionItemDetail,
   listActionItems,
   reassignActionItem,
@@ -17,6 +19,7 @@ export const actionItemRouter = Router();
 const listActionItemsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  mine: z.coerce.boolean().optional().default(false),
   projectId: z.string().min(1).optional(),
   meetingId: z.string().min(1).optional(),
   ownerUserId: z.string().min(1).optional(),
@@ -24,6 +27,15 @@ const listActionItemsQuerySchema = z.object({
   overdueOnly: z.coerce.boolean().optional().default(false),
   dueFrom: z.string().datetime().optional(),
   dueTo: z.string().datetime().optional()
+});
+
+const createActionItemSchema = z.object({
+  projectId: z.string().min(1),
+  title: z.string().trim().min(1).max(240),
+  description: z.string().trim().max(4000).optional(),
+  dueDate: z.string().datetime(),
+  priority: z.nativeEnum(ActionItemPriority).optional(),
+  ownerUserId: z.string().min(1).optional()
 });
 
 const updateActionItemSchema = z.object({
@@ -51,9 +63,32 @@ actionItemRouter.get("/", requireAuth, async (req, res) => {
     return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
   }
 
+  const user = req.user!;
   let projectId = parsed.data.projectId;
-  if (req.user?.role === UserRole.MEMBER) {
-    const memberProjectIds = await listMemberProjectIds(req.user.id);
+  let projectIds: string[] | undefined;
+  let ownerUserId = parsed.data.ownerUserId;
+
+  if (parsed.data.mine) {
+    ownerUserId = user.id;
+    const accessibleProjectIds = await listAccessibleProjectIds(user);
+
+    if (projectId) {
+      if (accessibleProjectIds && !accessibleProjectIds.includes(projectId)) {
+        return res.status(403).json({ message: "Forbidden scope" });
+      }
+    } else if (accessibleProjectIds) {
+      projectIds = accessibleProjectIds;
+      if (!projectIds.length) {
+        return res.json({
+          page: parsed.data.page,
+          pageSize: parsed.data.pageSize,
+          total: 0,
+          items: []
+        });
+      }
+    }
+  } else if (user.role === UserRole.MEMBER) {
+    const memberProjectIds = await listMemberProjectIds(user.id);
     if (projectId && !memberProjectIds.includes(projectId)) {
       return res.status(403).json({ message: "Forbidden scope" });
     }
@@ -67,8 +102,9 @@ actionItemRouter.get("/", requireAuth, async (req, res) => {
     page: parsed.data.page,
     pageSize: parsed.data.pageSize,
     projectId,
+    projectIds,
     meetingId: parsed.data.meetingId,
-    ownerUserId: parsed.data.ownerUserId,
+    ownerUserId,
     status: parsed.data.status,
     overdueOnly: parsed.data.overdueOnly,
     dueFrom: parsed.data.dueFrom ? new Date(parsed.data.dueFrom) : undefined,
@@ -76,6 +112,47 @@ actionItemRouter.get("/", requireAuth, async (req, res) => {
   });
 
   return res.json(result);
+});
+
+actionItemRouter.post("/", requireAuth, async (req, res) => {
+  const parsed = createActionItemSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  if (parsed.data.ownerUserId && parsed.data.ownerUserId !== req.user!.id) {
+    const canAssignOthers = await canAssignActionItemsToOthers(req.user!, parsed.data.projectId);
+    if (!canAssignOthers) {
+      return res.status(403).json({ message: "Members can only create tasks assigned to themselves" });
+    }
+  }
+
+  try {
+    const item = await createActionItem({
+      projectId: parsed.data.projectId,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      dueDate: new Date(parsed.data.dueDate),
+      priority: parsed.data.priority,
+      ownerUserId: parsed.data.ownerUserId
+    }, req.user!);
+
+    return res.status(201).json(item);
+  } catch (error) {
+    if (error instanceof Error && error.message === actionItemErrors.FORBIDDEN_SCOPE_ERROR) {
+      return res.status(403).json({ message: "Forbidden scope" });
+    }
+
+    if (error instanceof Error && error.message === "PROJECT_NOT_FOUND") {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    if (error instanceof Error && error.message === actionItemErrors.TARGET_OWNER_NOT_FOUND_ERROR) {
+      return res.status(404).json({ message: "Target owner not found" });
+    }
+
+    return res.status(500).json({ message: "Unable to create action item" });
+  }
 });
 
 actionItemRouter.get("/:id", requireAuth, async (req, res) => {
@@ -131,12 +208,21 @@ actionItemRouter.patch("/:id", requireAuth, async (req, res) => {
   }
 });
 
-actionItemRouter.post("/:id/reassign", requireAuth, requireRole([UserRole.ADMIN, UserRole.PM]), async (req, res) => {
+actionItemRouter.post("/:id/reassign", requireAuth, async (req, res) => {
   const scope = await ensureActionItemScopeAccess(req.user!, req.params.id);
   if (!scope.allowed) {
     if (scope.reason === "ACTION_ITEM_NOT_FOUND") {
       return res.status(404).json({ message: "Action item not found" });
     }
+    return res.status(403).json({ message: "Forbidden scope" });
+  }
+
+  if (!scope.projectId) {
+    return res.status(404).json({ message: "Action item not found" });
+  }
+
+  const canAssignOthers = await canAssignActionItemsToOthers(req.user!, scope.projectId);
+  if (!canAssignOthers) {
     return res.status(403).json({ message: "Forbidden scope" });
   }
 

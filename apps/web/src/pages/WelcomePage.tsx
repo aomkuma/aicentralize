@@ -18,6 +18,11 @@ const FEATURE_ICONS = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
     </svg>
   ),
+  feelingLogs: (
+    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+    </svg>
+  ),
   askAi: (
     <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
@@ -31,12 +36,22 @@ const FEATURE_ICONS = {
 } as const
 
 const FEATURE_KEYS = [
+  'knowledge',
+  'feelingLogs',
   'meetingStudio',
   'projects',
-  'knowledge',
   'askAi',
   'reminders',
 ] as const
+
+const HERO_HIGHLIGHT_KEYS = ['knowledgeHub', 'teamPulse', 'contextAi'] as const
+
+const SPOTLIGHT_KEYS = ['knowledgeHub', 'feelingLogs'] as const
+
+const SPOTLIGHT_POINT_KEYS = {
+  knowledgeHub: ['onboarding', 'documents', 'askAi'],
+  feelingLogs: ['private', 'insights', 'culture'],
+} as const
 
 export default function WelcomePage() {
   const { t } = useTranslation()
@@ -75,7 +90,19 @@ export default function WelcomePage() {
 
       <main className="relative z-10">
         <section className="mx-auto max-w-7xl px-4 pb-12 pt-6 sm:px-6 sm:pb-16 sm:pt-8 lg:px-8 lg:pb-20">
-          <div className="overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-blue-950/60 ring-1 ring-white/10">
+          <div className="mx-auto max-w-3xl space-y-5 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400 sm:text-sm">
+              {t('landing.eyebrow')}
+            </p>
+            <h1 className="text-[1.75rem] font-bold leading-[1.2] tracking-tight sm:text-4xl lg:text-[2.65rem] lg:leading-[1.15]">
+              {t('landing.heroTitle')}
+            </h1>
+            <p className="mx-auto max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg sm:leading-8">
+              {t('landing.heroSubtitle')}
+            </p>
+          </div>
+
+          <div className="mt-8 overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-blue-950/60 ring-1 ring-white/10">
             <img
               src="/brand/kora-landing-banner.png"
               alt={t('landing.heroBannerAlt')}
@@ -83,19 +110,121 @@ export default function WelcomePage() {
             />
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              to="/auth/login"
-              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-3 text-sm font-bold text-white shadow-xl shadow-blue-900/50 transition hover:from-blue-500 hover:to-cyan-400"
-            >
-              {t('landing.getStarted')}
-            </Link>
-            <a
-              href="#features"
-              className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              {t('landing.exploreFeatures')}
-            </a>
+          <div className="mt-10 lg:mt-12">
+            <ul className="grid gap-3 lg:grid-cols-3">
+              {HERO_HIGHLIGHT_KEYS.map((key) => (
+                <li
+                  key={key}
+                  className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3.5 backdrop-blur-sm transition hover:border-cyan-500/25 hover:bg-cyan-500/[0.04]"
+                >
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-xs font-bold text-white shadow shadow-cyan-900/40">
+                    ✓
+                  </span>
+                  <div>
+                    <p className="font-semibold text-white">{t(`landing.heroHighlights.${key}.title`)}</p>
+                    <p className="mt-0.5 text-sm leading-relaxed text-slate-400">
+                      {t(`landing.heroHighlights.${key}.description`)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                to="/auth/login"
+                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-3 text-sm font-bold text-white shadow-xl shadow-blue-900/50 transition hover:from-blue-500 hover:to-cyan-400"
+              >
+                {t('landing.getStarted')}
+              </Link>
+              <a
+                href="#spotlight"
+                className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                {t('landing.exploreFeatures')}
+              </a>
+            </div>
+
+            <p className="mt-8 flex justify-center">
+              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-100">
+                <span className="text-cyan-400" aria-hidden>✦</span>
+                {t('landing.heroBadge')}
+              </span>
+            </p>
+          </div>
+        </section>
+
+        <section id="spotlight" className="border-t border-white/10 bg-gradient-to-b from-cyan-950/20 via-black/20 to-black/30 py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-3xl text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400 sm:text-sm">
+                {t('landing.spotlightTitle')}
+              </p>
+              <p className="mt-4 text-base leading-relaxed text-slate-300 sm:text-lg">
+                {t('landing.spotlightSubtitle')}
+              </p>
+            </div>
+
+            <div className="mt-12 grid gap-6 lg:grid-cols-2">
+              {SPOTLIGHT_KEYS.map((key) => (
+                <article
+                  key={key}
+                  className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/90 to-slate-950/90 p-6 shadow-2xl shadow-blue-950/30 sm:p-8"
+                >
+                  <div
+                    className={`pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full blur-3xl ${
+                      key === 'knowledgeHub' ? 'bg-cyan-500/20' : 'bg-rose-500/15'
+                    }`}
+                  />
+                  <div className="relative">
+                    <div className="mb-5 flex items-center gap-3">
+                      <div
+                        className={`inline-flex rounded-xl border p-3 ${
+                          key === 'knowledgeHub'
+                            ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300'
+                            : 'border-rose-400/30 bg-rose-500/10 text-rose-300'
+                        }`}
+                      >
+                        {key === 'knowledgeHub' ? FEATURE_ICONS.knowledge : FEATURE_ICONS.feelingLogs}
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                          key === 'knowledgeHub'
+                            ? 'border border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
+                            : 'border border-rose-400/30 bg-rose-500/10 text-rose-200'
+                        }`}
+                      >
+                        {t(`landing.spotlight.${key}.badge`)}
+                      </span>
+                    </div>
+
+                    <h3 className="text-2xl font-bold text-white sm:text-[1.65rem]">
+                      {t(`landing.spotlight.${key}.title`)}
+                    </h3>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-300 sm:text-base">
+                      {t(`landing.spotlight.${key}.description`)}
+                    </p>
+
+                    <ul className="mt-6 space-y-3">
+                      {SPOTLIGHT_POINT_KEYS[key].map((pointKey) => (
+                        <li key={pointKey} className="flex gap-3 text-sm text-slate-300 sm:text-[0.95rem]">
+                          <span
+                            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${
+                              key === 'knowledgeHub'
+                                ? 'bg-gradient-to-br from-blue-500 to-cyan-400'
+                                : 'bg-gradient-to-br from-rose-500 to-orange-400'
+                            }`}
+                          >
+                            ✓
+                          </span>
+                          <span>{t(`landing.spotlight.${key}.points.${pointKey}`)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -106,11 +235,15 @@ export default function WelcomePage() {
               <p className="mt-3 text-slate-400">{t('landing.featuresSubtitle')}</p>
             </div>
 
-            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURE_KEYS.map((key) => (
                 <article
                   key={key}
-                  className="group rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/80 to-slate-950/80 p-5 transition hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-950/30"
+                  className={`group rounded-2xl border bg-gradient-to-b from-slate-900/80 to-slate-950/80 p-5 transition hover:shadow-lg ${
+                    key === 'knowledge' || key === 'feelingLogs'
+                      ? 'border-cyan-500/30 hover:border-cyan-500/50 hover:shadow-cyan-950/30'
+                      : 'border-white/10 hover:border-cyan-500/40 hover:shadow-cyan-950/30'
+                  }`}
                 >
                   <div className="mb-4 inline-flex rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3 text-cyan-300 transition group-hover:bg-cyan-500/20">
                     {FEATURE_ICONS[key]}

@@ -26,21 +26,21 @@
   "landing": {
     "eyebrow": "KORA · AI-Powered Meeting & Work OS",
     "heroTitle": "AI Workspace ที่รวมทุกอย่างของการประชุมและการทำงานไว้ในที่เดียว",
-    "heroSubtitle": "เปลี่ยนการประชุม เอกสาร และองค์ความรู้ ให้กลายเป็น Action ที่ติดตามได้จริง พร้อม AI ที่เข้าใจบริบทขององค์กรคุณ",
-    "heroBannerAlt": "Kora AI Workspace สำหรับทีมยุคใหม่ — บันทึกประชุม โปรเจกต์ ความรู้ Ask AI และแจ้งเตือนงาน",
-    "heroBadge": "AI ที่ทำงานร่วมกับทีมคุณ เพื่อผลลัพธ์ที่ดีขึ้นในทุกวัน",
+    "heroSubtitle": "รวมความรู้องค์กร บันทึกความรู้สึกในการทำงาน และเปลี่ยนทุกอย่างให้เป็น Action ที่ติดตามได้ — พร้อม AI ที่เข้าใจบริบทของคุณ",
+    "heroBannerAlt": "Kora AI Workspace สำหรับทีมยุคใหม่ — Knowledge Hub บันทึกความรู้สึก โปรเจกต์ Ask AI และแจ้งเตือนงาน",
+    "heroBadge": "ความรู้ + บรรยากาศทีม + AI ในที่เดียว",
     "heroHighlights": {
-      "meetings": {
-        "title": "จากประชุมสู่ Action",
-        "description": "บันทึก ถอดความ สรุป และดึงงานติดตามได้ในขั้นตอนเดียว"
+      "knowledgeHub": {
+        "title": "Knowledge Hub",
+        "description": "รวม TOR, requirement, minutes และเอกสารโปรเจกต์เป็น baseline ที่ตรวจแล้ว"
       },
-      "knowledge": {
-        "title": "รวมความรู้ไว้ที่เดียว",
-        "description": "บันทึกโปรเจกต์ onboarding และเอกสารที่ทีมนำไปใช้งานจริง"
+      "teamPulse": {
+        "title": "ภาพรวมบรรยากาศทีม",
+        "description": "บันทึกความรู้สึกอย่างปลอดภัย แล้วเห็นเทรนด์บรรยากาศองค์กรโดยไม่เปิดเผยข้อความส่วนตัว"
       },
-      "ai": {
+      "contextAi": {
         "title": "AI เข้าใจบริบท",
-        "description": "ถามตอบจากข้อมูลจริงของโปรเจกต์ ไม่ใช่คำตอบทั่วไป"
+        "description": "ถามตอบจากความรู้จริงของโปรเจกต์ ไม่ใช่คำตอบทั่วไป"
       }
     },
     "getStarted": "เริ่มต้นใช้งาน",
@@ -48,7 +48,31 @@
     "signIn": "เข้าสู่ระบบ",
     "signInToWorkspace": "เข้าสู่ระบบ workspace",
     "featuresTitle": "ออกแบบมาเพื่อการทำงานของทีมจริง",
-    "featuresSubtitle": "จากห้องประชุมถึงการติดตามงาน — ใน workspace เดียว",
+    "featuresSubtitle": "จากความรู้และบรรยากาศทีม สู่การลงมือทำ — ใน workspace เดียว",
+    "spotlightTitle": "สองจุดแข็งที่ทำให้ Kora ต่าง",
+    "spotlightSubtitle": "ไม่ใช่แค่บันทึกประชุม แต่รวมความรู้องค์กรและเสียงของทีมไว้ในภาพเดียว",
+    "spotlight": {
+      "knowledgeHub": {
+        "badge": "Knowledge Hub",
+        "title": "รวมความรู้องค์กรไว้ที่เดียว",
+        "description": "นำ TOR, requirement, minutes เก่า และเอกสารส่งมอบเข้าระบบ สกัดเป็น project baseline ที่ผ่านการตรวจแล้ว ก่อนให้ Ask AI ตอบจากบริบทจริงของโปรเจกต์",
+        "points": {
+          "onboarding": "Onboarding โปรเจกต์ใหม่ด้วยความรู้ที่อนุมัติแล้ว",
+          "documents": "อัปโหลดและสกัดเอกสารเป็น project memory",
+          "askAi": "ถาม AI จากความรู้จริง ไม่ใช่คำตอบทั่วไป"
+        }
+      },
+      "feelingLogs": {
+        "badge": "บันทึกความรู้สึก",
+        "title": "เห็นภาพรวมบรรยากาศในองค์กร",
+        "description": "ทีมสะท้อนความรู้สึกในการทำงานอย่างปลอดภัย ระบบวิเคราะห์และสรุปเชิงสังเกตให้ผู้จัดการเห็นเทรนด์บรรยากาศ โดยไม่เปิดเผยข้อความดิบหรือชื่อผู้เขียน",
+        "points": {
+          "private": "บันทึกส่วนตัว — มีเพียงคุณที่อ่านข้อความดิบได้",
+          "insights": "สรุปเชิงสังเกตสำหรับหัวหน้าทีมและผู้จัดการ",
+          "culture": "ติดตามบรรยากาศทีมและจุดที่ต้องดูแลก่อนบานปลาย"
+        }
+      }
+    },
     "features": {
       "meetingStudio": {
         "title": "Meeting Studio",
@@ -60,7 +84,11 @@
       },
       "knowledge": {
         "title": "Knowledge Hub",
-        "description": "รวมความรู้ onboarding และบันทึกขององค์กร"
+        "description": "รวม TOR, requirement, minutes และ project memory ที่อนุมัติแล้ว"
+      },
+      "feelingLogs": {
+        "title": "บันทึกความรู้สึก",
+        "description": "สะท้อนความรู้สึกอย่างปลอดภัย และเห็นภาพรวมบรรยากาศองค์กร"
       },
       "askAi": {
         "title": "Ask AI",
@@ -72,9 +100,9 @@
       }
     },
     "ctaTitle": "พร้อมรวมทีมของคุณแล้วหรือยัง?",
-    "ctaSubtitle": "เข้าสู่ระบบด้วยบัญชีองค์กร หรือรับคำเชิญจากผู้ดูแลระบบ",
+    "ctaSubtitle": "เข้าสู่ระบบเพื่อรวมความรู้องค์กร ดูภาพรวมบรรยากาศทีม และเริ่มทำงานกับทีมของคุณ",
     "footer": "© {{year}} Kora สงวนลิขสิทธิ์",
-    "footerTagline": "Meeting intelligence สำหรับทีมที่ลงมือทำจริง",
+    "footerTagline": "ความรู้องค์กร + บรรยากาศทีม สำหรับองค์กรที่ลงมือทำจริง",
     "backToHome": "กลับหน้าแรก"
   },
   "setup": {
@@ -256,6 +284,7 @@
   },
   "navigation": {
     "dashboard": "แดชบอร์ด",
+    "myTasks": "รายการงานของฉัน",
     "meetingStudio": "สตูดิโอประชุม",
     "projectContinuity": "ความต่อเนื่องโปรเจกต์",
     "allProjects": "โปรเจกต์ทั้งหมด",
@@ -635,6 +664,18 @@
     "type": "ประเภท",
     "missingInfo": "ข้อมูลขาดหายไป",
     "unassigned": "ยังไม่ได้มอบหมาย"
+  },
+  "myTasks": {
+    "title": "รายการงานของฉัน",
+    "description": "รายการปฏิบัติการที่มอบหมายให้คุณจากทุกโปรเจกต์",
+    "createFormTitle": "สร้างรายการปฏิบัติการ",
+    "showCreateForm": "เพิ่มรายการงาน",
+    "hideCreateForm": "ซ่อนฟอร์ม",
+    "taskTitle": "งานที่ต้องดำเนินการ",
+    "projectLabel": "โปรเจกต์",
+    "assigneeLabel": "มอบหมายให้",
+    "createSuccess": "สร้างรายการปฏิบัติการแล้ว",
+    "createFailed": "ไม่สามารถสร้างรายการปฏิบัติการได้"
   },
   "reminders": {
     "shortLabel": "Reminders",

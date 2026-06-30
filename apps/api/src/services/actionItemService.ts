@@ -1,5 +1,7 @@
-import { ActionItemPriority, ActionStatus, UserRole } from "@prisma/client";
+import { ActionItemPriority, ActionItemSource, ActionStatus, TenantRole, UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import { ensureProjectScopeAccess } from "./accessScopeService";
+import { ensureTenantRole, type TenantAuthUser } from "./tenantAccessService";
 import {
   notifyActionItemDueDateChanged,
   notifyActionItemPriorityChanged,
@@ -11,12 +13,22 @@ type ListActionItemsInput = {
   page: number;
   pageSize: number;
   projectId?: string;
+  projectIds?: string[];
   meetingId?: string;
   ownerUserId?: string;
   status?: ActionStatus;
   overdueOnly?: boolean;
   dueFrom?: Date;
   dueTo?: Date;
+};
+
+type CreateActionItemInput = {
+  projectId: string;
+  title: string;
+  description?: string;
+  dueDate: Date;
+  priority?: ActionItemPriority;
+  ownerUserId?: string;
 };
 
 type UpdateActionItemInput = {
@@ -28,6 +40,8 @@ type UpdateActionItemInput = {
 
 const MUTABLE_BY_MEMBER_ERROR = "MEMBER_FORBIDDEN";
 const ACTION_ITEM_NOT_FOUND_ERROR = "ACTION_ITEM_NOT_FOUND";
+const FORBIDDEN_SCOPE_ERROR = "FORBIDDEN_SCOPE";
+const TARGET_OWNER_NOT_FOUND_ERROR = "TARGET_OWNER_NOT_FOUND";
 
 function isClosedStatus(status: ActionStatus): boolean {
   return status === ActionStatus.DONE || status === ActionStatus.CANCELLED;
@@ -71,14 +85,209 @@ async function loadActorName(userId: string) {
   return actor?.name ?? "Someone";
 }
 
+type ActionItemWithRelations = {
+  id: string;
+  task: string;
+  detail: string | null;
+  assigneeId: string;
+  ownerDisplayName: string | null;
+  dueDate: Date;
+  priority: ActionItemPriority;
+  status: ActionStatus;
+  createdAt: Date;
+  project: {
+    id: string;
+    code: string;
+    name: string;
+  };
+  assignee: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  meeting: {
+    id: string;
+    title: string;
+    sessionAt: Date;
+  } | null;
+  minuteVersion: {
+    id: string;
+    versionNo: number;
+    approvedAt: Date | null;
+  } | null;
+};
+
+function mapActionItemListRow(item: ActionItemWithRelations, now: Date) {
+  return {
+    id: item.id,
+    title: item.task,
+    description: item.detail,
+    ownerUserId: item.assigneeId,
+    ownerDisplayName: item.ownerDisplayName ?? item.assignee.name,
+    dueDate: item.dueDate,
+    priority: item.priority,
+    status: item.status,
+    createdAt: item.createdAt,
+    meeting: item.meeting
+      ? {
+        id: item.meeting.id,
+        title: item.meeting.title,
+        meetingDate: item.meeting.sessionAt
+      }
+      : null,
+    project: item.project,
+    minuteVersion: item.minuteVersion,
+    overdue: item.dueDate < now && !isClosedStatus(item.status)
+  };
+}
+
+const actionItemInclude = {
+  assignee: {
+    select: {
+      id: true,
+      name: true,
+      email: true
+    }
+  },
+  project: {
+    select: {
+      id: true,
+      code: true,
+      name: true
+    }
+  },
+  meeting: {
+    select: {
+      id: true,
+      title: true,
+      sessionAt: true
+    }
+  },
+  minuteVersion: {
+    select: {
+      id: true,
+      versionNo: true,
+      approvedAt: true
+    }
+  }
+} as const;
+
+async function assertAssigneeInProject(projectId: string, assigneeId: string) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { tenantId: true }
+  });
+
+  if (!project) {
+    throw new Error("PROJECT_NOT_FOUND");
+  }
+
+  const assignee = await prisma.user.findUnique({
+    where: { id: assigneeId },
+    select: { id: true, name: true }
+  });
+
+  if (!assignee) {
+    throw new Error(TARGET_OWNER_NOT_FOUND_ERROR);
+  }
+
+  if (!project.tenantId) {
+    return assignee;
+  }
+
+  const membership = await prisma.tenantMembership.findUnique({
+    where: {
+      tenantId_userId: {
+        tenantId: project.tenantId,
+        userId: assigneeId
+      }
+    },
+    select: { isActive: true }
+  });
+
+  if (!membership?.isActive) {
+    throw new Error(TARGET_OWNER_NOT_FOUND_ERROR);
+  }
+
+  return assignee;
+}
+
+export async function canAssignActionItemsToOthers(
+  user: TenantAuthUser,
+  projectId: string
+): Promise<boolean> {
+  if (user.role === UserRole.ADMIN || user.role === UserRole.PM) {
+    return true;
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { tenantId: true }
+  });
+
+  if (!project?.tenantId) {
+    return false;
+  }
+
+  return ensureTenantRole(user, project.tenantId, [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]);
+}
+
+export async function createActionItem(
+  payload: CreateActionItemInput,
+  user: TenantAuthUser
+) {
+  const projectScope = await ensureProjectScopeAccess(user, payload.projectId);
+  if (!projectScope.allowed) {
+    throw new Error(FORBIDDEN_SCOPE_ERROR);
+  }
+
+  const canAssignOthers = await canAssignActionItemsToOthers(user, payload.projectId);
+  const assigneeId = canAssignOthers
+    ? (payload.ownerUserId ?? user.id)
+    : user.id;
+
+  const assignee = await assertAssigneeInProject(payload.projectId, assigneeId);
+
+  const created = await prisma.$transaction(async (tx) => {
+    const item = await tx.actionItem.create({
+      data: {
+        projectId: payload.projectId,
+        task: payload.title.trim(),
+        detail: payload.description?.trim() || null,
+        assigneeId: assignee.id,
+        ownerDisplayName: assignee.name,
+        dueDate: payload.dueDate,
+        priority: payload.priority ?? ActionItemPriority.MEDIUM,
+        status: ActionStatus.TODO,
+        source: ActionItemSource.MANUAL
+      },
+      include: actionItemInclude
+    });
+
+    await tx.actionItemStatusHistory.create({
+      data: {
+        actionItemId: item.id,
+        fromStatus: null,
+        toStatus: ActionStatus.TODO,
+        changedById: user.id,
+        note: "Created from project task list"
+      }
+    });
+
+    return item;
+  });
+
+  return mapActionItemListRow(created, new Date());
+}
+
 export async function listActionItems(input: ListActionItemsInput) {
   const now = new Date();
   const where: {
+    projectId?: string | { in: string[] };
     meetingId?: string;
     assigneeId?: string;
     status?: ActionStatus;
     dueDate?: { gte?: Date; lte?: Date; lt?: Date };
-    meeting?: { projectId?: string };
     NOT?: { status: { in: ActionStatus[] } };
   } = {};
 
@@ -95,7 +304,9 @@ export async function listActionItems(input: ListActionItemsInput) {
   }
 
   if (input.projectId) {
-    where.meeting = { projectId: input.projectId };
+    where.projectId = input.projectId;
+  } else if (input.projectIds?.length) {
+    where.projectId = { in: input.projectIds };
   }
 
   if (input.overdueOnly) {
@@ -112,33 +323,7 @@ export async function listActionItems(input: ListActionItemsInput) {
     prisma.actionItem.count({ where }),
     prisma.actionItem.findMany({
       where,
-      include: {
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        meeting: {
-          include: {
-            project: {
-              select: {
-                id: true,
-                code: true,
-                name: true
-              }
-            }
-          }
-        },
-        minuteVersion: {
-          select: {
-            id: true,
-            versionNo: true,
-            approvedAt: true
-          }
-        }
-      },
+      include: actionItemInclude,
       orderBy: [
         { dueDate: "asc" },
         { updatedAt: "desc" }
@@ -152,25 +337,7 @@ export async function listActionItems(input: ListActionItemsInput) {
     page: input.page,
     pageSize: input.pageSize,
     total,
-    items: items.map((item) => ({
-      id: item.id,
-      title: item.task,
-      description: item.detail,
-      ownerUserId: item.assigneeId,
-      ownerDisplayName: item.ownerDisplayName ?? item.assignee.name,
-      dueDate: item.dueDate,
-      priority: item.priority,
-      status: item.status,
-      createdAt: item.createdAt,
-      meeting: {
-        id: item.meeting.id,
-        title: item.meeting.title,
-        meetingDate: item.meeting.sessionAt
-      },
-      project: item.meeting.project,
-      minuteVersion: item.minuteVersion,
-      overdue: item.dueDate < now && !isClosedStatus(item.status)
-    }))
+    items: items.map((item) => mapActionItemListRow(item, now))
   };
 }
 
@@ -186,15 +353,18 @@ export async function getActionItemDetail(id: string) {
           email: true
         }
       },
+      project: {
+        select: {
+          id: true,
+          code: true,
+          name: true
+        }
+      },
       meeting: {
-        include: {
-          project: {
-            select: {
-              id: true,
-              code: true,
-              name: true
-            }
-          }
+        select: {
+          id: true,
+          title: true,
+          sessionAt: true
         }
       },
       minuteVersion: {
@@ -243,12 +413,14 @@ export async function getActionItemDetail(id: string) {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     overdue: item.dueDate < now && !isClosedStatus(item.status),
-    meeting: {
-      id: item.meeting.id,
-      title: item.meeting.title,
-      meetingDate: item.meeting.sessionAt,
-      project: item.meeting.project
-    },
+    meeting: item.meeting
+      ? {
+        id: item.meeting.id,
+        title: item.meeting.title,
+        meetingDate: item.meeting.sessionAt
+      }
+      : null,
+    project: item.project,
     minuteVersion: item.minuteVersion,
     statusHistory: item.statusHistory,
     latestReminders: item.notifications
@@ -428,5 +600,7 @@ export async function changeActionItemStatus(
 
 export const actionItemErrors = {
   MUTABLE_BY_MEMBER_ERROR,
-  ACTION_ITEM_NOT_FOUND_ERROR
+  ACTION_ITEM_NOT_FOUND_ERROR,
+  FORBIDDEN_SCOPE_ERROR,
+  TARGET_OWNER_NOT_FOUND_ERROR
 };

@@ -106,20 +106,62 @@ async function canManageProjectByTenant(userId: string, projectId: string) {
 }
 
 export async function listMemberProjectIds(userId: string): Promise<string[]> {
-  const meetings = await prisma.meeting.findMany({
-    where: {
-      OR: [
-        { createdById: userId },
-        { participants: { some: { userId } } }
-      ]
-    },
-    select: {
-      projectId: true
-    },
-    distinct: ["projectId"]
-  });
+  const [meetingProjects, assignedProjects] = await Promise.all([
+    prisma.meeting.findMany({
+      where: {
+        OR: [
+          { createdById: userId },
+          { participants: { some: { userId } } }
+        ]
+      },
+      select: {
+        projectId: true
+      },
+      distinct: ["projectId"]
+    }),
+    prisma.actionItem.findMany({
+      where: { assigneeId: userId },
+      select: { projectId: true },
+      distinct: ["projectId"]
+    })
+  ]);
 
-  return meetings.map((item) => item.projectId);
+  return [...new Set([
+    ...meetingProjects.map((item) => item.projectId),
+    ...assignedProjects.map((item) => item.projectId)
+  ])];
+}
+
+export async function listAccessibleProjectIds(user: AuthScopeUser): Promise<string[] | null> {
+  if (canBypassByRole(user.role)) {
+    return null;
+  }
+
+  const [memberProjectIds, managedTenantRows] = await Promise.all([
+    listMemberProjectIds(user.id),
+    prisma.tenantMembership.findMany({
+      where: {
+        userId: user.id,
+        isActive: true,
+        role: { in: [TenantRole.TENANT_ADMIN, TenantRole.MANAGER] },
+        tenant: { isActive: true }
+      },
+      select: { tenantId: true }
+    })
+  ]);
+
+  const managedTenantIds = managedTenantRows.map((item) => item.tenantId);
+  const managedProjects = managedTenantIds.length
+    ? await prisma.project.findMany({
+      where: { tenantId: { in: managedTenantIds } },
+      select: { id: true }
+    })
+    : [];
+
+  return [...new Set([
+    ...memberProjectIds,
+    ...managedProjects.map((item) => item.id)
+  ])];
 }
 
 export async function ensureProjectScopeAccess(user: AuthScopeUser, projectId: string): Promise<ScopeCheckResult> {
@@ -218,12 +260,8 @@ export async function ensureActionItemScopeAccess(user: AuthScopeUser, actionIte
     where: { id: actionItemId },
     select: {
       id: true,
-      meetingId: true,
-      meeting: {
-        select: {
-          projectId: true
-        }
-      }
+      projectId: true,
+      meetingId: true
     }
   });
 
@@ -231,12 +269,21 @@ export async function ensureActionItemScopeAccess(user: AuthScopeUser, actionIte
     return { allowed: false, reason: "ACTION_ITEM_NOT_FOUND" };
   }
 
-  const meetingCheck = await ensureMeetingScopeAccess(user, item.meetingId, item.meeting.projectId);
-  if (!meetingCheck.allowed) {
-    return meetingCheck;
+  if (item.meetingId) {
+    const meetingCheck = await ensureMeetingScopeAccess(user, item.meetingId, item.projectId);
+    if (!meetingCheck.allowed) {
+      return meetingCheck;
+    }
+
+    return { allowed: true, projectId: item.projectId, meetingId: item.meetingId };
   }
 
-  return { allowed: true, projectId: item.meeting.projectId, meetingId: item.meetingId };
+  const projectCheck = await ensureProjectScopeAccess(user, item.projectId);
+  if (!projectCheck.allowed) {
+    return projectCheck;
+  }
+
+  return { allowed: true, projectId: item.projectId };
 }
 
 export async function ensureAskAiScopeAccess(input: AskAiScopeInput): Promise<AskAiScopeResult> {

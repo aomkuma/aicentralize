@@ -404,6 +404,7 @@ model Project {
 
   tenant      Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   meetings    Meeting[]
+  actionItems ActionItem[]
   knowledgeChunks MeetingKnowledgeChunk[]
   askAiQueryLogs AskAiQueryLog[]
   reminderDigests ReminderDigest[]
@@ -803,7 +804,8 @@ model MinuteEntry {
 
 model ActionItem {
   id             String       @id @default(cuid())
-  meetingId      String
+  projectId      String
+  meetingId      String?
   minuteDraftId  String?
   minuteVersionId String?
   task           String
@@ -819,7 +821,8 @@ model ActionItem {
   updatedAt      DateTime     @updatedAt
   completedAt    DateTime?
 
-  meeting        Meeting      @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  meeting        Meeting?     @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   minuteDraft    MinuteDraft? @relation(fields: [minuteDraftId], references: [id], onDelete: SetNull)
   minuteVersion  MinuteVersion? @relation(fields: [minuteVersionId], references: [id], onDelete: SetNull)
   assignee       User         @relation("ActionAssignee", fields: [assigneeId], references: [id])
@@ -827,6 +830,7 @@ model ActionItem {
   statusHistory  ActionItemStatusHistory[]
   reminderLogs   ReminderLog[]
 
+  @@index([projectId, status, dueDate])
   @@index([meetingId, status, dueDate])
   @@index([assigneeId, status])
   @@index([assigneeId, status, dueDate])

@@ -58,17 +58,11 @@ export async function getProjectContinuitySummaries(input: {
   const [actionItems, meetings, minuteVersions] = await Promise.all([
     prisma.actionItem.findMany({
       where: {
-        meeting: {
-          projectId: { in: projectIds }
-        }
+        projectId: { in: projectIds }
       },
       select: {
         id: true,
-        meeting: {
-          select: {
-            projectId: true
-          }
-        },
+        projectId: true,
         assigneeId: true,
         dueDate: true,
         status: true
@@ -132,7 +126,7 @@ export async function getProjectContinuitySummaries(input: {
   }
 
   for (const item of actionItems) {
-    const target = summaryByProject.get(item.meeting.projectId);
+    const target = summaryByProject.get(item.projectId);
     if (!target) {
       continue;
     }
@@ -213,9 +207,8 @@ export async function getOverdueByOwner(input: {
   const now = new Date();
   const overdueItems = await prisma.actionItem.findMany({
     where: {
-      meeting: input.projectId
-        ? { projectId: input.projectId }
-        : input.tenantIds ? { project: { tenantId: { in: input.tenantIds } } } : undefined,
+      ...(input.projectId ? { projectId: input.projectId } : {}),
+      ...(input.tenantIds && !input.projectId ? { project: { tenantId: { in: input.tenantIds } } } : {}),
       status: { in: ACTIVE_ACTION_STATUSES },
       dueDate: { lt: now }
     },
@@ -232,17 +225,17 @@ export async function getOverdueByOwner(input: {
           email: true
         }
       },
+      project: {
+        select: {
+          id: true,
+          code: true,
+          name: true
+        }
+      },
       meeting: {
         select: {
           id: true,
-          title: true,
-          project: {
-            select: {
-              id: true,
-              code: true,
-              name: true
-            }
-          }
+          title: true
         }
       }
     },
@@ -266,18 +259,21 @@ export async function getOverdueByOwner(input: {
   for (const item of overdueItems) {
     const key = item.assigneeId;
     const existing = grouped.get(key);
+    const meetingRef = item.meeting
+      ? { id: item.meeting.id, title: item.meeting.title }
+      : { id: "", title: "-" };
 
     if (existing) {
       existing.overdueCount += 1;
-      existing.projects.add(item.meeting.project.id);
+      existing.projects.add(item.project.id);
       if (existing.items.length < 10) {
         existing.items.push({
           id: item.id,
           task: item.task,
           dueDate: item.dueDate,
           status: item.status,
-          meeting: { id: item.meeting.id, title: item.meeting.title },
-          project: item.meeting.project
+          meeting: meetingRef,
+          project: item.project
         });
       }
       continue;
@@ -290,14 +286,14 @@ export async function getOverdueByOwner(input: {
         email: item.assignee.email
       },
       overdueCount: 1,
-      projects: new Set([item.meeting.project.id]),
+      projects: new Set([item.project.id]),
       items: [{
         id: item.id,
         task: item.task,
         dueDate: item.dueDate,
         status: item.status,
-        meeting: { id: item.meeting.id, title: item.meeting.title },
-        project: item.meeting.project
+        meeting: meetingRef,
+        project: item.project
       }]
     });
   }
@@ -320,7 +316,7 @@ export async function getOverdueByProject(input: {
   const now = new Date();
   const overdueItems = await prisma.actionItem.findMany({
     where: {
-      meeting: input.tenantIds ? { project: { tenantId: { in: input.tenantIds } } } : undefined,
+      ...(input.tenantIds ? { project: { tenantId: { in: input.tenantIds } } } : {}),
       status: { in: ACTIVE_ACTION_STATUSES },
       dueDate: { lt: now }
     },
@@ -329,17 +325,17 @@ export async function getOverdueByProject(input: {
       task: true,
       dueDate: true,
       status: true,
+      project: {
+        select: {
+          id: true,
+          code: true,
+          name: true
+        }
+      },
       meeting: {
         select: {
           id: true,
-          title: true,
-          project: {
-            select: {
-              id: true,
-              code: true,
-              name: true
-            }
-          }
+          title: true
         }
       }
     },
@@ -359,8 +355,11 @@ export async function getOverdueByProject(input: {
   }>();
 
   for (const item of overdueItems) {
-    const key = item.meeting.project.id;
+    const key = item.project.id;
     const existing = grouped.get(key);
+    const meetingRef = item.meeting
+      ? { id: item.meeting.id, title: item.meeting.title }
+      : { id: "", title: "-" };
 
     if (existing) {
       existing.overdueCount += 1;
@@ -370,21 +369,21 @@ export async function getOverdueByProject(input: {
           task: item.task,
           dueDate: item.dueDate,
           status: item.status,
-          meeting: { id: item.meeting.id, title: item.meeting.title }
+          meeting: meetingRef
         });
       }
       continue;
     }
 
     grouped.set(key, {
-      project: item.meeting.project,
+      project: item.project,
       overdueCount: 1,
       items: [{
         id: item.id,
         task: item.task,
         dueDate: item.dueDate,
         status: item.status,
-        meeting: { id: item.meeting.id, title: item.meeting.title }
+        meeting: meetingRef
       }]
     });
   }
@@ -400,8 +399,8 @@ export async function getItemsWithMissingOwnerOrDueDate(input: {
   limit: number;
 }) {
   const baseWhere = input.projectId
-    ? { meeting: { projectId: input.projectId } }
-    : input.tenantIds ? { meeting: { project: { tenantId: { in: input.tenantIds } } } } : undefined;
+    ? { projectId: input.projectId }
+    : input.tenantIds ? { project: { tenantId: { in: input.tenantIds } } } : undefined;
 
   const missingOwner = await prisma.actionItem.findMany({
     where: {

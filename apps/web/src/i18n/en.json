@@ -26,21 +26,21 @@
   "landing": {
     "eyebrow": "KORA · AI-Powered Meeting & Work OS",
     "heroTitle": "The AI Workspace that unifies meetings and everyday work",
-    "heroSubtitle": "Turn meetings, documents, and organizational knowledge into trackable actions—with AI that understands your organization's context.",
-    "heroBannerAlt": "Kora AI Workspace — meetings, projects, knowledge, Ask AI, and reminders in one platform",
-    "heroBadge": "AI that works with your team for better results every day",
+    "heroSubtitle": "Unify organizational knowledge, capture how your team really feels at work, and turn it all into trackable action—with AI that understands your context.",
+    "heroBannerAlt": "Kora AI Workspace — Knowledge Hub, feeling logs, projects, Ask AI, and reminders in one platform",
+    "heroBadge": "Knowledge + team pulse + AI in one place",
     "heroHighlights": {
-      "meetings": {
-        "title": "From meeting to follow-up",
-        "description": "Record, transcribe, summarize, and capture action items in one flow."
+      "knowledgeHub": {
+        "title": "Knowledge Hub",
+        "description": "Bring TORs, requirements, minutes, and project docs into one approved baseline."
       },
-      "knowledge": {
-        "title": "Knowledge in one place",
-        "description": "Project notes, onboarding answers, and documents your team can actually use."
+      "teamPulse": {
+        "title": "Team atmosphere at a glance",
+        "description": "Private feeling logs with observational summaries—no raw text exposed to managers."
       },
-      "ai": {
+      "contextAi": {
         "title": "Context-aware AI",
-        "description": "Ask questions and get answers grounded in your real project data."
+        "description": "Ask questions grounded in your real project knowledge, not generic answers."
       }
     },
     "getStarted": "Get started",
@@ -48,7 +48,31 @@
     "signIn": "Sign in",
     "signInToWorkspace": "Sign in to your workspace",
     "featuresTitle": "Built for how teams actually work",
-    "featuresSubtitle": "From meeting rooms to follow-ups — one connected workspace.",
+    "featuresSubtitle": "From knowledge and team pulse to follow-through — one connected workspace.",
+    "spotlightTitle": "What makes Kora different",
+    "spotlightSubtitle": "More than meeting notes—organizational knowledge and team voice in one picture.",
+    "spotlight": {
+      "knowledgeHub": {
+        "badge": "Knowledge Hub",
+        "title": "All your organizational knowledge in one place",
+        "description": "Import TORs, requirements, legacy minutes, and handover docs. Extract an approved project baseline before Ask AI answers from real context.",
+        "points": {
+          "onboarding": "Onboard new projects with approved knowledge",
+          "documents": "Upload and extract documents into project memory",
+          "askAi": "Ask AI from real knowledge—not generic chatbot answers"
+        }
+      },
+      "feelingLogs": {
+        "badge": "Feeling Log",
+        "title": "See your organization's atmosphere",
+        "description": "Teams reflect on how work feels in a safe space. Kora analyzes and shares observational summaries so leaders see culture trends—without exposing raw entries or author names.",
+        "points": {
+          "private": "Private entries—only you can read your raw text",
+          "insights": "Observational summaries for managers and team leads",
+          "culture": "Spot team mood trends before issues escalate"
+        }
+      }
+    },
     "features": {
       "meetingStudio": {
         "title": "Meeting Studio",
@@ -60,7 +84,11 @@
       },
       "knowledge": {
         "title": "Knowledge Hub",
-        "description": "Centralize onboarding answers and project notes."
+        "description": "TORs, requirements, minutes, and approved project memory in one place."
+      },
+      "feelingLogs": {
+        "title": "Feeling Log",
+        "description": "Reflect safely at work and see organizational atmosphere at a glance."
       },
       "askAi": {
         "title": "Ask AI",
@@ -72,9 +100,9 @@
       }
     },
     "ctaTitle": "Ready to bring your team together?",
-    "ctaSubtitle": "Sign in with your organization account, or accept an invite from your admin.",
+    "ctaSubtitle": "Sign in to unify organizational knowledge, see team atmosphere, and start working with your team.",
     "footer": "© {{year}} Kora. All rights reserved.",
-    "footerTagline": "Meeting intelligence for teams that ship.",
+    "footerTagline": "Organizational knowledge + team pulse for teams that ship.",
     "backToHome": "Back to home"
   },
   "setup": {
@@ -256,6 +284,7 @@
   },
   "navigation": {
     "dashboard": "Dashboard",
+    "myTasks": "My Tasks",
     "meetingStudio": "Meeting Studio",
     "projectContinuity": "Project Continuity",
     "allProjects": "All Projects",
@@ -635,6 +664,18 @@
     "type": "Type",
     "missingInfo": "Missing Info",
     "unassigned": "Unassigned"
+  },
+  "myTasks": {
+    "title": "My Tasks",
+    "description": "Action items assigned to you across all projects.",
+    "createFormTitle": "Create action item",
+    "showCreateForm": "Add action item",
+    "hideCreateForm": "Hide form",
+    "taskTitle": "Action to perform",
+    "projectLabel": "Project",
+    "assigneeLabel": "Assign to",
+    "createSuccess": "Action item created.",
+    "createFailed": "Unable to create action item."
   },
   "reminders": {
     "title": "Reminder Operations",

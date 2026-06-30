@@ -30,8 +30,8 @@ type BriefingItem = {
   projectId: string;
   projectName: string;
   projectCode: string;
-  meetingId: string;
-  meetingTitle: string;
+  meetingId: string | null;
+  meetingTitle: string | null;
   overdue: boolean;
   dueSoon: boolean;
   highPriority: boolean;
@@ -212,10 +212,8 @@ async function collectBriefingItems(input: {
   const items = await prisma.actionItem.findMany({
     where: {
       status: { in: activeStatuses() },
-      meeting: {
-        project: {
-          tenantId: input.tenantId
-        }
+      project: {
+        tenantId: input.tenantId
       },
       ...(managerScope ? {} : { assigneeId: input.userId }),
       OR: [
@@ -230,11 +228,11 @@ async function collectBriefingItems(input: {
     },
     include: {
       assignee: { select: { id: true, name: true, email: true } },
+      project: { select: { id: true, code: true, name: true } },
       meeting: {
         select: {
           id: true,
-          title: true,
-          project: { select: { id: true, code: true, name: true } }
+          title: true
         }
       }
     },
@@ -254,11 +252,11 @@ async function collectBriefingItems(input: {
         status: item.status,
         assigneeId: item.assigneeId,
         assigneeName: item.ownerDisplayName ?? item.assignee.name,
-        projectId: item.meeting.project.id,
-        projectName: item.meeting.project.name,
-        projectCode: item.meeting.project.code,
-        meetingId: item.meeting.id,
-        meetingTitle: item.meeting.title,
+        projectId: item.project.id,
+        projectName: item.project.name,
+        projectCode: item.project.code,
+        meetingId: item.meeting?.id ?? null,
+        meetingTitle: item.meeting?.title ?? null,
         overdue,
         dueSoon,
         highPriority: item.priority === ActionItemPriority.HIGH || item.priority === ActionItemPriority.CRITICAL,

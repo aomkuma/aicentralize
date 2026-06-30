@@ -13,11 +13,11 @@ type EligibleReminderItem = {
   task: string;
   dueDate: Date;
   assigneeId: string;
+  projectId: string;
   meeting: {
     id: string;
     title: string;
-    projectId: string;
-  };
+  } | null;
   assignee: {
     id: string;
     email: string;
@@ -131,17 +131,19 @@ function classifyReminderRule(item: EligibleReminderItem, now: Date, lookAhead: 
 }
 
 function buildOwnerMessage(item: EligibleReminderItem, rule: ReminderRule, now: Date): string {
+  const meetingLabel = item.meeting?.title ?? "project task";
+
   if (rule.key === "DUE_SOON") {
-    return `Upcoming task: ${item.task} (project ${item.meeting.projectId}) due at ${item.dueDate.toISOString()}.`;
+    return `Upcoming task: ${item.task} (project ${item.projectId}) due at ${item.dueDate.toISOString()}.`;
   }
 
   const hours = overdueHours(item.dueDate, now);
   if (rule.key === "OVERDUE_ESCALATE") {
-    return `Escalated overdue task: ${item.task} in meeting ${item.meeting.title}. Overdue for ${Math.floor(hours)} hours (due ${item.dueDate.toISOString()}).`;
+    return `Escalated overdue task: ${item.task} in meeting ${meetingLabel}. Overdue for ${Math.floor(hours)} hours (due ${item.dueDate.toISOString()}).`;
   }
 
   if (rule.key === "OVERDUE_SHORT") {
-    return `Follow-up overdue task: ${item.task} in meeting ${item.meeting.title}. Overdue for ${Math.floor(hours)} hours.`;
+    return `Follow-up overdue task: ${item.task} in meeting ${meetingLabel}. Overdue for ${Math.floor(hours)} hours.`;
   }
 
   return `Overdue task: ${item.task} (due ${item.dueDate.toISOString()}).`;
@@ -149,11 +151,12 @@ function buildOwnerMessage(item: EligibleReminderItem, rule: ReminderRule, now: 
 
 function buildLeadEscalationMessage(item: EligibleReminderItem, now: Date): string {
   const hours = overdueHours(item.dueDate, now);
+  const meetingLabel = item.meeting?.title ?? "project task";
   return [
     `Escalation notice: ${item.task}`,
     `owner: ${item.assignee.name}`,
-    `meeting: ${item.meeting.title}`,
-    `projectId: ${item.meeting.projectId}`,
+    `meeting: ${meetingLabel}`,
+    `projectId: ${item.projectId}`,
     `due: ${item.dueDate.toISOString()}`,
     `overdueHours: ${Math.floor(hours)}`
   ].join(" | ");
@@ -357,7 +360,19 @@ async function processReminders() {
     }
   };
 
-  for (const item of items) {
+  for (const rawItem of items) {
+    const item: EligibleReminderItem = {
+      id: rawItem.id,
+      task: rawItem.task,
+      dueDate: rawItem.dueDate,
+      assigneeId: rawItem.assigneeId,
+      projectId: rawItem.projectId,
+      meeting: rawItem.meeting
+        ? { id: rawItem.meeting.id, title: rawItem.meeting.title }
+        : null,
+      assignee: rawItem.assignee
+    };
+
     const rule = classifyReminderRule(item, now, lookAhead);
     if (!rule) {
       continue;
@@ -392,7 +407,7 @@ async function processReminders() {
       continue;
     }
 
-    const leadRecipient = await resolveProjectLeadRecipient(item.meeting.projectId, item.assigneeId);
+    const leadRecipient = await resolveProjectLeadRecipient(item.projectId, item.assigneeId);
     const escalationMessage = buildLeadEscalationMessage(item, now);
 
     if (leadRecipient && leadRecipient.userId !== item.assigneeId) {

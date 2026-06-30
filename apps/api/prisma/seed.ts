@@ -142,12 +142,14 @@ async function main() {
       actionItems: {
         create: [
           {
+            projectId: project.id,
             task: "Prepare onboarding guide",
             detail: "Write first draft and circulate for review.",
             assigneeId: member.id,
             dueDate: new Date(Date.now() + 48 * 60 * 60 * 1000)
           },
           {
+            projectId: project.id,
             task: "Define escalation matrix",
             detail: "Map approver backups for each workstream.",
             assigneeId: admin.id,

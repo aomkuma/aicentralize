@@ -266,6 +266,7 @@ meetingRouter.post("/", requireAuth, async (req, res) => {
       },
       actionItems: {
         create: parsed.data.actionItems.map((item) => ({
+          projectId: parsed.data.projectId,
           task: item.task,
           detail: item.detail,
           assigneeId: item.assigneeId,

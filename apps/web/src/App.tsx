@@ -22,6 +22,7 @@ import AdminPlatformUsersPage from './pages/AdminPlatformUsersPage'
 import FeelingLogsPage from './pages/FeelingLogsPage'
 import AcceptInvitePage from './pages/AcceptInvitePage'
 import WelcomePage from './pages/WelcomePage'
+import MyTasksPage from './pages/MyTasksPage'
 
 // Load auth state immediately before rendering
 useAuthStore.getState().loadFromLocalStorage()
@@ -132,6 +133,7 @@ function AppContent() {
           <Route path="/admin/organizations" element={<AdminManagementRoute><AdminOrganizationsPage /></AdminManagementRoute>} />
           <Route path="/admin/platform-users" element={<SuperAdminRoute><AdminPlatformUsersPage /></SuperAdminRoute>} />
           <Route path="/dashboard" element={<WorkflowRoute><DashboardPage /></WorkflowRoute>} />
+          <Route path="/my-tasks" element={<WorkflowRoute><MyTasksPage /></WorkflowRoute>} />
           <Route path="/continuity" element={<WorkflowRoute><ContinuityPage /></WorkflowRoute>} />
           <Route path="/continuity/:projectId" element={<WorkflowRoute><ContinuityPage /></WorkflowRoute>} />
           <Route path="/action-items/:actionItemId" element={<WorkflowRoute><ActionItemRedirectPage /></WorkflowRoute>} />

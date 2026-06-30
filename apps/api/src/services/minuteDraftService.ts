@@ -263,6 +263,7 @@ export async function approveMinuteDraft(draftId: string, approvedByUserId: stri
 
     const actionItems = await Promise.all(parsed.actionItems.map((item, index) => tx.actionItem.create({
       data: {
+        projectId: draft.meeting.projectId,
         meetingId: draft.meetingId,
         minuteDraftId: draft.id,
         minuteVersionId: version.id,

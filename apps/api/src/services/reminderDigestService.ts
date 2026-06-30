@@ -198,6 +198,7 @@ export async function getReminderDigestDetail(params: {
           dueDate: true,
           status: true,
           assigneeId: true,
+          projectId: true,
           assignee: {
             select: {
               id: true,
@@ -251,9 +252,9 @@ export async function getReminderDigestDetail(params: {
         ownerId: action?.assigneeId ?? row.assigneeId,
         ownerName: action?.assignee.name ?? row.assigneeName,
         ownerEmail: action?.assignee.email,
-        projectId: action?.meeting.projectId ?? digest.projectId,
-        meetingId: action?.meeting.id,
-        meetingTitle: action?.meeting.title,
+        projectId: action?.projectId ?? digest.projectId,
+        meetingId: action?.meeting?.id ?? null,
+        meetingTitle: action?.meeting?.title ?? null,
         severity: row.severity
       };
     })

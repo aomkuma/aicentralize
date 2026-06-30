@@ -42,7 +42,12 @@ type ActionItemRow = {
     id: string
     title: string
     meetingDate: string
-  }
+  } | null
+  project?: {
+    id: string
+    code: string
+    name: string
+  } | null
 }
 
 type ActionItemLogRow = {
@@ -1311,12 +1316,17 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                           <span className="font-medium">{t('continuity.dueDate')}:</span>{' '}
                           {new Date(item.dueDate).toLocaleString()}
                         </p>
-                        {item.meeting?.title && (
+                        {item.meeting?.title ? (
                           <p className="sm:col-span-2">
                             <span className="font-medium">{t('meetings.titleField', { defaultValue: 'Meeting' })}:</span>{' '}
                             {item.meeting.title}
                           </p>
-                        )}
+                        ) : item.project?.name ? (
+                          <p className="sm:col-span-2">
+                            <span className="font-medium">{t('continuity.project', { defaultValue: 'Project' })}:</span>{' '}
+                            {item.project.name}
+                          </p>
+                        ) : null}
                       </div>
                       {item.description && (
                         <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">

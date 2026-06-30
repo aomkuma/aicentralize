@@ -60,13 +60,13 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
   }, [isDesktopCollapsed])
 
   useEffect(() => {
-    if (!user || isPlatformUser || visibleTenantName) {
+    if (!user || isPlatformUser) {
       return
     }
 
     let cancelled = false
 
-    const loadDefaultTenant = async () => {
+    const loadMemberships = async () => {
       const memberships = await getMemberships<TenantMembership[]>('/tenants/me')
       if (cancelled) {
         return
@@ -74,8 +74,20 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
 
       if (Array.isArray(memberships) && memberships.length > 0) {
         setMemberships(memberships)
+
+        if (storedTenant) {
+          const matchingMembership =
+            memberships.find((membership) => membership.tenantId === storedTenant.id) ??
+            memberships.find((membership) => membership.tenant?.id === storedTenant.id)
+
+          if (matchingMembership?.tenant) {
+            setCurrentTenant(matchingMembership.tenant, matchingMembership)
+            return
+          }
+        }
+
         const defaultMembership = memberships.find((membership) => membership.tenant) ?? memberships[0]
-        if (defaultMembership.tenant) {
+        if (defaultMembership?.tenant) {
           setCurrentTenant(defaultMembership.tenant, defaultMembership)
         }
         return
@@ -84,7 +96,7 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
       clearCurrentTenant()
     }
 
-    loadDefaultTenant()
+    void loadMemberships()
 
     return () => {
       cancelled = true
@@ -92,7 +104,7 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
   }, [
     user,
     isPlatformUser,
-    visibleTenantName,
+    storedTenant?.id,
     getMemberships,
     setMemberships,
     setCurrentTenant,
