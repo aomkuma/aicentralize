@@ -582,7 +582,8 @@
       "minute_extraction": "Minute Extraction",
       "retrieval_query": "Retrieval Query",
       "ask_ai_answer": "Ask-AI Answer",
-      "reminder_run": "Reminder Run"
+      "reminder_run": "Reminder Run",
+      "morning_briefing": "Morning Briefing"
     },
     "operation": "Operation",
     "status": "Status",
@@ -613,7 +614,16 @@
     "confidence": "Confidence",
     "copyAnswer": "Copy answer",
     "copySuccess": "Copied",
-    "copyFailed": "Copy failed"
+    "copyFailed": "Copy failed",
+    "morningBriefing": {
+      "title": "Morning Briefing Scheduler",
+      "schedule": "{{cron}} · {{timezone}}",
+      "runNow": "Run now",
+      "lastRun": "Last run",
+      "counts": "Counts",
+      "noRuns": "No morning briefing run has been recorded yet.",
+      "runComplete": "Morning briefing run completed: {{succeeded}} succeeded, {{failed}} failed."
+    }
   },
   "settings": {
     "title": "System Settings",

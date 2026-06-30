@@ -1155,3 +1155,26 @@ Verification:
 Operational notes:
 - Apply DB migration before using the feature locally/production.
 - The API dev process was stopped during implementation to unlock Prisma Client generation; restart it if needed.
+
+Follow-up completed locally - Morning Briefing cron health/admin visibility:
+- Current state:
+  - Cron runs inside the existing API process via `startMorningBriefingScheduler()`.
+  - No separate Railway service is required when API has a single replica.
+  - Railway logs should show scheduler registration:
+    - `[MORNING_BRIEFING] Scheduler started with cron 30 4 * * * (Asia/Bangkok)`
+  - After a scheduled/manual run, logs should show:
+    - `[MORNING_BRIEFING] Run summary ...`
+  - Manual run endpoint exists:
+    - `POST /morning-briefings/run-now` (`SUPER_ADMIN`)
+  - Scheduler status endpoint exists:
+    - `GET /morning-briefings/scheduler-status` (`SUPER_ADMIN`)
+  - Observability records are written as `AiRunOperation.MORNING_BRIEFING`.
+  - API check:
+    - `GET /observability/ai-runs?operation=MORNING_BRIEFING&pageSize=20`
+- UI added:
+  - `/ai-trace` operation dropdown includes `MORNING_BRIEFING`.
+  - Super admin sees `Morning Briefing Scheduler` panel in the Run Logs tab.
+  - Panel shows cron, timezone, latest run status/time/duration/counts/error.
+  - Panel has `Run now` button wired to `POST /morning-briefings/run-now`.
+- Remaining risk:
+  - If API has multiple replicas in the future, document or implement singleton/lock behavior to prevent duplicate scheduled runs.

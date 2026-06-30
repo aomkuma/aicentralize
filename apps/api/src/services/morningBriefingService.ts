@@ -416,6 +416,7 @@ export async function generateMorningBriefingForMembership(input: {
 }
 
 export async function runMorningBriefingsForAllTenants(now = new Date()) {
+  const runStartMs = Date.now();
   const memberships = await prisma.tenantMembership.findMany({
     where: {
       isActive: true,
@@ -452,13 +453,24 @@ export async function runMorningBriefingsForAllTenants(now = new Date()) {
     }
   }
 
-  return {
+  const summary = {
     generatedAt: now.toISOString(),
     processed: results.length,
     succeeded: results.filter((item) => item.status === "SUCCESS").length,
     failed: results.filter((item) => item.status === "FAILED").length,
     results
   };
+
+  await logAiRun({
+    operation: AiRunOperation.MORNING_BRIEFING,
+    status: summary.failed > 0 ? AiRunStatus.FAILED : AiRunStatus.SUCCESS,
+    promptVersion: PROMPT_VERSION,
+    durationMs: Date.now() - runStartMs,
+    trace: summary,
+    errorMessage: summary.failed > 0 ? `${summary.failed} morning briefing(s) failed` : undefined
+  });
+
+  return summary;
 }
 
 export async function getLatestMorningBriefingForUser(input: {
@@ -527,6 +539,42 @@ export async function acknowledgeMorningBriefing(input: {
       reviewAgain: input.reviewAgain
     }
   });
+}
+
+export async function getMorningBriefingSchedulerStatus() {
+  const latestRun = await prisma.aiRunLog.findFirst({
+    where: {
+      operation: AiRunOperation.MORNING_BRIEFING
+    },
+    orderBy: {
+      createdAt: "desc"
+    },
+    select: {
+      id: true,
+      status: true,
+      durationMs: true,
+      traceJson: true,
+      errorMessage: true,
+      createdAt: true,
+      promptVersion: true
+    }
+  });
+
+  return {
+    cron: env.morningBriefingCron,
+    timezone: env.morningBriefingTimezone,
+    latestRun: latestRun
+      ? {
+          id: latestRun.id,
+          status: latestRun.status,
+          durationMs: latestRun.durationMs,
+          trace: latestRun.traceJson,
+          errorMessage: latestRun.errorMessage,
+          createdAt: latestRun.createdAt,
+          promptVersion: latestRun.promptVersion
+        }
+      : null
+  };
 }
 
 export function startMorningBriefingScheduler() {

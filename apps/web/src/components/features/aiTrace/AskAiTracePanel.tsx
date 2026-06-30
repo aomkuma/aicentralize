@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFeatureFlagStore } from '../../../stores/featureFlagStore'
+import { useAuthStore } from '../../../stores/authStore'
 import { useAiRunLogs } from '../../../hooks/useAiRunLogs'
 import { useAskAiQueryLogs } from '../../../hooks/useAskAiQueryLogs'
+import { useApi } from '../../../hooks/useApi'
 import AiRunLogCard from './AiRunLogCard'
 import AiTraceDetail from './AiTraceDetail'
 import type { AiRunOperation, AiRunStatus } from '../../../types'
@@ -12,13 +14,36 @@ interface AskAiTracePanelProps {
   meetingId?: string
 }
 
+type MorningBriefingRunTrace = {
+  generatedAt?: string
+  processed?: number
+  succeeded?: number
+  failed?: number
+}
+
+type MorningBriefingSchedulerStatus = {
+  cron: string
+  timezone: string
+  latestRun: {
+    id: string
+    status: AiRunStatus
+    durationMs?: number | null
+    trace?: MorningBriefingRunTrace | null
+    errorMessage?: string | null
+    createdAt: string
+    promptVersion?: string | null
+  } | null
+}
+
 export default function AskAiTracePanel({
   projectId,
   meetingId,
 }: AskAiTracePanelProps) {
   const { t } = useTranslation()
   const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
+  const user = useAuthStore((state) => state.user)
   const { logs, currentLog, isLoading, fetchLogs, fetchLogDetail } = useAiRunLogs()
+  const { get: getOps, post: postOps, isLoading: isOpsLoading } = useApi()
   const {
     logs: queryLogs,
     currentLog: currentQueryLog,
@@ -34,10 +59,42 @@ export default function AskAiTracePanel({
   const [filterStatus, setFilterStatus] = useState<AiRunStatus | 'ALL'>('ALL')
   const [limit, setLimit] = useState(50)
   const [copyNotice, setCopyNotice] = useState('')
+  const [schedulerStatus, setSchedulerStatus] = useState<MorningBriefingSchedulerStatus | null>(null)
+  const [schedulerNotice, setSchedulerNotice] = useState('')
   const copyNoticeTimerRef = useRef<number | null>(null)
 
   // Check feature access
   const canAccess = canAccessFeature('AI_TRACE_PANEL')
+  const isSuperAdmin = user?.systemRole === 'SUPER_ADMIN'
+
+  const fetchSchedulerStatus = async () => {
+    if (!isSuperAdmin) return null
+    const data = await getOps<MorningBriefingSchedulerStatus>('/morning-briefings/scheduler-status')
+    if (data) setSchedulerStatus(data)
+    return data
+  }
+
+  const runMorningBriefingNow = async () => {
+    setSchedulerNotice('')
+    const result = await postOps<MorningBriefingRunTrace & { results?: unknown[] }>('/morning-briefings/run-now')
+    if (result) {
+      setSchedulerNotice(t('aiTrace.morningBriefing.runComplete', {
+        defaultValue: 'Morning briefing run completed: {{succeeded}} succeeded, {{failed}} failed.',
+        succeeded: result.succeeded ?? 0,
+        failed: result.failed ?? 0,
+      }))
+      await fetchSchedulerStatus()
+      if (filterOperation === 'MORNING_BRIEFING') {
+        fetchLogs({
+          operation: 'MORNING_BRIEFING',
+          status: filterStatus === 'ALL' ? undefined : filterStatus,
+          projectId,
+          meetingId,
+          pageSize: limit,
+        })
+      }
+    }
+  }
 
   // Fetch logs on mount or when filters change
   useEffect(() => {
@@ -65,6 +122,11 @@ export default function AskAiTracePanel({
       pageSize: limit,
     })
   }, [activeTab, projectId, meetingId, limit, canAccess])
+
+  useEffect(() => {
+    if (!canAccess || !isSuperAdmin) return
+    void fetchSchedulerStatus()
+  }, [canAccess, isSuperAdmin])
 
   // Fetch log detail when selected
   useEffect(() => {
@@ -217,6 +279,9 @@ export default function AskAiTracePanel({
                   <option value="REMINDER_RUN">
                     {t('aiTrace.operations.reminder_run')}
                   </option>
+                  <option value="MORNING_BRIEFING">
+                    {t('aiTrace.operations.morning_briefing', { defaultValue: 'Morning Briefing' })}
+                  </option>
                 </select>
               </div>
 
@@ -253,6 +318,75 @@ export default function AskAiTracePanel({
             </select>
           </div>
         </div>
+
+        {isSuperAdmin && activeTab === 'runs' && (
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-emerald-950 dark:text-emerald-100">
+                  {t('aiTrace.morningBriefing.title', { defaultValue: 'Morning Briefing Scheduler' })}
+                </h3>
+                <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
+                  {schedulerStatus
+                    ? t('aiTrace.morningBriefing.schedule', {
+                        defaultValue: '{{cron}} · {{timezone}}',
+                        cron: schedulerStatus.cron,
+                        timezone: schedulerStatus.timezone,
+                      })
+                    : t('common.loading', { defaultValue: 'Loading' })}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={isOpsLoading}
+                onClick={() => void runMorningBriefingNow()}
+                className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isOpsLoading
+                  ? t('common.loading', { defaultValue: 'Loading' })
+                  : t('aiTrace.morningBriefing.runNow', { defaultValue: 'Run now' })}
+              </button>
+            </div>
+
+            {schedulerStatus?.latestRun ? (
+              <div className="mt-3 grid gap-2 text-xs text-emerald-900 dark:text-emerald-100 sm:grid-cols-2">
+                <div>
+                  <span className="font-semibold">{t('aiTrace.status')}:</span> {schedulerStatus.latestRun.status}
+                </div>
+                <div>
+                  <span className="font-semibold">{t('aiTrace.morningBriefing.lastRun', { defaultValue: 'Last run' })}:</span>{' '}
+                  {new Date(schedulerStatus.latestRun.createdAt).toLocaleString()}
+                </div>
+                <div>
+                  <span className="font-semibold">{t('aiTrace.duration')}:</span>{' '}
+                  {schedulerStatus.latestRun.durationMs ?? '-'}ms
+                </div>
+                <div>
+                  <span className="font-semibold">{t('aiTrace.morningBriefing.counts', { defaultValue: 'Counts' })}:</span>{' '}
+                  {schedulerStatus.latestRun.trace?.succeeded ?? 0}/{schedulerStatus.latestRun.trace?.processed ?? 0}
+                  {' '}
+                  {t('aiTrace.success').toLowerCase()}
+                  {schedulerStatus.latestRun.trace?.failed ? `, ${schedulerStatus.latestRun.trace.failed} ${t('aiTrace.failed').toLowerCase()}` : ''}
+                </div>
+                {schedulerStatus.latestRun.errorMessage && (
+                  <div className="sm:col-span-2 rounded-md border border-red-200 bg-red-50 p-2 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+                    {schedulerStatus.latestRun.errorMessage}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-emerald-800 dark:text-emerald-200">
+                {t('aiTrace.morningBriefing.noRuns', { defaultValue: 'No morning briefing run has been recorded yet.' })}
+              </p>
+            )}
+
+            {schedulerNotice && (
+              <p className="mt-3 rounded-md border border-emerald-300 bg-white/70 px-3 py-2 text-xs font-medium text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+                {schedulerNotice}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Log List */}
         <div className="space-y-2 max-h-96 overflow-y-auto">

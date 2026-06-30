@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth, requireSystemRole } from "../middleware/auth";
 import {
   acknowledgeMorningBriefing,
+  getMorningBriefingSchedulerStatus,
   getLatestMorningBriefingForUser,
   runMorningBriefingsForAllTenants
 } from "../services/morningBriefingService";
@@ -76,4 +77,9 @@ morningBriefingRouter.post("/:briefingId/acknowledge", requireAuth, async (req, 
 morningBriefingRouter.post("/run-now", requireAuth, requireSystemRole([SystemRole.SUPER_ADMIN]), async (_req, res) => {
   const summary = await runMorningBriefingsForAllTenants();
   res.json(summary);
+});
+
+morningBriefingRouter.get("/scheduler-status", requireAuth, requireSystemRole([SystemRole.SUPER_ADMIN]), async (_req, res) => {
+  const status = await getMorningBriefingSchedulerStatus();
+  res.json(status);
 });

@@ -582,7 +582,8 @@
       "minute_extraction": "การแยกข้อมูลย่อย",
       "retrieval_query": "คำค้นหาการดึงข้อมูล",
       "ask_ai_answer": "คำตอบ Ask-AI",
-      "reminder_run": "การเรียกใช้การเตือนความจำ"
+      "reminder_run": "การเรียกใช้การเตือนความจำ",
+      "morning_briefing": "บรีฟงานตอนเช้า"
     },
     "operation": "การดำเนิน",
     "status": "สถานะ",
@@ -613,7 +614,16 @@
     "confidence": "ความมั่นใจ",
     "copyAnswer": "คัดลอกคำตอบ",
     "copySuccess": "คัดลอกแล้ว",
-    "copyFailed": "คัดลอกไม่สำเร็จ"
+    "copyFailed": "คัดลอกไม่สำเร็จ",
+    "morningBriefing": {
+      "title": "ตัวรันบรีฟงานตอนเช้า",
+      "schedule": "{{cron}} · {{timezone}}",
+      "runNow": "รันทันที",
+      "lastRun": "รันล่าสุด",
+      "counts": "จำนวน",
+      "noRuns": "ยังไม่พบบันทึกการรันบรีฟงานตอนเช้า",
+      "runComplete": "รันบรีฟงานตอนเช้าเสร็จแล้ว: สำเร็จ {{succeeded}}, ล้มเหลว {{failed}}"
+    }
   },
   "meetings": {
     "title": "สตูดิโอบันทึกการประชุม",
