@@ -1,8 +1,26 @@
 # AICentralize — Feature Catalog
 
-**Last updated:** 2026-06-30 (end of day) · **`main` through `37eac5d`**
+**Last updated:** 2026-07-01 · **`main` through `2d1cd5d`** (this commit adds packages + docs)
 
 This document is the product feature map (main modules and sub-features). For day-to-day commands and access rules, see [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md). For chronological implementation notes, see [`next-day-handover-2026-06-28.md`](./next-day-handover-2026-06-28.md).
+
+---
+
+## 0. Guest Welcome (Kora)
+
+**Route:** `/` (guests) · **Logged-in:** redirects to dashboard/admin
+
+| Sub-feature | Description |
+|-------------|-------------|
+| **Marketing landing** | Dark Kora theme; logo header (`kora-lockup.png`); EN/TH language switcher |
+| **Hero copy** | Eyebrow, title, subtitle, three highlight cards (`landing.heroHighlights`) |
+| **Full-width banner** | `/brand/kora-landing-banner.png` |
+| **Spotlight (`#spotlight`)** | Two selling-point cards: **Knowledge Hub** + **Feeling Log** (`landing.spotlight.*`) |
+| **Feature grid** | Six modules; Knowledge Hub and Feeling Log listed first |
+| **CTA** | Sign in → `/auth/login`; explore → `#spotlight` |
+| **Brand assets** | `apps/web/public/brand/` — see `brand/README.md`; ingest via `scripts/ingest-kora-pack.py` |
+
+**i18n:** `landing.*` in `en.json` / `th.json`. Product positioning emphasizes organizational knowledge and team atmosphere, not meetings alone.
 
 ---
 
@@ -42,7 +60,7 @@ This document is the product feature map (main modules and sub-features). For da
 | **Workload balancing** | Suggestion popup when owner load is uneven (`ContinuityDashboard`). |
 | **Navigation** | Continuity is **not** in sidebar; open from project card. Bare `/continuity` → `/projects`. |
 | **Project knowledge** | Onboarding Q&A, file import, AI extraction into knowledge items (`projectKnowledgeService`). |
-| **General notes** | Free-form project notes used as Ask-AI evidence (`projectGeneralNoteService`); **PUBLIC** / **PRIVATE** visibility (private excluded from shared evidence). |
+| **General notes** | Free-form project notes used as Ask-AI evidence (`projectGeneralNoteService`); **PUBLIC** / **PRIVATE** visibility (private excluded from shared evidence); saved-note URLs are linkified and open in a new tab. |
 | **Team sentiment badges** | Mood indicators on projects team table (`TENANT_ADMIN` / `MANAGER`). |
 
 ---
@@ -65,16 +83,39 @@ This document is the product feature map (main modules and sub-features). For da
 
 ## 4. Action Items & Reminders
 
-**Routes:** `/reminders`, action items via projects/continuity · **API:** `/action-items`, `/reminders/*`
+**Routes:** `/my-tasks`, `/reminders`, action items via projects/continuity · **API:** `/action-items`, `/reminders/*`
 
 | Sub-feature | Description |
 |-------------|-------------|
-| **Action item board** | Status, priority, owner, due date, reassign. |
-| **Reminder worker** | Due-soon / overdue selection with dedupe windows. |
-| **Escalation** | `OVERDUE_SHORT`, `OVERDUE_ESCALATE` rules. |
-| **Digest snapshots** | Admin/PM digest views with date filters. |
-| **Delivery logs** | Per-channel outcome (in-app, email, push). |
-| **Change notifications** | Push + in-app on reassign, due date, status, priority changes (`actionItemNotificationService`). |
+| **My Tasks** | `/my-tasks` — tasks assigned to current user across accessible projects (`GET /action-items?mine=true`) |
+| **Create (project-only)** | `POST /action-items` — `{ projectId, title, dueDate, priority?, ownerUserId? }`; no meeting required |
+| **Action item board** | Status, priority, owner, due date, reassign — Continuity Actions tab (team) + My Tasks (personal) |
+| **Assignee permissions** | See table below; enforced in API + `actionItemPermissions.ts` |
+| **Shared UI** | `ActionItemsPanel` — `mode="project"` \| `mode="mine"` |
+| **Reminder worker** | Due-soon / overdue selection with dedupe windows |
+| **Escalation** | `OVERDUE_SHORT`, `OVERDUE_ESCALATE` rules |
+| **Digest snapshots** | Admin/PM digest views with date filters |
+| **Delivery logs** | Per-channel outcome (in-app, email, push) |
+| **Change notifications** | Push + in-app on reassign, due date, status, priority changes |
+
+**My Tasks vs Continuity actions**
+
+| View | Route | Scope |
+|------|-------|-------|
+| My Tasks | `/my-tasks` | Assignee = me, all accessible projects |
+| Continuity | `/continuity/:projectId` → Actions | All items in one project |
+
+**Assignee permissions**
+
+| Role | Can assign to others? |
+|------|------------------------|
+| `UserRole` ADMIN / PM | Yes |
+| `TenantRole` TENANT_ADMIN / MANAGER | Yes (for project's tenant) |
+| `MEMBER` / `VIEWER` | No — self only |
+
+**Schema:** `ActionItem.projectId` required; `meetingId` optional — migration `20260630210000_action_item_project_scope`.
+
+**Known gap:** `assertCanMutate` still blocks legacy `MEMBER` users from editing tasks assigned to others; tenant admins may need broader edit rights for status/patch (tracked in handover).
 
 ---
 
@@ -122,6 +163,8 @@ This document is the product feature map (main modules and sub-features). For da
 | **Organization setup** | `/setup` | `SUPER_ADMIN` |
 | **Organization registry** | `/admin/organizations` | `SUPER_ADMIN`, `MODERATOR` |
 | **Platform users** | `/admin/platform-users` | `SUPER_ADMIN` |
+| **Package management** | `/admin/packages`, `PATCH /admin/tenants/:id` (`currentPackageId`) | `SUPER_ADMIN` |
+| **Project quota** | `POST /projects` | Enforces `currentPackage.maxProjects` per tenant |
 | **Invitations** | `/accept-invite?token=...` | Public + logged-in |
 | **Member onboarding** | `POST /tenants/:id/members/create` | Tenant admin; SMTP invite |
 | **Account suspension** | `PATCH /admin/users/:id` | Platform admin |
@@ -190,7 +233,7 @@ This document is the product feature map (main modules and sub-features). For da
 |-------------|-------------|
 | **Private journal** | Text + emoji; only author sees raw entries |
 | **@mention** | Autocomplete coworkers in organization |
-| **AI analysis (Rubjob)** | Batch every **3 days at 02:00** (Asia/Bangkok); grouped by author and mentioned people |
+| **AI analysis (Rubjob)** | Batch every **3 days at 02:00** (Asia/Bangkok); grouped by author and mentioned people; leadership/mention outputs must be privacy-preserving psychological observations, not raw-entry quotes |
 | **Save flow** | Store immediately (`processedAt` null); no inline AI on save |
 | **Manager inbox** | Tab **ภาพรวมทีม** on `/feeling-logs` (`TENANT_ADMIN` / `MANAGER`); derived insights only (no author name) |
 | **Batch admin** | `POST /feeling-log-batch/run-now`, `GET /feeling-log-batch/scheduler-status` (`SUPER_ADMIN`) |
@@ -203,7 +246,10 @@ This document is the product feature map (main modules and sub-features). For da
 
 | Area | Location |
 |------|----------|
-| Feature modules | `apps/web/src/components/features/{continuity,reminders,aiTrace}` |
+| Feature modules | `apps/web/src/components/features/{continuity,reminders,aiTrace,action-items}` |
+| Action items panel | `apps/web/src/components/features/action-items/ActionItemsPanel.tsx` |
+| Assignee permissions | `apps/web/src/lib/actionItemPermissions.ts` |
+| Guest welcome | `apps/web/src/pages/WelcomePage.tsx` |
 | Meeting Studio jobs | `apps/web/src/lib/meetingStudio/`, `meetingStudioJobStore` |
 | Push / PWA | `pushNotifications.ts`, `pwaUtils.ts`, `usePushSetup.ts`, `PushSetupPanel` |
 | i18n | `apps/web/src/i18n/en.json`, `th.json` |
@@ -226,6 +272,8 @@ This document is the product feature map (main modules and sub-features). For da
 
 See **Open Items Tracker** and **Development Roadmap** in [`next-day-handover-2026-06-28.md`](./next-day-handover-2026-06-28.md):
 
+- Continuity fully on `ActionItemsPanel` (duplicate UI remains)
+- Tenant admin edit others' tasks (patch/status) — `assertCanMutate` gap
 - PM date-ordered timeline tab in Continuity  
 - Sentiment + suspension automated tests  
 - Project memory vector retrieval  

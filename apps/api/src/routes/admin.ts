@@ -12,8 +12,28 @@ export const adminRouter = Router();
 const updateTenantSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   slug: z.string().trim().min(2).max(80).optional(),
-  isActive: z.boolean().optional()
+  isActive: z.boolean().optional(),
+  currentPackageId: z.string().min(1).nullable().optional()
 }).refine((value) => Object.keys(value).length > 0, {
+  message: "At least one field is required"
+});
+
+const packageSchema = z.object({
+  code: z.string().trim().min(2).max(40).regex(/^[A-Z0-9_-]+$/),
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(500).optional().nullable(),
+  priceCents: z.number().int().min(0).max(100_000_000).default(0),
+  currency: z.string().trim().min(3).max(3).default("THB"),
+  billingInterval: z.enum(["MONTHLY", "YEARLY", "ONE_TIME", "CUSTOM"]).default("MONTHLY"),
+  maxProjects: z.number().int().min(0).max(100_000).default(1),
+  maxUsers: z.number().int().min(0).max(100_000).default(5),
+  additionalUserPriceCents: z.number().int().min(0).max(100_000_000).default(0),
+  features: z.array(z.string().trim().min(1).max(80)).max(200).default([]),
+  isActive: z.boolean().default(true),
+  isDefault: z.boolean().default(false)
+});
+
+const updatePackageSchema = packageSchema.partial().refine((value) => Object.keys(value).length > 0, {
   message: "At least one field is required"
 });
 
@@ -51,9 +71,98 @@ function buildInviteUrl(token: string) {
   return `${env.appPublicUrl.replace(/\/+$/, "")}/accept-invite?token=${encodeURIComponent(token)}`;
 }
 
+async function normalizeDefaultPackage(packageId: string, isDefault?: boolean) {
+  if (!isDefault) {
+    return;
+  }
+
+  await prisma.subscriptionPackage.updateMany({
+    where: {
+      id: {
+        not: packageId
+      }
+    },
+    data: {
+      isDefault: false
+    }
+  });
+}
+
+adminRouter.get("/packages", requireSystemRole([SystemRole.SUPER_ADMIN]), async (_req, res) => {
+  const packages = await prisma.subscriptionPackage.findMany({
+    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }]
+  });
+
+  res.json(packages);
+});
+
+adminRouter.post("/packages", requireSystemRole([SystemRole.SUPER_ADMIN]), async (req, res) => {
+  const parsed = packageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  const created = await prisma.subscriptionPackage.create({
+    data: {
+      ...parsed.data,
+      code: parsed.data.code.toUpperCase(),
+      currency: parsed.data.currency.toUpperCase(),
+      description: parsed.data.description || null,
+      features: Array.from(new Set(parsed.data.features.map((feature) => feature.trim()).filter(Boolean)))
+    }
+  });
+
+  await normalizeDefaultPackage(created.id, created.isDefault);
+
+  res.status(201).json(created);
+});
+
+adminRouter.patch("/packages/:packageId", requireSystemRole([SystemRole.SUPER_ADMIN]), async (req, res) => {
+  const parsed = updatePackageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  const updated = await prisma.subscriptionPackage.update({
+    where: { id: req.params.packageId },
+    data: {
+      ...parsed.data,
+      code: parsed.data.code?.toUpperCase(),
+      currency: parsed.data.currency?.toUpperCase(),
+      description: parsed.data.description === undefined ? undefined : parsed.data.description || null,
+      features: parsed.data.features
+        ? Array.from(new Set(parsed.data.features.map((feature) => feature.trim()).filter(Boolean)))
+        : undefined
+    }
+  });
+
+  await normalizeDefaultPackage(updated.id, updated.isDefault);
+
+  res.json(updated);
+});
+
+adminRouter.delete("/packages/:packageId", requireSystemRole([SystemRole.SUPER_ADMIN]), async (req, res) => {
+  const tenantCount = await prisma.tenant.count({
+    where: {
+      currentPackageId: req.params.packageId
+    }
+  });
+
+  if (tenantCount > 0) {
+    return res.status(409).json({ message: "Package is assigned to organizations" });
+  }
+
+  const deleted = await prisma.subscriptionPackage.delete({
+    where: { id: req.params.packageId }
+  });
+
+  res.json({ id: deleted.id, deleted: true });
+});
+
 adminRouter.get("/tenants", async (_req, res) => {
   const tenants = await prisma.tenant.findMany({
     include: {
+      currentPackage: true,
       createdBy: {
         select: {
           id: true,
@@ -87,7 +196,11 @@ adminRouter.patch("/tenants/:tenantId", async (req, res) => {
     data: {
       name: parsed.data.name,
       slug: parsed.data.slug,
-      isActive: parsed.data.isActive
+      isActive: parsed.data.isActive,
+      currentPackageId: parsed.data.currentPackageId
+    },
+    include: {
+      currentPackage: true
     }
   });
 

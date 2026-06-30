@@ -1,8 +1,71 @@
 # Next-Day Handover - 2026-06-28
 
-## Latest Status (2026-06-30, end of day)
+## Latest Status (2026-07-01)
 
-**`main` is current through `37eac5d`.** Feature catalog: [`docs/FEATURES.md`](./FEATURES.md). Quick commands: [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md).
+**Pending push:** subscription packages, feeling-log privacy, general-notes UX, and full documentation refresh (see commit after `2d1cd5d`).
+
+**`main` through `2d1cd5d` on remote.** Feature catalog: [`docs/FEATURES.md`](./FEATURES.md). Quick commands: [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md).
+
+### This commit — what ships
+
+| Area | What users get |
+|------|----------------|
+| **Subscription packages** | `SUPER_ADMIN` → `/admin/packages`; assign package on org setup + admin orgs; project quota (`maxProjects`) |
+| **Feeling log privacy** | Manager insights sanitized — no raw-entry quotes in batch output |
+| **General notes** | Clickable links open in new tab; PUBLIC notes feed Ask-AI evidence |
+| **Feature flags** | Package `features[]` mapped to `featureFlagStore` entitlements |
+| **Docs** | Handover, FEATURES, QUICK_REFERENCE, frontend module guides completed |
+
+**New migration:** `20260630223000_subscription_packages`.
+
+---
+
+## Latest Status (2026-06-30, late session — prior push)
+
+### Day summary — what shipped (late session)
+
+| Area | Commit(s) | What users get |
+|------|-----------|----------------|
+| **Kora rebrand + Welcome** | `c912763`, `922b7d7` | Guest landing at `/`; Kora logo/assets; full-width marketing banner |
+| **Welcome selling points** | `2d1cd5d` | Hero copy restored; spotlight **Knowledge Hub** + **Feeling Log**; EN/TH i18n |
+| **My Tasks** | `2d1cd5d` | Sidebar **รายการงานของฉัน** (`/my-tasks`); cross-project tasks assigned to current user |
+| **Action items (project scope)** | `2d1cd5d` | `ActionItem.projectId` required; `meetingId` optional; create project-only tasks |
+| **Tenant-admin assignees** | `2d1cd5d` | `TENANT_ADMIN` / `MANAGER` can assign/reassign (not only legacy `UserRole` ADMIN/PM) |
+
+### Commit log (late session, newest first)
+
+| Commit | Summary |
+|--------|---------|
+| `2d1cd5d` | My Tasks, tenant-admin assignees, welcome hero + Knowledge Hub / Feeling Log spotlight |
+| `922b7d7` | Full-width Kora landing banner on welcome page |
+| `c912763` | Rebrand to Kora; guest welcome landing page at `/` |
+
+**New migrations (late session):** `20260630210000_action_item_project_scope` (`ActionItem.projectId` required, `meetingId` optional).
+
+**Still open:** see **Open Items Tracker** and **Development Roadmap** at bottom.
+
+### Quick verification (late session)
+
+```bash
+pnpm --filter api type-check
+pnpm --filter web type-check
+# After deploy / local migrate:
+cd apps/api && npx prisma migrate deploy
+```
+
+Manual smoke:
+1. Guest `/` — hero text, banner, spotlight Knowledge Hub + Feeling Log, EN/TH switch.
+2. Login → sidebar **รายการงานของฉัน** → `/my-tasks`.
+3. Create task with project + due date; as `TENANT_ADMIN`, assignee dropdown lists tenant members.
+4. Continuity project tab still lists all project action items (team view unchanged).
+
+---
+
+## Latest Status (2026-06-30, end of day — superseded)
+
+**Superseded by late-session table above.**
+
+**`main` through `37eac5d`.** Feature catalog: [`docs/FEATURES.md`](./FEATURES.md). Quick commands: [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md).
 
 ### Day summary — what shipped today
 
@@ -1087,6 +1150,170 @@ Verification:
 - `pnpm --filter api type-check` passed (after `prisma generate`)
 - `pnpm --filter web type-check` passed
 
+## Post-Handover Work Completed (2026-06-30, Kora welcome + My Tasks)
+
+Commits: `c912763`, `922b7d7`, `2d1cd5d` on `main`.
+
+### Routing and auth behavior
+
+| Path | Guest | Logged-in tenant user | Platform admin |
+|------|-------|----------------------|----------------|
+| `/` | `WelcomePage` | Redirect → `/dashboard` | Redirect → `/admin/organizations` |
+| `/auth/login` | Login | Redirect → dashboard/admin if already authed | Same |
+| `/my-tasks` | — | `MyTasksPage` (`WorkflowRoute`) | Redirect → admin |
+
+`App.tsx` no longer sends unauthenticated users straight to login; marketing landing is the default entry.
+
+### Kora rebrand (`c912763`, `922b7d7`)
+
+- Display name **Kora** — `apps/api/src/config/brand.ts` (`APP_DISPLAY_NAME`); used in emails, push copy, OpenAPI title.
+- Web: `index.html` title/theme, `manifest.json`, favicons/PWA icons under `apps/web/public/brand/` and `public/`.
+- Brand ingest scripts:
+  - `scripts/ingest-kora-pack.py` — from `kora-pack/` (KORA icon sections zip).
+  - `scripts/extract-kora-brand-assets.py` — hero crops and icon sheet processing.
+- Asset guide: `apps/web/public/brand/README.md`.
+- `vite.config.ts` ignores `kora-pack/` for file watching (prevents EBUSY on Windows dev).
+- Login page: link **กลับหน้าแรก** → `/`.
+
+### Welcome page selling points (`2d1cd5d`)
+
+**File:** `apps/web/src/pages/WelcomePage.tsx`
+
+| Section | i18n keys | Notes |
+|---------|-----------|-------|
+| Hero | `landing.eyebrow`, `heroTitle`, `heroSubtitle` | Centered above banner |
+| Banner | `landing.heroBannerAlt` | `/brand/kora-landing-banner.png` full width |
+| Highlights (3) | `landing.heroHighlights.*` | knowledgeHub, teamPulse, contextAi |
+| Spotlight | `landing.spotlight.*` | Two large cards: Knowledge Hub + Feeling Log |
+| Feature grid | `landing.features.*` | 6 cards; knowledge + feelingLogs first |
+| CTA | `landing.getStarted`, `exploreFeatures` | `#spotlight` anchor |
+
+Product intent: sell **organizational knowledge** and **team atmosphere** (Feeling Log), not meetings alone.
+
+### My Tasks — product rules (`2d1cd5d`)
+
+| Topic | Behavior |
+|-------|----------|
+| **List scope** | Only items where `assigneeId` = current user |
+| **Project scope** | Across all projects the user can access in current tenant |
+| **Create** | Requires `projectId`; no meeting required |
+| **Team view** | Unchanged — Continuity → Actions tab shows all project items |
+| **Create form UX** | Collapsed by default; toggle `myTasks.showCreateForm` / `hideCreateForm` |
+| **Title field label (TH)** | **งานที่ต้องดำเนินการ** (`myTasks.taskTitle`) |
+
+### ActionItemsPanel — shared UI (`2d1cd5d`)
+
+**Path:** `apps/web/src/components/features/action-items/ActionItemsPanel.tsx`
+
+| Prop / mode | Continuity (`mode="project"`) | My Tasks (`mode="mine"`) |
+|-------------|------------------------------|--------------------------|
+| `projectId` | Required | N/A (cross-project) |
+| `showCreateForm` | Optional | `true` |
+| `showProjectColumn` | Usually false | `true` |
+| `showOwnerFilter` | `true` | `false` |
+| `allowReassign` | `true` (project context) | From `canAssignActionItemsToOthers` |
+
+`ContinuityDashboard.tsx` still contains legacy action-item code in places; only minor nullable `meeting`/`project` display fixes were applied. Future refactor: fully delegate to `ActionItemsPanel`.
+
+**Owner dropdown options:** `GET /tenants/:tenantId/members` (active only); fallback `GET /tenants/:tenantId/users` if member rows lack nested `user`.
+
+### API — action items (`2d1cd5d`)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/action-items?mine=true&pageSize=100` | Current user's tasks across accessible projects |
+| `GET` | `/action-items?projectId=...` | Project board (Continuity) |
+| `POST` | `/action-items` | Create project-only task |
+| `POST` | `/action-items/:id/reassign` | Change assignee |
+| `PATCH` | `/action-items/:id` | Update detail, due date, priority |
+| `POST` | `/action-items/:id/status` | Status transition |
+
+**Create body example:**
+
+```json
+{
+  "projectId": "clx...",
+  "title": "งานที่ต้องดำเนินการ",
+  "dueDate": "2026-07-05T00:00:00.000Z",
+  "priority": "MEDIUM",
+  "ownerUserId": "optional — omit or self for members"
+}
+```
+
+**Assignee permission (API):** `canAssignActionItemsToOthers(user, projectId)` in `actionItemService.ts`:
+- `UserRole` ADMIN / PM → yes
+- `TenantRole` TENANT_ADMIN / MANAGER for project's tenant → yes
+- Otherwise → assignee forced to `req.user.id`
+
+**Assignee permission (web):** `apps/web/src/lib/actionItemPermissions.ts` + `resolveTenantMembership()` (prefers fresh `/tenants/me` list over stale persisted `currentMembership`).
+
+### Schema migration `20260630210000_action_item_project_scope`
+
+1. Add `ActionItem.projectId` (nullable).
+2. Backfill from `Meeting.projectId` where `meetingId` set.
+3. `projectId` NOT NULL; `meetingId` nullable.
+4. FK `projectId` → `Project` ON DELETE CASCADE.
+5. Index `(projectId, status, dueDate)`.
+
+Downstream services updated: `continuityService`, `reminderService`, `morningBriefingService`, `accessScopeService`, `minuteDraftService`, seed.
+
+### Layout / tenant store fix (`2d1cd5d`)
+
+`Layout.tsx` always calls `GET /tenants/me` for non-platform users and **re-syncs** `currentMembership` from API (fixes stale `tenant-store` in localStorage showing wrong role → assignee dropdown disabled).
+
+### Known limitations / follow-ups
+
+| Item | Notes |
+|------|-------|
+| `assertCanMutate` | Still uses legacy `UserRole.MEMBER` — tenant admin editing **another person's** task may 403 on patch/status |
+| Single-member org | Assignee dropdown shows only self until more members onboarded |
+| `requireRole([ADMIN, PM])` elsewhere | Partially addressed on action-item create/reassign; other routes still open (see tracker) |
+| Continuity refactor | `ActionItemsPanel` extracted but Continuity not fully migrated |
+
+### Files touched (high signal)
+
+| Layer | Paths |
+|-------|-------|
+| Schema | `apps/api/prisma/schema.prisma`, `migrations/20260630210000_action_item_project_scope/` |
+| API routes | `apps/api/src/routes/action-items.ts` |
+| API services | `actionItemService.ts`, `accessScopeService.ts`, `continuityService.ts`, `reminderService.ts`, … |
+| Web pages | `WelcomePage.tsx`, `MyTasksPage.tsx`, `LoginPage.tsx` |
+| Web components | `ActionItemsPanel.tsx`, `actionItemTypes.ts`, `Layout.tsx`, `Sidebar.tsx` |
+| Web lib | `actionItemPermissions.ts` |
+| Config | `navigation.ts`, `App.tsx`, `i18n/en.json`, `th.json` |
+| Brand | `apps/web/public/brand/*`, `scripts/ingest-kora-pack.py` |
+
+Verification:
+- `pnpm --filter api type-check` passed
+- `pnpm --filter web type-check` passed
+
+---
+
+## Post-Handover Work Completed (2026-07-01, subscription packages + polish)
+
+### Subscription packages
+
+- **Migration:** `20260630223000_subscription_packages` — `SubscriptionPackage` model, `Tenant.currentPackageId`, default `FREE` package.
+- **Admin API:** `GET/POST/PATCH/DELETE /admin/packages` (`SUPER_ADMIN`).
+- **Admin UI:** `AdminPackagesPage.tsx` at `/admin/packages`; package picker on `AdminOrganizationsPage` and `TenantSetupPage`.
+- **Quota:** `POST /projects` returns `409` when tenant reaches `currentPackage.maxProjects`.
+
+### Feeling log privacy (`feelingLogService.ts`)
+
+- `privacySafeInsightText()` strips content that mirrors raw journal phrasing.
+- Batch AI prompts explicitly forbid quoting original entry text in manager/mention insights.
+
+### General notes (`ProjectGeneralNotesPage.tsx`, `approvedAskAiService.ts`)
+
+- URLs in note body render as links (`target="_blank"`).
+- PUBLIC general notes included in approved Ask-AI project evidence.
+
+### Feature flags (`featureFlagStore.ts`)
+
+- Maps package `features` codes (e.g. `AI_CHAT_BASIC`, `CONTINUITY_SUMMARY`) to plan entitlements.
+
+---
+
 ## Open Items Tracker (2026-06-30 end-of-day)
 
 Reconciled against the codebase. Items marked done below are implemented; remaining items are
@@ -1116,6 +1343,18 @@ still open.
 | Morning briefing engine (Rubjob) | **Done** | Committed `ae26706`, `ab2611f` |
 | General note PUBLIC/PRIVATE visibility | **Done** | Committed `ae26706` |
 | Feeling log / private mood journal | **Done** | `ae265c3`, `37eac5d` — batch every 3 days 02:00 |
+| Kora rebrand + guest welcome landing | **Done** | `c912763`, `922b7d7`, `2d1cd5d` |
+| My Tasks (`/my-tasks`) | **Done** | `2d1cd5d` — project-scoped action items, mine filter |
+| Tenant-admin action-item assignees | **Done** | `2d1cd5d` — `TenantRole` TENANT_ADMIN/MANAGER |
+| Welcome Knowledge Hub + Feeling Log spotlight | **Done** | `2d1cd5d` |
+| Subscription packages admin + tenant assignment | **Done** | `AdminPackagesPage`, migration `20260630223000_subscription_packages` |
+| Project quota by package | **Done** | `POST /projects` enforces `maxProjects` |
+| General notes links + Ask-AI context | **Done** | PUBLIC notes in evidence; URLs open in new tab |
+| Feeling-log privacy-safe manager insights | **Done** | `privacySafeInsightText` + stricter batch prompts |
+| Documentation refresh (Kora, My Tasks) | **Done** | handover, FEATURES, QUICK_REFERENCE, frontend guides |
+| Action-item `requireRole` on create/reassign | **Done** | `2d1cd5d` |
+| Continuity fully on `ActionItemsPanel` | **Open** | Panel extracted; Continuity still has duplicate logic |
+| Tenant admin edit others' tasks (patch/status) | **Open** | `assertCanMutate` still MEMBER-only by assignee |
 | Feeling log batch scheduler admin UI in AI Trace | **Open** | API exists; no web panel yet (mirror morning briefing panel) |
 | Push notification delivery e2e test on real iPhone PWA | **Open** | Wizard shipped; production VAPID + Home Screen flow needs field verify |
 | Account suspension route-level tests | **Open** | No vitest coverage for login/requireAuth/refresh suspend path |
@@ -1125,12 +1364,13 @@ still open.
 | Project memory vector retrieval | **Open** | Lexical scoring only |
 | Project knowledge item-level review | **Open** | Batch approve only |
 | Continuity tenant-scope route tests | **Open** | |
-| AI deep-link navigation e2e | **Open** | |
-| Review `requireRole([ADMIN, PM])` vs tenant-role routes | **Open** | |
+| Review `requireRole([ADMIN, PM])` vs tenant-role routes | **Open** | Partial — action-items create/reassign done in `2d1cd5d` |
 | Local Node >= 22 | **Open** | Local still v20.10.0 |
 
 Commit status:
-- Everything through **`37eac5d`** (2026-06-30 end of day) is on `main`.
+- Prior push: **`2d1cd5d`** (2026-06-30 late session) on `main`.
+- This session adds subscription packages, privacy polish, and documentation (commit pending push).
+- Migrations on deploy: `20260630210000_action_item_project_scope`, `20260630223000_subscription_packages`.
 - Production DB migrations apply automatically via `docker/start.sh` on API container boot.
 - Product feature map: [`docs/FEATURES.md`](./FEATURES.md).
 
@@ -1141,6 +1381,8 @@ Prioritized from open items, today's architecture, and product direction. Use th
 ### P0 — Stabilize what shipped today
 
 1. **Production smoke test (manual)**
+   - **Welcome:** guest `/` — hero, banner, spotlight, language switch.
+   - **My Tasks:** `/my-tasks` — list, create with project, tenant-admin assignee dropdown (needs 2+ members in org).
    - Feeling log: save entry → wait for batch or `POST /feeling-log-batch/run-now` → confirm personal card + manager tab **ภาพรวมทีม**.
    - Morning briefing: `POST /morning-briefings/run-now` → Dashboard dialog + ack → sentiment pipeline.
    - iPhone push: Home Screen install → Profile → Enable push → reassign task → notification.
@@ -1169,15 +1411,17 @@ Prioritized from open items, today's architecture, and product direction. Use th
 
 10. **Automated tests:** sentiment tenant isolation, feeling log batch grouping, suspension login/refresh paths.
 11. **Login suspended-account friendly message** on `LoginPage`.
-12. **Review `requireRole([ADMIN, PM])` vs tenant-role routes** for remaining legacy paths.
-13. **AI deep-link navigation e2e** (Playwright or similar).
+12. **Review `requireRole([ADMIN, PM])` vs tenant-role routes** for remaining legacy paths (action-item create/reassign **done** in `2d1cd5d`).
+13. **Tenant admin mutate others' tasks** — extend `assertCanMutate` beyond legacy `UserRole.MEMBER` check.
+14. **Refactor Continuity** to use `ActionItemsPanel` only (remove duplicate action-item UI).
+15. **AI deep-link navigation e2e** (Playwright or similar).
 
 ### P2 — Platform & ops
 
-14. **ASR scale path** — GPU Whisper or chunked pipeline if CPU `small` remains too slow for 20–60 min meetings.
-15. **Multi-part audio** — optional upload queue + merge transcript (today: manual split + paste).
-16. **Billing / feature flags** — wire `featureFlagStore` to user API instead of hardcoded `PRO` in `App.tsx`.
-17. **Local Node >= 22** — align with repo engine requirement.
+16. **ASR scale path** — GPU Whisper or chunked pipeline if CPU `small` remains too slow for 20–60 min meetings.
+17. **Multi-part audio** — optional upload queue + merge transcript (today: manual split + paste).
+18. **Billing / feature flags** — wire `featureFlagStore` to user API instead of hardcoded `PRO` in `App.tsx`.
+19. **Local Node >= 22** — align with repo engine requirement.
 
 ### Rubjob persona — longer arc
 

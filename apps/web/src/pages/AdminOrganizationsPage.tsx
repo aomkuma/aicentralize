@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
 import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/authStore'
-import type { AdminTenant, TenantMembership, UserInvitation } from '../types'
+import type { AdminTenant, SubscriptionPackage, TenantMembership, UserInvitation } from '../types'
 
 type TenantRole = 'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'
 
@@ -23,6 +23,7 @@ export default function AdminOrganizationsPage() {
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null)
   const [members, setMembers] = useState<TenantMembership[]>([])
   const [invitations, setInvitations] = useState<UserInvitation[]>([])
+  const [packages, setPackages] = useState<SubscriptionPackage[]>([])
   const [manualInviteUrl, setManualInviteUrl] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -36,6 +37,17 @@ export default function AdminOrganizationsPage() {
       setSelectedTenantId((current) => current ?? data[0]?.id ?? null)
     }
   }, [get])
+
+  const fetchPackages = useCallback(async () => {
+    if (!isSuperAdmin) {
+      return
+    }
+
+    const data = await get<SubscriptionPackage[]>('/admin/packages')
+    if (Array.isArray(data)) {
+      setPackages(data)
+    }
+  }, [get, isSuperAdmin])
 
   const fetchMembers = useCallback(async () => {
     if (!selectedTenantId) {
@@ -58,6 +70,10 @@ export default function AdminOrganizationsPage() {
   useEffect(() => {
     fetchTenants()
   }, [fetchTenants])
+
+  useEffect(() => {
+    fetchPackages()
+  }, [fetchPackages])
 
   useEffect(() => {
     fetchMembers()
@@ -115,6 +131,22 @@ export default function AdminOrganizationsPage() {
     setNotice(null)
     const updated = await patch<AdminTenant>(`/admin/tenants/${tenant.id}`, {
       name: trimmed,
+    })
+
+    if (updated) {
+      setTenants((items) => items.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)))
+      setNotice(t('adminOrganizations.organizationSaved'))
+    }
+  }
+
+  const onChangeTenantPackage = async (tenant: AdminTenant, packageId: string) => {
+    if (tenant.currentPackageId === packageId) {
+      return
+    }
+
+    setNotice(null)
+    const updated = await patch<AdminTenant>(`/admin/tenants/${tenant.id}`, {
+      currentPackageId: packageId || null,
     })
 
     if (updated) {
@@ -219,6 +251,13 @@ export default function AdminOrganizationsPage() {
     }
   }
 
+  const selectedPackage = selectedTenant?.currentPackage ?? null
+  const activeMembers = members.filter((member) => member.isActive !== false).length
+  const includedUsers = selectedPackage?.maxUsers ?? 0
+  const additionalUsers = Math.max(0, activeMembers - includedUsers)
+  const additionalUserPrice = selectedPackage ? selectedPackage.additionalUserPriceCents / 100 : 0
+  const additionalUserTotal = additionalUsers * additionalUserPrice
+
   return (
     <Layout>
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -248,6 +287,9 @@ export default function AdminOrganizationsPage() {
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.organizationName')}</th>
                     <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">Slug</th>
+                    {isSuperAdmin && (
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">Package</th>
+                    )}
                     <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.owner')}</th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.members')}</th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.projects')}</th>
@@ -273,6 +315,22 @@ export default function AdminOrganizationsPage() {
                         />
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{tenant.slug}</td>
+                      {isSuperAdmin && (
+                        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          <select
+                            value={tenant.currentPackageId ?? ''}
+                            onChange={(event) => onChangeTenantPackage(tenant, event.target.value)}
+                            className="w-full min-w-[9rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                          >
+                            <option value="">No package</option>
+                            {packages.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{tenant.createdBy?.email ?? '-'}</td>
                       <td className="px-4 py-3 text-center text-gray-700 dark:text-slate-300">{tenant._count?.memberships ?? 0}</td>
                       <td className="px-4 py-3 text-center text-gray-700 dark:text-slate-300">{tenant._count?.projects ?? 0}</td>
@@ -319,6 +377,47 @@ export default function AdminOrganizationsPage() {
                 <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{selectedTenant.name}</p>
               )}
             </div>
+            {selectedTenant && (
+              <div className="border-b border-gray-200 p-4 text-sm dark:border-slate-700">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-900 dark:text-white">
+                      {selectedPackage?.name ?? 'No package'}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                      Current package
+                    </p>
+                  </div>
+                  {selectedPackage && (
+                    <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                      {selectedPackage.priceCents / 100} {selectedPackage.currency}
+                    </span>
+                  )}
+                </div>
+                {selectedPackage && (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="rounded-md bg-gray-50 p-2 dark:bg-slate-800">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Projects</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {selectedTenant._count?.projects ?? 0}/{selectedPackage.maxProjects}
+                      </p>
+                    </div>
+                    <div className="rounded-md bg-gray-50 p-2 dark:bg-slate-800">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Users</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {activeMembers}/{includedUsers}
+                      </p>
+                    </div>
+                    <div className="rounded-md bg-gray-50 p-2 dark:bg-slate-800">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Overage</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {additionalUserTotal} {selectedPackage.currency}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="divide-y divide-gray-100 dark:divide-slate-800">
               {members.map((member) => (
                 <div key={member.id} className="p-4">

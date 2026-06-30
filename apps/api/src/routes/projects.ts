@@ -180,6 +180,31 @@ projectRouter.post("/", requireAuth, async (req, res) => {
     if (!canCreateInTenant) {
       return res.status(403).json({ message: "Forbidden tenant scope" });
     }
+
+    const tenantQuota = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        currentPackage: {
+          select: {
+            maxProjects: true
+          }
+        },
+        _count: {
+          select: {
+            projects: true
+          }
+        }
+      }
+    });
+
+    const maxProjects = tenantQuota?.currentPackage?.maxProjects ?? 0;
+    if (maxProjects > 0 && (tenantQuota?._count.projects ?? 0) >= maxProjects) {
+      return res.status(403).json({
+        message: "Project quota reached for current package",
+        code: "PACKAGE_PROJECT_QUOTA_REACHED",
+        maxProjects
+      });
+    }
   } else if (!isSuperAdmin(req.user!)) {
     return res.status(400).json({ message: "tenantId is required unless user is SUPER_ADMIN" });
   }

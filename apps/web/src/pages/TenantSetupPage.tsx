@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useApi } from '../hooks/useApi'
@@ -6,13 +6,14 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useAuthStore } from '../stores/authStore'
 import { setSetupOnboardingStatus } from '../lib/setupOnboarding'
 import LanguageSwitcher from '../components/LanguageSwitcher'
-import type { MemberOnboardRequest, MemberOnboardResponse, Tenant, TenantCreateRequest } from '../types'
+import type { MemberOnboardRequest, MemberOnboardResponse, SubscriptionPackage, Tenant, TenantCreateRequest } from '../types'
 
 export default function TenantSetupPage() {
   const { t } = useTranslation()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const { post, isLoading } = useApi()
+  const { get: getPackages } = useApi()
   const userId = useAuthStore((state) => state.user?.id)
 
   const [step, setStep] = useState(1)
@@ -20,6 +21,7 @@ export default function TenantSetupPage() {
     organizationName: '',
     contactEmail: '',
     contactName: '',
+    currentPackageId: '',
   })
   const [memberForm, setMemberForm] = useState({
     name: '',
@@ -30,6 +32,7 @@ export default function TenantSetupPage() {
     tenantRole: 'MEMBER' as MemberOnboardRequest['tenantRole'],
   })
   const [createdTenant, setCreatedTenant] = useState<Tenant | null>(null)
+  const [packages, setPackages] = useState<SubscriptionPackage[]>([])
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null)
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
   const [invitationEmailSent, setInvitationEmailSent] = useState(false)
@@ -54,13 +57,31 @@ export default function TenantSetupPage() {
     },
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }))
   }
+
+  useEffect(() => {
+    const loadPackages = async () => {
+      const data = await getPackages<SubscriptionPackage[]>('/admin/packages')
+      if (Array.isArray(data)) {
+        setPackages(data.filter((item) => item.isActive))
+        const defaultPackage = data.find((item) => item.isActive && item.isDefault)
+        if (defaultPackage) {
+          setFormData((current) => ({
+            ...current,
+            currentPackageId: current.currentPackageId || defaultPackage.id,
+          }))
+        }
+      }
+    }
+
+    void loadPackages()
+  }, [getPackages])
 
   const handleMemberInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -94,6 +115,7 @@ export default function TenantSetupPage() {
 
       const payload: TenantCreateRequest = {
         name: formData.organizationName,
+        currentPackageId: formData.currentPackageId || undefined,
       }
 
       const response = await post<Tenant>('/tenants', payload)
@@ -283,6 +305,22 @@ export default function TenantSetupPage() {
                     )}
                   </div>
                 </div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300">
+                  Current package
+                  <select
+                    name="currentPackageId"
+                    value={formData.currentPackageId}
+                    onChange={handleInputChange}
+                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-400"
+                  >
+                    <option value="">Use platform default</option>
+                    {packages.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.maxProjects} projects / {item.maxUsers} users)
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
             )}
 

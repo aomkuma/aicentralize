@@ -2,10 +2,13 @@
 
 ## Overview
 
-This document describes the modular frontend implementation for three key features:
-1. **Continuity Dashboard** - Project health monitoring with overdue tracking
-2. **Reminder Operations** - Reminder digest inspection and escalation metrics
-3. **Ask-AI Trace Panel** - AI run log inspection with retrieval evidence
+This document describes the modular frontend implementation for key features:
+
+1. **Action Items / My Tasks** — personal task list and shared action-item panel
+2. **Continuity Dashboard** — Project health monitoring with overdue tracking
+3. **Reminder Operations** — Reminder digest inspection and escalation metrics
+4. **Ask-AI Trace Panel** — AI run log inspection with retrieval evidence
+5. **Guest Welcome** — Kora marketing landing at `/`
 
 All features are built with:
 - ✅ Modular component architecture
@@ -47,6 +50,10 @@ Each feature module is isolated under `src/components/features/`:
 
 ```
 features/
+├── action-items/                  # My Tasks + shared action board
+│   ├── ActionItemsPanel.tsx      # mode="mine" | mode="project"
+│   └── actionItemTypes.ts
+│
 ├── continuity/                    # Continuity Dashboard
 │   ├── ContinuityDashboard.tsx   # Main component with tabs
 │   ├── ContinuitySummaryCard.tsx # Summary card display
@@ -65,6 +72,30 @@ features/
     ├── AiTraceDetail.tsx         # Detail panel with trace
     └── index.ts
 ```
+
+**Pages (not under `features/`):**
+- `pages/WelcomePage.tsx` — guest marketing landing
+- `pages/MyTasksPage.tsx` — wraps `ActionItemsPanel` with `mode="mine"`
+
+**Permissions helper:** `lib/actionItemPermissions.ts` — `canAssignActionItemsToOthers`, `resolveTenantMembership`
+
+### ActionItemsPanel modes
+
+```typescript
+// My Tasks — cross-project, assignee = current user
+<ActionItemsPanel
+  mode="mine"
+  showCreateForm
+  showProjectColumn
+  showOwnerFilter={false}
+  allowReassign={canAssignOthers}
+/>
+
+// Continuity — single project (team view); refactor in progress
+<ActionItemsPanel mode="project" projectId={projectId} ... />
+```
+
+Owner options load from `GET /tenants/:tenantId/members` (active members); falls back to `GET /tenants/:tenantId/users`.
 
 ### Custom Hooks
 

@@ -19,6 +19,7 @@ import ChangePasswordPage from './pages/ChangePasswordPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminOrganizationsPage from './pages/AdminOrganizationsPage'
 import AdminPlatformUsersPage from './pages/AdminPlatformUsersPage'
+import AdminPackagesPage from './pages/AdminPackagesPage'
 import FeelingLogsPage from './pages/FeelingLogsPage'
 import AcceptInvitePage from './pages/AcceptInvitePage'
 import WelcomePage from './pages/WelcomePage'
@@ -132,6 +133,7 @@ function AppContent() {
           <Route path="/setup" element={<SetupRoute />} />
           <Route path="/admin/organizations" element={<AdminManagementRoute><AdminOrganizationsPage /></AdminManagementRoute>} />
           <Route path="/admin/platform-users" element={<SuperAdminRoute><AdminPlatformUsersPage /></SuperAdminRoute>} />
+          <Route path="/admin/packages" element={<SuperAdminRoute><AdminPackagesPage /></SuperAdminRoute>} />
           <Route path="/dashboard" element={<WorkflowRoute><DashboardPage /></WorkflowRoute>} />
           <Route path="/my-tasks" element={<WorkflowRoute><MyTasksPage /></WorkflowRoute>} />
           <Route path="/continuity" element={<WorkflowRoute><ContinuityPage /></WorkflowRoute>} />

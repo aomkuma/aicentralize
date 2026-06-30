@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { useTenantStore } from '../stores/tenantStore'
+import { useFeatureFlagStore } from '../stores/featureFlagStore'
 import { useApi } from '../hooks/useApi'
 import Sidebar from './Sidebar'
 import Breadcrumb from './Breadcrumb'
@@ -34,6 +35,7 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
   const setCurrentTenant = useTenantStore((state) => state.setCurrentTenant)
   const setMemberships = useTenantStore((state) => state.setMemberships)
   const clearCurrentTenant = useTenantStore((state) => state.clearCurrentTenant)
+  const setPackageEntitlements = useFeatureFlagStore((state) => state.setPackageEntitlements)
   const { get: getMemberships } = useApi()
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(getInitialDesktopCollapsed)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
@@ -82,6 +84,10 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
 
           if (matchingMembership?.tenant) {
             setCurrentTenant(matchingMembership.tenant, matchingMembership)
+            setPackageEntitlements(
+              matchingMembership.tenant.currentPackage?.code ?? null,
+              matchingMembership.tenant.currentPackage?.features ?? null,
+            )
             return
           }
         }
@@ -89,11 +95,16 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
         const defaultMembership = memberships.find((membership) => membership.tenant) ?? memberships[0]
         if (defaultMembership?.tenant) {
           setCurrentTenant(defaultMembership.tenant, defaultMembership)
+          setPackageEntitlements(
+            defaultMembership.tenant.currentPackage?.code ?? null,
+            defaultMembership.tenant.currentPackage?.features ?? null,
+          )
         }
         return
       }
 
       clearCurrentTenant()
+      setPackageEntitlements(null, null)
     }
 
     void loadMemberships()
@@ -109,6 +120,7 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
     setMemberships,
     setCurrentTenant,
     clearCurrentTenant,
+    setPackageEntitlements,
   ])
 
   const currentPageTitle = useMemo(() => {

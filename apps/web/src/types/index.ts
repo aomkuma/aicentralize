@@ -16,7 +16,27 @@ export interface Tenant {
   slug: string
   name: string
   isActive?: boolean
+  currentPackageId?: string | null
+  currentPackage?: SubscriptionPackage | null
   createdBy: User
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SubscriptionPackage {
+  id: string
+  code: string
+  name: string
+  description?: string | null
+  priceCents: number
+  currency: string
+  billingInterval: 'MONTHLY' | 'YEARLY' | 'ONE_TIME' | 'CUSTOM' | string
+  maxProjects: number
+  maxUsers: number
+  additionalUserPriceCents: number
+  features: string[]
+  isActive: boolean
+  isDefault: boolean
   createdAt: string
   updatedAt: string
 }
@@ -221,6 +241,7 @@ export interface AiProviderAccount {
 export interface TenantCreateRequest {
   name: string
   slug?: string
+  currentPackageId?: string
 }
 
 export interface MemberAddRequest {

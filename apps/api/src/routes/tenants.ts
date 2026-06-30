@@ -13,7 +13,8 @@ export const tenantRouter = Router();
 
 const createTenantSchema = z.object({
   name: z.string().min(2).max(120),
-  slug: z.string().min(2).max(80).optional()
+  slug: z.string().min(2).max(80).optional(),
+  currentPackageId: z.string().min(1).optional()
 });
 
 const addMemberSchema = z.object({
@@ -89,6 +90,7 @@ tenantRouter.get("/me", requireAuth, async (req, res) => {
           slug: true,
           name: true,
           isActive: true,
+          currentPackage: true,
           createdAt: true,
           updatedAt: true
         }
@@ -118,11 +120,22 @@ tenantRouter.post("/", requireAuth, async (req, res) => {
   }
 
   const shouldCreateCreatorMembership = !isPlatformAdmin(req.user!);
+  const defaultPackage = parsed.data.currentPackageId
+    ? await prisma.subscriptionPackage.findUnique({ where: { id: parsed.data.currentPackageId } })
+    : await prisma.subscriptionPackage.findFirst({
+      where: { isActive: true, isDefault: true },
+      orderBy: { createdAt: "asc" }
+    });
+
+  if (parsed.data.currentPackageId && !defaultPackage) {
+    return res.status(400).json({ message: "Package not found" });
+  }
 
   const tenant = await prisma.tenant.create({
     data: {
       name: parsed.data.name,
       slug,
+      currentPackageId: defaultPackage?.id,
       createdById: req.user!.id,
       ...(shouldCreateCreatorMembership
         ? {
@@ -134,6 +147,9 @@ tenantRouter.post("/", requireAuth, async (req, res) => {
           }
         }
         : {})
+    },
+    include: {
+      currentPackage: true
     }
   });
 

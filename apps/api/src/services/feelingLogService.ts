@@ -99,6 +99,17 @@ function safePreview(content: string, maxLength = 260) {
   return content.replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
+function privacySafeInsightText(value: string, fallback: string) {
+  const cleaned = value
+    .replace(/สารตั้งต้นจากบันทึก\s*[:：].*/gis, "")
+    .replace(/(?:ข้อความ|บันทึก|entry|raw text|source text)(?:ต้นฉบับ|ดิบ)?\s*[:：].*/gis, "")
+    .replace(/["“”'‘’][^"“”'‘’]{18,}["“”'‘’]/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return cleaned || fallback;
+}
+
 function serializeEntries(logs: PendingLog[]) {
   return logs.map((log) => ({
     createdAt: log.createdAt.toISOString(),
@@ -160,10 +171,16 @@ function buildBatchAiPrompt(input: {
 
   return [
     "You are Rubjob, a supportive workplace-aware reflection assistant.",
-    `Analyze a ${modeLabel}.`,
+    `Analyze a ${modeLabel} as a privacy-preserving workplace psychologist.`,
     "Do NOT diagnose mental health, personality, intent, or relationships.",
     "Do NOT write harsh, shaming, or emotionally escalated wording.",
     "Keep the response factual, cautious, and supportive.",
+    "Never quote, copy, or closely paraphrase any original entry text.",
+    "Never output a field or sentence like 'สารตั้งต้นจากบันทึก', 'ข้อความต้นฉบับ', 'raw text', or 'source text'.",
+    "Summarize only higher-level patterns, possible needs, risk signals, and constructive observations.",
+    "Protect privacy: preserve the original writer's privacy and avoid details that could identify the writer.",
+    "Do not make any teammate look bad. Describe behavior or team dynamics neutrally, without blame, while still reflecting the real signal.",
+    "Use careful psychological-observation wording such as 'อาจสะท้อน', 'มีสัญญาณว่า', 'ควรติดตาม', and avoid certainty when evidence is limited.",
     input.mode === "leadership" || input.mode === "mention"
       ? "Never mention or infer the author identity."
       : "This is only for the recorder's private reflection.",
@@ -221,12 +238,12 @@ async function analyzeBatchWithAi(input: {
 
     return {
       analysis: {
-        personalTitle: typeof parsed.personalTitle === "string" && parsed.personalTitle.trim() ? parsed.personalTitle.trim() : heuristic.personalTitle,
-        personalSummary: typeof parsed.personalSummary === "string" && parsed.personalSummary.trim() ? parsed.personalSummary.trim() : heuristic.personalSummary,
-        interpretation: typeof parsed.interpretation === "string" && parsed.interpretation.trim() ? parsed.interpretation.trim() : heuristic.interpretation,
-        executiveSummary: typeof parsed.executiveSummary === "string" && parsed.executiveSummary.trim() ? parsed.executiveSummary.trim() : heuristic.executiveSummary,
-        mentionSummary: typeof parsed.mentionSummary === "string" && parsed.mentionSummary.trim() ? parsed.mentionSummary.trim() : heuristic.mentionSummary,
-        recommendation: typeof parsed.recommendation === "string" && parsed.recommendation.trim() ? parsed.recommendation.trim() : heuristic.recommendation,
+        personalTitle: typeof parsed.personalTitle === "string" && parsed.personalTitle.trim() ? privacySafeInsightText(parsed.personalTitle.trim(), heuristic.personalTitle) : heuristic.personalTitle,
+        personalSummary: typeof parsed.personalSummary === "string" && parsed.personalSummary.trim() ? privacySafeInsightText(parsed.personalSummary.trim(), heuristic.personalSummary) : heuristic.personalSummary,
+        interpretation: typeof parsed.interpretation === "string" && parsed.interpretation.trim() ? privacySafeInsightText(parsed.interpretation.trim(), heuristic.interpretation) : heuristic.interpretation,
+        executiveSummary: typeof parsed.executiveSummary === "string" && parsed.executiveSummary.trim() ? privacySafeInsightText(parsed.executiveSummary.trim(), heuristic.executiveSummary) : heuristic.executiveSummary,
+        mentionSummary: typeof parsed.mentionSummary === "string" && parsed.mentionSummary.trim() ? privacySafeInsightText(parsed.mentionSummary.trim(), heuristic.mentionSummary) : heuristic.mentionSummary,
+        recommendation: typeof parsed.recommendation === "string" && parsed.recommendation.trim() ? privacySafeInsightText(parsed.recommendation.trim(), heuristic.recommendation) : heuristic.recommendation,
         riskLevel
       },
       model: result.model
@@ -283,15 +300,25 @@ async function createAnalysisRecords(input: {
       : input.audience === FeelingLogAnalysisAudience.MENTION_TARGET
         ? input.analysis.mentionSummary
         : input.analysis.personalSummary);
+  const shouldProtectSourceText = input.audience !== FeelingLogAnalysisAudience.PERSONAL;
+  const safeSummary = shouldProtectSourceText
+    ? privacySafeInsightText(summary, "มีสัญญาณจากบันทึกส่วนตัวที่ควรติดตามอย่างระมัดระวัง โดยไม่เปิดเผยข้อความต้นฉบับ")
+    : summary;
+  const safeInterpretation = shouldProtectSourceText
+    ? privacySafeInsightText(input.analysis.interpretation, "ควรดูแนวโน้มต่อเนื่องในรอบถัดไป และตีความอย่างระมัดระวังโดยไม่ระบุตัวผู้เขียน")
+    : input.analysis.interpretation;
+  const safeRecommendation = shouldProtectSourceText
+    ? privacySafeInsightText(input.analysis.recommendation, "ติดตามด้วยท่าทีสนับสนุน เปิดพื้นที่รับฟัง และหลีกเลี่ยงการระบุตัวบุคคล")
+    : input.analysis.recommendation;
 
   const rows = input.feelingLogIds.map((feelingLogId) => ({
     feelingLogId,
     audience: input.audience,
     targetUserId: input.targetUserId ?? null,
     title,
-    summary,
-    interpretation: input.analysis.interpretation,
-    recommendation: input.analysis.recommendation,
+    summary: safeSummary,
+    interpretation: safeInterpretation,
+    recommendation: safeRecommendation,
     riskLevel: input.analysis.riskLevel,
     model: input.model ?? null,
     promptVersion: PROMPT_VERSION
@@ -682,9 +709,9 @@ export async function getFeelingLogInbox(tenantId: string, user: TenantAuthUser)
       id: item.id,
       audience: item.audience,
       title: item.title,
-      summary: item.summary,
-      interpretation: item.interpretation,
-      recommendation: item.recommendation,
+      summary: privacySafeInsightText(item.summary, "มีสัญญาณจากบันทึกส่วนตัวที่ควรติดตามอย่างระมัดระวัง โดยไม่เปิดเผยข้อความต้นฉบับ"),
+      interpretation: privacySafeInsightText(item.interpretation, "ควรดูแนวโน้มต่อเนื่องในรอบถัดไป และตีความอย่างระมัดระวังโดยไม่ระบุตัวผู้เขียน"),
+      recommendation: privacySafeInsightText(item.recommendation ?? "", "ติดตามด้วยท่าทีสนับสนุน เปิดพื้นที่รับฟัง และหลีกเลี่ยงการระบุตัวบุคคล"),
       riskLevel: item.riskLevel,
       createdAt: item.createdAt.toISOString(),
       emoji: item.feelingLog.emoji,

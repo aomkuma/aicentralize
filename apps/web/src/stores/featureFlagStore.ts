@@ -5,8 +5,10 @@ import { FEATURE_ENTITLEMENTS } from '../types/features'
 
 interface FeatureFlagState {
   plan: BillingPlan
-  // enabledFeatures is always derived from plan at runtime — not stored
+  packageCode: string | null
+  enabledFeatureIds: string[] | null
   setPlan: (plan: BillingPlan) => void
+  setPackageEntitlements: (packageCode: string | null, features: string[] | null) => void
   isFeatureEnabled: (feature: FeatureKey) => boolean
   canAccessFeature: (feature: FeatureKey) => boolean
   getEnabledFeatures: () => FeatureKey[]
@@ -21,24 +23,41 @@ export const useFeatureFlagStore = create<FeatureFlagState>()(
   persist(
     (set, get) => ({
       plan: 'FREE',
+      packageCode: null,
+      enabledFeatureIds: null,
 
       setPlan: (plan: BillingPlan) => set({ plan }),
 
+      setPackageEntitlements: (packageCode: string | null, features: string[] | null) =>
+        set({
+          packageCode,
+          enabledFeatureIds: features,
+        }),
+
       isFeatureEnabled: (feature: FeatureKey) =>
-        featuresForPlan(get().plan).has(feature),
+        get().enabledFeatureIds
+          ? get().enabledFeatureIds!.includes(feature)
+          : featuresForPlan(get().plan).has(feature),
 
       canAccessFeature: (feature: FeatureKey) =>
-        featuresForPlan(get().plan).has(feature),
+        get().enabledFeatureIds
+          ? get().enabledFeatureIds!.includes(feature)
+          : featuresForPlan(get().plan).has(feature),
 
       getEnabledFeatures: () =>
-        Array.from(featuresForPlan(get().plan)) as FeatureKey[],
+        (get().enabledFeatureIds
+          ? get().enabledFeatureIds
+          : Array.from(featuresForPlan(get().plan))) as FeatureKey[],
 
-      reset: () => set({ plan: 'FREE' }),
+      reset: () => set({ plan: 'FREE', packageCode: null, enabledFeatureIds: null }),
     }),
     {
       name: 'feature-flag-store',
-      // Persist only plan; features are derived at runtime
-      partialize: (state) => ({ plan: state.plan }),
+      partialize: (state) => ({
+        plan: state.plan,
+        packageCode: state.packageCode,
+        enabledFeatureIds: state.enabledFeatureIds,
+      }),
     }
   )
 )

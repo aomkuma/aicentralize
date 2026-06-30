@@ -1,10 +1,14 @@
 # Quick Reference - Common Commands
 
-## Session Update (2026-06-30, end of day)
+## Session Update (2026-06-30, late session)
 
-**`main` through `37eac5d`.** Full feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Handover + roadmap: `docs/next-day-handover-2026-06-28.md`.
+**`main` through `2d1cd5d`.** Full feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Handover + roadmap: `docs/next-day-handover-2026-06-28.md`.
 
 Recent product changes:
+- **Kora welcome:** `/` guest landing — hero copy, full-width banner, spotlight **Knowledge Hub** + **Feeling Log**.
+- **My Tasks:** `/my-tasks` — sidebar **รายการงานของฉัน**; tasks assigned to you across projects; create with required project.
+- **Action-item assignees:** `TENANT_ADMIN` / `MANAGER` can assign/reassign (uses `TenantMembership.role`, not only legacy `User.role`).
+- **Migration:** `20260630210000_action_item_project_scope` (`projectId` required on `ActionItem`).
 - **Feeling log:** `/feeling-logs` — save text immediately; Rubjob batch AI every **3 days at 02:00** Bangkok; manager tab **ภาพรวมทีม**.
 - **Morning briefing (Rubjob):** Dashboard dialog **04:30** daily; ack moods → sentiment; AI Trace scheduler panel.
 - **Push / PWA:** Profile wizard (install app → enable push); iPhone requires Home Screen install; `PushOnboardingBanner` in layout; VAPID on API.
@@ -16,7 +20,47 @@ Recent product changes:
 - **Continuity:** not in sidebar; open from `/projects` → project card → `/continuity/:projectId`.
 - **Communication sentiment:** mood badges on `/projects` team table (`TENANT_ADMIN` / `MANAGER`).
 - **Project knowledge + general notes:** `/projects/:projectId/knowledge`, `/projects/:projectId/notes`.
+- **General-note AI + links:** public notes are included in project AI context; saved-note URLs are rendered as new-tab links.
+- **Feeling-log privacy:** leadership/mention AI insights are sanitized at analysis creation and inbox response; no raw entry quotes.
+- **Package management:** `/admin/packages` (`SUPER_ADMIN`); organizations hold `Tenant.currentPackageId`; project creation enforces package `maxProjects`.
 - **Deploy:** API Docker runs `npx prisma migrate deploy` on boot (`docker/start.sh`).
+
+### My Tasks quick test
+
+1. Log in as tenant admin or member.
+2. Open `/my-tasks` from sidebar.
+3. **เพิ่มรายการงาน** — pick project, due date, title; tenant admin can change assignee dropdown.
+4. API: `GET /action-items?mine=true`, `POST /action-items` with `{ projectId, title, dueDate, ownerUserId? }`.
+
+### Action-item assignee rules
+
+| Who | Can assign to others? |
+|-----|------------------------|
+| `UserRole` ADMIN / PM | Yes |
+| `TenantRole` TENANT_ADMIN / MANAGER | Yes |
+| `MEMBER` / `VIEWER` | No (self only) |
+
+Frontend: `canAssignActionItemsToOthers()` in `actionItemPermissions.ts` (uses fresh `/tenants/me` membership).
+
+### Tenant routes (logged-in)
+
+| Route | Page | Notes |
+|-------|------|-------|
+| `/dashboard` | Dashboard + AI Chat | Morning briefing dialog |
+| `/my-tasks` | My Tasks | Sidebar **รายการงานของฉัน** |
+| `/meetings` | Meeting Studio | 3-step wizard |
+| `/projects` | Projects | Entry to continuity/knowledge |
+| `/continuity/:projectId` | Continuity | Team action board |
+| `/feeling-logs` | Feeling log | Journal + manager insights |
+| `/projects/:id/knowledge` | Knowledge Hub | Onboarding baseline |
+| `/projects/:id/notes` | General notes | PUBLIC / PRIVATE |
+
+### Guest routes
+
+| Route | Page |
+|-------|------|
+| `/` | Welcome (Kora landing) |
+| `/auth/login` | Login |
 
 ### Feeling log batch (env)
 

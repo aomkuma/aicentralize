@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
@@ -16,6 +16,44 @@ type ProjectOption = {
 
 function buildProjectLabel(project: ProjectOption) {
   return [project.code, project.name].filter(Boolean).join(' - ') || project.name
+}
+
+const urlPattern = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi
+const trailingUrlPunctuationPattern = /[),.!?;:]+$/
+
+function splitUrlToken(token: string) {
+  const trailing = token.match(trailingUrlPunctuationPattern)?.[0] ?? ''
+  return {
+    urlText: trailing ? token.slice(0, -trailing.length) : token,
+    trailing,
+  }
+}
+
+function renderLinkedText(text: string) {
+  const parts = text.split(urlPattern)
+
+  return parts.map((part, index) => {
+    if (!part.match(urlPattern)) {
+      return <Fragment key={index}>{part}</Fragment>
+    }
+
+    const { urlText, trailing } = splitUrlToken(part)
+    const href = urlText.startsWith('www.') ? `https://${urlText}` : urlText
+
+    return (
+      <Fragment key={index}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-blue-600 underline decoration-blue-300 underline-offset-2 hover:text-blue-700 dark:text-blue-300 dark:decoration-blue-500 dark:hover:text-blue-200"
+        >
+          {urlText}
+        </a>
+        {trailing}
+      </Fragment>
+    )
+  })
 }
 
 export default function ProjectGeneralNotesPage() {
@@ -40,11 +78,8 @@ export default function ProjectGeneralNotesPage() {
     const data = await get<ProjectOption[]>('/projects')
     if (Array.isArray(data)) {
       setProjects(data)
-      if (!selectedProjectId && data[0]?.id) {
-        setSelectedProjectId(routeProjectId ?? data[0].id)
-      }
     }
-  }, [get, routeProjectId, selectedProjectId])
+  }, [get])
 
   const fetchNotes = useCallback(async () => {
     if (!selectedProjectId) {
@@ -189,7 +224,10 @@ export default function ProjectGeneralNotesPage() {
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('generalNotes.project')}</span>
                 <select
                   value={selectedProjectId}
-                  onChange={(event) => setSelectedProjectId(event.target.value)}
+                  onChange={(event) => {
+                    setSelectedProjectId(event.target.value)
+                    setNotice('')
+                  }}
                   className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"
                 >
                   <option value="">{t('generalNotes.selectProject')}</option>
@@ -301,7 +339,9 @@ export default function ProjectGeneralNotesPage() {
                         </p>
                       </div>
                     </div>
-                    <p className="mt-2 whitespace-pre-line text-sm text-slate-600 dark:text-slate-300">{note.content}</p>
+                    <p className="mt-2 whitespace-pre-line break-words text-sm text-slate-600 dark:text-slate-300">
+                      {renderLinkedText(note.content)}
+                    </p>
                   </div>
                 ))}
 

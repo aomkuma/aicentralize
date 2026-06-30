@@ -1,4 +1,4 @@
-import { SystemRole, UserRole } from "@prisma/client";
+import { ProjectGeneralNoteVisibility, SystemRole, UserRole } from "@prisma/client";
 import { Request, Router } from "express";
 import fs from "node:fs";
 import path from "node:path";
@@ -51,7 +51,7 @@ type OptionalAuthUser = {
 type AppLink = {
   label: string;
   url: string;
-  type: "project" | "action";
+  type: "project" | "action" | "knowledge";
   sourceId: string;
   context?: string;
 };
@@ -114,9 +114,7 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
     where: {
       status: { notIn: ["DONE", "CANCELLED"] },
       ...(selfTaskQuestion ? { assigneeId: user.id } : {}),
-      meeting: {
-        projectId
-      }
+      projectId
     },
     select: {
       id: true,
@@ -137,6 +135,27 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
       { createdAt: "desc" }
     ],
     take: 40
+  });
+
+  const generalNotes = await prisma.projectGeneralNote.findMany({
+    where: {
+      projectId,
+      visibility: ProjectGeneralNoteVisibility.PUBLIC
+    },
+    select: {
+      id: true,
+      title: true,
+      content: true,
+      createdAt: true,
+      author: {
+        select: {
+          name: true,
+          email: true
+        }
+      }
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20
   });
 
   const now = new Date();
@@ -170,6 +189,13 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
     })
     .join("\n");
 
+  const generalNoteLines = generalNotes
+    .map((note) => {
+      const content = note.content.replace(/\s+/g, " ").trim();
+      return `- title=${note.title} | author=${note.author.name} <${note.author.email}> | createdAt=${note.createdAt.toISOString()} | content=${content}`;
+    })
+    .join("\n");
+
   const text = [
     "PROJECT_SNAPSHOT (authoritative app data):",
     `- projectId: ${project.id}`,
@@ -186,7 +212,9 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
     "- ownersSummary:",
     ownerLines || "- (none)",
     "- actionItems:",
-    itemLines || "- (none)"
+    itemLines || "- (none)",
+    "- publicGeneralNotes:",
+    generalNoteLines || "- (none)"
   ].join("\n");
 
   return {
@@ -203,6 +231,13 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
         label: "View open actions",
         url: `/continuity/${project.id}?tab=actions&status=open`,
         type: "action",
+        sourceId: project.id,
+        context: project.name
+      },
+      {
+        label: "Open general notes",
+        url: `/projects/${project.id}/notes`,
+        type: "knowledge",
         sourceId: project.id,
         context: project.name
       }
@@ -333,6 +368,8 @@ aiRouter.post("/playground/generate", async (req, res) => {
       "Grounding policy:",
       "- If PROJECT_SNAPSHOT is provided, treat it as source of truth for project task status.",
       "- Answer using the snapshot fields directly, especially overdue and owner-related counts.",
+      "- Public general notes in publicGeneralNotes are approved project context and may answer factual questions such as leave dates, team agreements, reminders, and shared project facts.",
+      "- Do not use private notes; only publicGeneralNotes are provided.",
       "- If actionItemScope is CURRENT_USER_ONLY, answer only about tasks assigned to the requester.",
       "- Never present another owner's task as the requester's own task.",
       "- If actionItemScope is CURRENT_USER_ONLY and actionItems is empty, say the requester currently has no open tasks in this project.",

@@ -44,14 +44,47 @@ async function main() {
     }
   });
 
+  const freePackage = await prisma.subscriptionPackage.upsert({
+    where: { code: "FREE" },
+    update: {
+      name: "Free",
+      description: "Default starter package for new organizations.",
+      priceCents: 0,
+      currency: "THB",
+      billingInterval: "MONTHLY",
+      maxProjects: 1,
+      maxUsers: 5,
+      additionalUserPriceCents: 0,
+      features: ["AI_CHAT_BASIC", "CONTINUITY_SUMMARY"],
+      isActive: true,
+      isDefault: true
+    },
+    create: {
+      code: "FREE",
+      name: "Free",
+      description: "Default starter package for new organizations.",
+      priceCents: 0,
+      currency: "THB",
+      billingInterval: "MONTHLY",
+      maxProjects: 1,
+      maxUsers: 5,
+      additionalUserPriceCents: 0,
+      features: ["AI_CHAT_BASIC", "CONTINUITY_SUMMARY"],
+      isActive: true,
+      isDefault: true
+    }
+  });
+
   const tenant = await prisma.tenant.upsert({
     where: { slug: "org-local" },
     update: {
-      name: "Org Local"
+      name: "Org Local",
+      currentPackageId: freePackage.id
     },
     create: {
       slug: "org-local",
       name: "Org Local",
+      currentPackageId: freePackage.id,
       createdById: admin.id
     }
   });

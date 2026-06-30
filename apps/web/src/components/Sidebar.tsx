@@ -178,10 +178,10 @@ export default function Sidebar({
   const navItems = PRIMARY_NAVIGATION.filter((item) => {
     if (isPlatformAdmin) {
       return item.id === 'admin-organizations' ||
-        (user?.systemRole === 'SUPER_ADMIN' && (item.id === 'admin-platform-users' || item.id === 'settings' || item.id === 'setup'))
+        (user?.systemRole === 'SUPER_ADMIN' && (item.id === 'admin-platform-users' || item.id === 'admin-packages' || item.id === 'settings' || item.id === 'setup'))
     }
 
-    if (item.id === 'admin-organizations' || item.id === 'admin-platform-users') {
+    if (item.id === 'admin-organizations' || item.id === 'admin-platform-users' || item.id === 'admin-packages') {
       return false
     }
 
