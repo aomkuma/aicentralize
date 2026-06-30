@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/authStore'
-import { isPushSupported, subscribeToPush, unsubscribeFromPush } from '../lib/pushNotifications'
+import { usePushSetup } from '../hooks/usePushSetup'
+import {
+  registerPushServiceWorker,
+  subscribeToPush,
+  unsubscribeFromPush
+} from '../lib/pushNotifications'
+import { resolveApiBaseUrl } from '../lib/pwaUtils'
+import PushSetupPanel from './PushSetupPanel'
 
 type NotificationSettings = {
   inAppEnabled: boolean
@@ -14,14 +21,13 @@ export default function NotificationPreferences() {
   const { t } = useTranslation()
   const accessToken = useAuthStore((state) => state.accessToken)
   const { get, patch } = useApi()
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+  const apiBaseUrl = resolveApiBaseUrl()
+  const { canRequestPush, refresh: refreshPushSetup } = usePushSetup()
 
   const [settings, setSettings] = useState<NotificationSettings | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-
-  const supported = isPushSupported()
 
   const loadSettings = useCallback(async () => {
     const data = await get<NotificationSettings>('/notifications/settings/me')
@@ -33,6 +39,16 @@ export default function NotificationPreferences() {
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
+
+  useEffect(() => {
+    if (!canRequestPush) {
+      return
+    }
+
+    void registerPushServiceWorker().catch(() => {
+      // Enable flow will surface registration errors.
+    })
+  }, [canRequestPush])
 
   const updateSettings = async (next: Partial<NotificationSettings>) => {
     setIsBusy(true)
@@ -68,10 +84,13 @@ export default function NotificationPreferences() {
       if (updated) {
         setSettings(updated)
       }
+      await refreshPushSetup()
       setNotice(t('profile.notifications.pushEnabledSuccess'))
     } catch (pushError) {
       const code = pushError instanceof Error ? pushError.message : ''
-      if (code === 'PERMISSION_DENIED') {
+      if (code === 'IOS_NEEDS_HOME_SCREEN') {
+        setError(t('profile.notifications.iosNeedsHomeScreen'))
+      } else if (code === 'PERMISSION_DENIED') {
         setError(t('profile.notifications.permissionDenied'))
       } else if (code === 'VAPID_NOT_CONFIGURED') {
         setError(t('profile.notifications.vapidMissing'))
@@ -98,6 +117,7 @@ export default function NotificationPreferences() {
       if (updated) {
         setSettings(updated)
       }
+      await refreshPushSetup()
       setNotice(t('profile.notifications.pushDisabledSuccess'))
     } catch {
       setError(t('profile.notifications.pushDisableFailed'))
@@ -115,7 +135,7 @@ export default function NotificationPreferences() {
   }
 
   return (
-    <div className="mt-6 rounded-lg border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+    <div id="notifications" className="mt-6 scroll-mt-24 rounded-lg border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
       <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('profile.notifications.title')}</h2>
       <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">{t('profile.notifications.description')}</p>
 
@@ -154,39 +174,12 @@ export default function NotificationPreferences() {
           </span>
         </label>
 
-        <div className="rounded-md border border-slate-200 p-4 dark:border-slate-700">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">{t('profile.notifications.pushLabel')}</p>
-              <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">{t('profile.notifications.pushHelp')}</p>
-              {!supported && (
-                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{t('profile.notifications.pushUnsupported')}</p>
-              )}
-            </div>
-            {supported && (
-              settings.pushEnabled ? (
-                <button
-                  type="button"
-                  disabled={isBusy}
-                  onClick={() => void handleDisablePush()}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-                >
-                  {t('profile.notifications.disablePush')}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={isBusy}
-                  onClick={() => void handleEnablePush()}
-                  className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {t('profile.notifications.enablePush')}
-                </button>
-              )
-            )}
-          </div>
-          <p className="mt-3 text-xs text-gray-500 dark:text-slate-400">{t('profile.notifications.pushEvents')}</p>
-        </div>
+        <PushSetupPanel
+          pushEnabled={settings.pushEnabled}
+          isBusy={isBusy}
+          onEnablePush={() => void handleEnablePush()}
+          onDisablePush={() => void handleDisablePush()}
+        />
       </div>
     </div>
   )

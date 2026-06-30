@@ -3,6 +3,7 @@
   "short_name": "AICentralize",
   "description": "Meeting Intelligence Platform with AI-powered analysis and action tracking",
   "start_url": "/",
+  "id": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

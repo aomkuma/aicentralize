@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 
+import { isStandalonePwa } from '../lib/pwaUtils'
+
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
@@ -26,7 +28,7 @@ export function usePWAInstall() {
     window.addEventListener('appinstalled', handleAppInstalled)
 
     // Check if app is already installed (standalone mode)
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    if (isStandalonePwa()) {
       setIsInstallable(false)
     }
 
@@ -55,7 +57,7 @@ export function usePWAStatus() {
 
   useEffect(() => {
     // Check if app is running in standalone mode
-    setIsPWAInstalled(window.matchMedia('(display-mode: standalone)').matches)
+    setIsPWAInstalled(isStandalonePwa())
 
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)

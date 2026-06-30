@@ -7,6 +7,7 @@ import { useApi } from '../hooks/useApi'
 import Sidebar from './Sidebar'
 import Breadcrumb from './Breadcrumb'
 import MeetingStudioJobBanner from './MeetingStudioJobBanner'
+import PushOnboardingBanner from './PushOnboardingBanner'
 import { PRIMARY_NAVIGATION } from '../config/navigation'
 import type { TenantMembership } from '../types'
 
@@ -144,6 +145,13 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
         </header>
 
         <div className="pt-4 min-h-[calc(100vh-5rem)] bg-white dark:bg-slate-950">
+          {user && (
+            <div className="px-3 sm:px-6 lg:px-8">
+              <div className="max-w-6xl mx-auto">
+                <PushOnboardingBanner />
+              </div>
+            </div>
+          )}
           {children}
         </div>
       </main>
