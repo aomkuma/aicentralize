@@ -422,3 +422,27 @@ export interface AskAiQueryLog {
     sessionAt?: string
   }
 }
+
+export type CommunicationMoodState = 'CALM' | 'NEEDS_ATTENTION' | 'HIGH_PRESSURE' | 'INSUFFICIENT_DATA'
+
+export interface CommunicationSentimentSnapshot {
+  id: string
+  tenantId: string
+  memberUserId?: string | null
+  windowStart: string
+  windowEnd: string
+  sampleCount: number
+  moodScore: number
+  stressScore: number
+  frictionScore: number
+  urgencyScore: number
+  confidence: string
+  summary: string
+  themes: string[]
+  signals: string[]
+  caveats: string[]
+  suggestions: string[]
+  moodState: CommunicationMoodState
+  batchId: string
+  createdAt: string
+}

@@ -13,3 +13,4 @@ export { observabilityRouter } from "./observability";
 export { tenantRouter } from "./tenants";
 export { systemSettingsRouter } from "./system-settings";
 export { adminRouter } from "./admin";
+export { communicationSentimentRouter } from "./communication-sentiment";

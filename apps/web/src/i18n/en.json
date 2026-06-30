@@ -137,6 +137,26 @@
     "member": "MEMBER",
     "viewer": "VIEWER"
   },
+  "communicationSentiment": {
+    "columnLabel": "Communication trend",
+    "noData": "No data yet",
+    "openDetail": "View communication trend summary",
+    "detailTitle": "Communication trend (last 3 days)",
+    "windowLabel": "Window {{start}} – {{end}}",
+    "sampleCount": "Messages analyzed",
+    "toneTrend": "Tone score",
+    "signals": "Detected signals",
+    "suggestions": "Supportive actions",
+    "refresh": "Refresh trend analysis",
+    "refreshing": "Analyzing...",
+    "refreshed": "Communication trend updated",
+    "moodState": {
+      "CALM": "Mostly calm",
+      "NEEDS_ATTENTION": "Needs attention",
+      "HIGH_PRESSURE": "High pressure signal",
+      "INSUFFICIENT_DATA": "Insufficient data"
+    }
+  },
   "navigation": {
     "dashboard": "Dashboard",
     "meetingStudio": "Meeting Studio",

@@ -5,7 +5,8 @@ import { useAuthStore } from '../stores/authStore'
 import { useTenantStore } from '../stores/tenantStore'
 import { useApi } from '../hooks/useApi'
 import Layout from '../components/Layout'
-import type { MemberOnboardRequest, MemberOnboardResponse, TenantMembership } from '../types'
+import TeamSentimentBadge from '../components/TeamSentimentBadge'
+import type { CommunicationSentimentSnapshot, MemberOnboardRequest, MemberOnboardResponse, TenantMembership } from '../types'
 
 type DashboardProject = {
   id: string
@@ -48,6 +49,11 @@ export default function ProjectsPage() {
     isLoading: isOnboardingMember,
     error: onboardMemberError,
   } = useApi()
+  const {
+    get: getSentimentMembers,
+    post: runSentimentBatch,
+    isLoading: isSentimentLoading,
+  } = useApi()
 
   const [memberships, setMemberships] = useState<TenantMembership[]>([])
   const [projects, setProjects] = useState<DashboardProject[]>([])
@@ -67,10 +73,13 @@ export default function ProjectsPage() {
   const [memberNotice, setMemberNotice] = useState<string | null>(null)
   const [memberInviteUrl, setMemberInviteUrl] = useState<string | null>(null)
   const [memberTemporaryPassword, setMemberTemporaryPassword] = useState<string | null>(null)
+  const [memberSentiments, setMemberSentiments] = useState<Record<string, CommunicationSentimentSnapshot>>({})
+  const [sentimentNotice, setSentimentNotice] = useState<string | null>(null)
 
   const activeMembership = memberships.find((membership) => membership.tenantId === currentTenant?.id) ?? memberships[0]
   const activeTenantId = activeMembership?.tenantId
   const activeTenantName = activeMembership?.tenant?.name ?? currentTenant?.name
+  const canViewTeamSentiment = activeMembership?.role === 'TENANT_ADMIN' || activeMembership?.role === 'MANAGER'
 
   if (user?.systemRole === 'SUPER_ADMIN') {
     return <Navigate to="/dashboard" replace />
@@ -134,6 +143,40 @@ export default function ProjectsPage() {
   useEffect(() => {
     fetchTenantTeam()
   }, [fetchTenantTeam])
+
+  const fetchMemberSentiments = useCallback(async () => {
+    if (!activeTenantId || !canViewTeamSentiment) {
+      setMemberSentiments({})
+      return
+    }
+
+    const data = await getSentimentMembers<{
+      members: Array<{ userId: string; userName: string; snapshot: CommunicationSentimentSnapshot }>
+    }>(`/tenants/${activeTenantId}/communication-sentiment/members`)
+
+    if (data?.members) {
+      const next: Record<string, CommunicationSentimentSnapshot> = {}
+      for (const item of data.members) {
+        next[item.userId] = item.snapshot
+      }
+      setMemberSentiments(next)
+    }
+  }, [activeTenantId, canViewTeamSentiment, getSentimentMembers])
+
+  useEffect(() => {
+    void fetchMemberSentiments()
+  }, [fetchMemberSentiments])
+
+  const handleRefreshSentiment = async () => {
+    if (!activeTenantId || !canViewTeamSentiment) {
+      return
+    }
+
+    setSentimentNotice(null)
+    await runSentimentBatch(`/tenants/${activeTenantId}/communication-sentiment/run`, {})
+    setSentimentNotice(t('communicationSentiment.refreshed'))
+    await fetchMemberSentiments()
+  }
 
   const handleCreateProject = async () => {
     const code = projectCode.trim()
@@ -237,17 +280,33 @@ export default function ProjectsPage() {
                   {t('dashboard.teamManagementDesc')}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCreateMember((prev) => !prev)
-                  setMemberNotice(null)
-                }}
-                className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-              >
-                {t('dashboard.addTeamMember')}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                {canViewTeamSentiment && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRefreshSentiment()}
+                    disabled={isSentimentLoading}
+                    className="px-3 py-2 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-medium hover:bg-indigo-100 disabled:opacity-60 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200"
+                  >
+                    {isSentimentLoading ? t('communicationSentiment.refreshing') : t('communicationSentiment.refresh')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateMember((prev) => !prev)
+                    setMemberNotice(null)
+                  }}
+                  className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+                >
+                  {t('dashboard.addTeamMember')}
+                </button>
+              </div>
             </div>
+
+            {sentimentNotice && (
+              <p className="mb-3 text-sm text-indigo-700 dark:text-indigo-300">{sentimentNotice}</p>
+            )}
 
             {showCreateMember && (
               <div className="mb-4 mt-4 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 p-4">
@@ -373,6 +432,9 @@ export default function ProjectsPage() {
                       <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberPhone')}</th>
                       <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberRole')}</th>
                       <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberJobTitle')}</th>
+                      {canViewTeamSentiment && (
+                        <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('communicationSentiment.columnLabel')}</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -383,6 +445,11 @@ export default function ProjectsPage() {
                         <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{member.user?.phone || '-'}</td>
                         <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{t(tenantRoleLabelKey[member.role])}</td>
                         <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{member.jobTitle || '-'}</td>
+                        {canViewTeamSentiment && (
+                          <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">
+                            <TeamSentimentBadge snapshot={member.user?.id ? memberSentiments[member.user.id] : null} />
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

@@ -15,6 +15,7 @@ import {
   minuteDraftRouter,
   notificationRouter,
   continuityRouter,
+  communicationSentimentRouter,
   observabilityRouter,
   projectRouter,
   reminderRouter,
@@ -311,6 +312,7 @@ export function createApp() {
   app.use("/continuity", continuityRouter);
   app.use("/observability", observabilityRouter);
   app.use("/tenants", tenantRouter);
+  app.use("/tenants/:tenantId/communication-sentiment", communicationSentimentRouter);
   app.use("/ai", aiRouter);
   app.use("/notifications", notificationRouter);
   app.use("/system-settings", systemSettingsRouter);

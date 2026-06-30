@@ -202,6 +202,26 @@ enum AiRunStatus {
   FAILED
 }
 
+enum SentimentProcessingStatus {
+  PENDING
+  PROCESSED
+  SKIPPED
+  FAILED
+}
+
+enum CommunicationSentimentSourceType {
+  ASK_AI_QUERY
+  MEETING_TRANSCRIPT
+  COMMENT
+}
+
+enum CommunicationMoodState {
+  CALM
+  NEEDS_ATTENTION
+  HIGH_PRESSURE
+  INSUFFICIENT_DATA
+}
+
 model User {
   id            String       @id @default(cuid())
   email         String       @unique
@@ -229,6 +249,7 @@ model User {
   actionItemStatusHistory ActionItemStatusHistory[] @relation("ActionItemStatusChangedBy")
   reminderLogs ReminderLog[]
   askAiQueryLogs AskAiQueryLog[]
+  communicationSentimentSnapshots CommunicationSentimentSnapshot[] @relation("MemberSentimentSnapshots")
   aiRunLogs AiRunLog[]
   projectKnowledgeSourcesUploaded ProjectKnowledgeSource[] @relation("ProjectKnowledgeSourceUploader")
   projectMemoryItemsApproved ProjectMemoryItem[] @relation("ProjectMemoryItemApprover")
@@ -268,6 +289,7 @@ model Tenant {
   projectKnowledgeSources ProjectKnowledgeSource[]
   projectMemoryItems ProjectMemoryItem[]
   projectGeneralNotes ProjectGeneralNote[]
+  communicationSentimentSnapshots CommunicationSentimentSnapshot[]
 
   @@index([createdAt])
 }
@@ -513,6 +535,11 @@ model AskAiQueryLog {
   retrievedEvidenceIds Json
   usedEvidenceJson     Json
   retrievalDebugJson   Json?
+  sentimentProcessedAt DateTime?
+  sentimentBatchId     String?
+  sentimentWindowStart DateTime?
+  sentimentWindowEnd   DateTime?
+  sentimentProcessingStatus SentimentProcessingStatus @default(PENDING)
   createdAt            DateTime  @default(now())
 
   user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -522,6 +549,7 @@ model AskAiQueryLog {
   @@index([userId, createdAt])
   @@index([projectId, createdAt])
   @@index([meetingId, createdAt])
+  @@index([sentimentProcessingStatus, createdAt])
 }
 
 model MeetingParticipant {
@@ -815,4 +843,49 @@ model EmbeddingChunk {
   meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@index([meetingId])
+}
+
+model CommunicationSentimentSnapshot {
+  id            String                 @id @default(cuid())
+  tenantId      String
+  memberUserId  String?
+  windowStart   DateTime
+  windowEnd     DateTime
+  sampleCount   Int
+  moodScore     Int
+  stressScore   Int
+  frictionScore Int
+  urgencyScore  Int
+  confidence    String
+  summary       String
+  themesJson    Json
+  signalsJson   Json
+  caveatsJson   Json
+  suggestionsJson Json
+  moodState     CommunicationMoodState
+  batchId       String
+  model         String?
+  createdAt     DateTime               @default(now())
+
+  tenant        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberUser    User?                  @relation("MemberSentimentSnapshots", fields: [memberUserId], references: [id], onDelete: SetNull)
+  sources       CommunicationSentimentSource[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, memberUserId, createdAt])
+  @@index([batchId])
+}
+
+model CommunicationSentimentSource {
+  id               String                           @id @default(cuid())
+  snapshotId       String
+  sourceType       CommunicationSentimentSourceType
+  sourceId         String
+  messageCreatedAt DateTime
+  includedAt       DateTime                         @default(now())
+
+  snapshot         CommunicationSentimentSnapshot   @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@index([sourceType, sourceId])
 }

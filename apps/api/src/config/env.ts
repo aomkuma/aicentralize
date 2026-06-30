@@ -43,6 +43,7 @@ export const env = {
   jwtAccessTokenTtl: process.env.JWT_ACCESS_TOKEN_TTL ?? "12h",
   jwtRefreshTokenDays: Number(process.env.JWT_REFRESH_TOKEN_DAYS ?? 365),
   reminderCron: process.env.REMINDER_CRON ?? "*/30 * * * *",
+  sentimentCron: process.env.SENTIMENT_CRON ?? "0 2 * * *",
   reminderLookAheadHours: Number(process.env.REMINDER_LOOKAHEAD_HOURS ?? 24),
   reminderDedupeHours: Number(process.env.REMINDER_DEDUPE_HOURS ?? 24),
   reminderOverdueShortAfterHours: Number(process.env.REMINDER_OVERDUE_SHORT_AFTER_HOURS ?? 24),

@@ -137,6 +137,26 @@
     "member": "สมาชิก",
     "viewer": "ผู้ชม"
   },
+  "communicationSentiment": {
+    "columnLabel": "แนวโน้มการสื่อสาร",
+    "noData": "ยังไม่มีข้อมูล",
+    "openDetail": "ดูสรุปแนวโน้มการสื่อสาร",
+    "detailTitle": "แนวโน้มการสื่อสาร (3 วันล่าสุด)",
+    "windowLabel": "ช่วง {{start}} – {{end}}",
+    "sampleCount": "ข้อความที่วิเคราะห์",
+    "toneTrend": "คะแนนโทน",
+    "signals": "สัญญาณที่พบ",
+    "suggestions": "แนวทางสนับสนุนทีม",
+    "refresh": "วิเคราะห์แนวโน้มใหม่",
+    "refreshing": "กำลังวิเคราะห์...",
+    "refreshed": "อัปเดตแนวโน้มการสื่อสารแล้ว",
+    "moodState": {
+      "CALM": "ค่อนข้างสงบ",
+      "NEEDS_ATTENTION": "ควรสังเกต",
+      "HIGH_PRESSURE": "แรงกดดันสูง",
+      "INSUFFICIENT_DATA": "ข้อมูลน้อย"
+    }
+  },
   "navigation": {
     "dashboard": "แดชบอร์ด",
     "meetingStudio": "สตูดิโอประชุม",

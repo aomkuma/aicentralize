@@ -1,5 +1,6 @@
 import { Navigate, useParams } from 'react-router-dom'
-import Layout from '../components/Layout'import { ContinuityDashboard } from '../components/features/continuity'
+import Layout from '../components/Layout'
+import { ContinuityDashboard } from '../components/features/continuity'
 
 export default function ContinuityPage() {
   const { projectId } = useParams<{ projectId?: string }>()
