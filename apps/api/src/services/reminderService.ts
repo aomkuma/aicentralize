@@ -1,5 +1,6 @@
 import { ActionStatus, Prisma, ReminderLogType, ReminderType, UserRole } from "@prisma/client";
 import cron from "node-cron";
+import { APP_DISPLAY_NAME } from "../config/brand";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
 import { logAiRun } from "./aiRunLogService";
@@ -436,7 +437,7 @@ async function processReminders() {
       try {
         const sent = await sendReminderEmail({
           to: env.reminderEscalationFallbackEmail,
-          subject: `[AI Centralize] Escalation: Overdue Task ${item.task}`,
+          subject: `[${APP_DISPLAY_NAME}] Escalation: Overdue Task ${item.task}`,
           message: escalationMessage
         });
         if (!sent) {

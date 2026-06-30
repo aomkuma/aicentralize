@@ -1360,14 +1360,14 @@ aiRouter.get("/playground/page", (_req, res) => {
     <div class="mb-4 flex items-center gap-3 border-b border-gray-200 pb-4 dark:border-slate-700">
       <div class="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 text-lg font-extrabold text-white">A</div>
       <div>
-        <p class="font-display text-lg font-bold tracking-tight text-slate-900 dark:text-white">AICentralize</p>
+        <p class="font-display text-lg font-bold tracking-tight text-slate-900 dark:text-white">Kora</p>
         <p class="text-xs text-gray-500 dark:text-slate-400">Meeting Intelligence Platform</p>
       </div>
     </div>
 
     <nav class="space-y-2 text-sm font-semibold">
       <a data-mobile-nav-link href="/dashboard" class="flex items-center gap-2 rounded-lg px-3 py-2 text-gray-700 transition hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-slate-800">Your Organizations</a>
-      <a data-mobile-nav-link href="/setup" class="flex items-center gap-2 rounded-lg px-3 py-2 text-gray-700 transition hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-slate-800">Welcome to AICentralize</a>
+      <a data-mobile-nav-link href="/setup" class="flex items-center gap-2 rounded-lg px-3 py-2 text-gray-700 transition hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-slate-800">Welcome to Kora</a>
       <a data-mobile-nav-link href="/ai/playground/page" class="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-blue-700 dark:bg-blue-900/25 dark:text-blue-300">AI Playground</a>
       <a data-mobile-nav-link href="/docs" class="flex items-center gap-2 rounded-lg px-3 py-2 text-gray-700 transition hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-slate-800">API Docs</a>
       <a data-mobile-nav-link href="/health" class="flex items-center gap-2 rounded-lg px-3 py-2 text-gray-700 transition hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-slate-800">Health</a>
@@ -1380,13 +1380,13 @@ aiRouter.get("/playground/page", (_req, res) => {
     <header class="sticky top-0 z-20 border-b border-gray-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-slate-700 dark:bg-slate-950/90 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between gap-3">
         <div class="pl-12 lg:pl-0">
-          <p class="text-xs uppercase tracking-[0.12em] font-semibold text-gray-500 dark:text-slate-400">AICentralize</p>
+          <p class="text-xs uppercase tracking-[0.12em] font-semibold text-gray-500 dark:text-slate-400">Kora</p>
           <h1 class="font-display text-xl font-extrabold text-gray-900 dark:text-white">AI Prompt Playground</h1>
         </div>
 
         <div class="hidden items-center gap-2 md:flex">
           <a href="/dashboard" class="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Your Organizations</a>
-          <a href="/setup" class="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Welcome to AICentralize</a>
+          <a href="/setup" class="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Welcome to Kora</a>
           <a href="/ai/playground/page" class="rounded-md border border-blue-500 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 dark:border-blue-400 dark:bg-blue-900/30 dark:text-blue-300">AI Playground</a>
           <a href="/docs" class="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">API Docs</a>
         </div>

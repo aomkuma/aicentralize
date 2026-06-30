@@ -1,7 +1,8 @@
 {
   "common": {
-    "appName": "AICentralize",
-    "tagline": "Meeting Intelligence Platform",
+    "appName": "Kora",
+    "tagline": "AI-Powered Meeting & Work OS",
+    "installPromptTitle": "Install {{appName}}",
     "logout": "Logout",
     "skip": "Skip for now",
     "loading": "Loading...",
@@ -22,8 +23,61 @@
     "invalidCredentials": "Invalid email or password",
     "demoCredentials": "Demo credentials: admin@example.com / password"
   },
+  "landing": {
+    "eyebrow": "KORA · AI-Powered Meeting & Work OS",
+    "heroTitle": "The AI Workspace that unifies meetings and everyday work",
+    "heroSubtitle": "Turn meetings, documents, and organizational knowledge into trackable actions—with AI that understands your organization's context.",
+    "heroBadge": "AI that works with your team for better results every day",
+    "heroHighlights": {
+      "meetings": {
+        "title": "From meeting to follow-up",
+        "description": "Record, transcribe, summarize, and capture action items in one flow."
+      },
+      "knowledge": {
+        "title": "Knowledge in one place",
+        "description": "Project notes, onboarding answers, and documents your team can actually use."
+      },
+      "ai": {
+        "title": "Context-aware AI",
+        "description": "Ask questions and get answers grounded in your real project data."
+      }
+    },
+    "getStarted": "Get started",
+    "exploreFeatures": "Explore features",
+    "signIn": "Sign in",
+    "signInToWorkspace": "Sign in to your workspace",
+    "featuresTitle": "Built for how teams actually work",
+    "featuresSubtitle": "From meeting rooms to follow-ups — one connected workspace.",
+    "features": {
+      "meetingStudio": {
+        "title": "Meeting Studio",
+        "description": "Record, transcribe, and summarize meetings with AI."
+      },
+      "projects": {
+        "title": "Projects & Continuity",
+        "description": "Track work, risks, and continuity across projects."
+      },
+      "knowledge": {
+        "title": "Knowledge Hub",
+        "description": "Centralize onboarding answers and project notes."
+      },
+      "askAi": {
+        "title": "Ask AI",
+        "description": "Ask questions grounded in your real project data."
+      },
+      "reminders": {
+        "title": "Action & Reminders",
+        "description": "Notifications and follow-ups that keep work moving."
+      }
+    },
+    "ctaTitle": "Ready to bring your team together?",
+    "ctaSubtitle": "Sign in with your organization account, or accept an invite from your admin.",
+    "footer": "© {{year}} Kora. All rights reserved.",
+    "footerTagline": "Meeting intelligence for teams that ship.",
+    "backToHome": "Back to home"
+  },
   "setup": {
-    "welcomeTitle": "Welcome to AICentralize",
+    "welcomeTitle": "Welcome to Kora",
     "welcomeSubtitle": "Let's set up your organization for meeting intelligence",
     "startHereTitle": "Start here: what to fill first",
     "startHereStep1": "Step 1 (required): Organization name used across your workspace.",
@@ -79,17 +133,17 @@
       "emailLabel": "Email notifications",
       "emailHelp": "Send reminders and task updates to your account email.",
       "pushLabel": "Push notifications (PWA)",
-      "pushHelp": "Receive browser or installed-app alerts even when AI Centralize is in the background. On iPhone, add the app to your Home Screen first, then open it from there.",
+      "pushHelp": "Receive browser or installed-app alerts even when Kora is in the background. On iPhone, add the app to your Home Screen first, then open it from there.",
       "pushEvents": "Push alerts are sent when you are reassigned, when a due date or priority changes, when status changes, and for due/overdue reminders.",
       "pushUnsupported": "Push is not supported in this browser. Try Chrome on desktop/Android, or install the app on iPhone.",
       "iosInstallTitle": "iPhone: install to Home Screen first",
       "iosInstallStep1": "Open this site in Safari (not Chrome).",
       "iosInstallStep2": "Tap Share, then \"Add to Home Screen\".",
-      "iosInstallStep3": "Open AICentralize from the new icon, go to Profile, and tap Enable push.",
-      "iosNeedsHomeScreen": "On iPhone, push works only after you add AICentralize to the Home Screen and open it from that icon.",
-      "iosPermissionDeniedHelp": "Notifications were blocked. On iPhone: Settings → Notifications → AICentralize → Allow Notifications.",
+      "iosInstallStep3": "Open Kora from the new icon, go to Profile, and tap Enable push.",
+      "iosNeedsHomeScreen": "On iPhone, push works only after you add Kora to the Home Screen and open it from that icon.",
+      "iosPermissionDeniedHelp": "Notifications were blocked. On iPhone: Settings → Notifications → Kora → Allow Notifications.",
       "setupInstallTitle": "Step 1: Install the app",
-      "setupInstallHelp": "Install AICentralize for faster access and reliable mobile alerts.",
+      "setupInstallHelp": "Install Kora for faster access and reliable mobile alerts.",
       "setupInstallIosHelp": "On iPhone, add the app to your Home Screen before enabling push.",
       "setupInstallButton": "Install app",
       "setupInstallIosButton": "How to install",
@@ -114,7 +168,7 @@
   },
   "invite": {
     "title": "Accept Invitation",
-    "description": "Set your password to activate your AICentralize account.",
+    "description": "Set your password to activate your Kora account.",
     "accept": "Accept Invitation",
     "missingToken": "Invitation token is missing."
   },

@@ -1,0 +1,9 @@
+{
+  "source": "kora-pack/",
+  "files": [
+    "android.png",
+    "browser.png",
+    "macos.png",
+    "windows.png"
+  ]
+}

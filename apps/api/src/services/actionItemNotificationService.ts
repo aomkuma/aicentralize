@@ -1,4 +1,5 @@
 import { ReminderType } from "@prisma/client";
+import { APP_DISPLAY_NAME } from "../config/brand";
 import { prisma } from "../lib/prisma";
 import { dispatchReminder } from "./reminderDispatchService";
 
@@ -86,7 +87,7 @@ export async function notifyActionItemReassigned(params: {
     reminderType: ReminderType.REASSIGNED,
     message,
     pushTitle: "Task reassigned to you",
-    emailSubject: `[AI Centralize] Task reassigned: ${params.task}`,
+    emailSubject: `[${APP_DISPLAY_NAME}] Task reassigned: ${params.task}`,
     deepLinkPath
   });
 
@@ -98,7 +99,7 @@ export async function notifyActionItemReassigned(params: {
       reminderType: ReminderType.REASSIGNED,
       message: `${params.actorName} reassigned "${params.task}" from you to ${params.newAssigneeName}.`,
       pushTitle: "Task reassigned",
-      emailSubject: `[AI Centralize] Task reassigned: ${params.task}`,
+      emailSubject: `[${APP_DISPLAY_NAME}] Task reassigned: ${params.task}`,
       deepLinkPath
     });
   }
@@ -127,7 +128,7 @@ export async function notifyActionItemDueDateChanged(params: {
     reminderType: ReminderType.DUE_DATE_CHANGED,
     message,
     pushTitle: "Task due date updated",
-    emailSubject: `[AI Centralize] Due date changed: ${params.task}`,
+    emailSubject: `[${APP_DISPLAY_NAME}] Due date changed: ${params.task}`,
     deepLinkPath
   });
 }
@@ -151,7 +152,7 @@ export async function notifyActionItemStatusChanged(params: {
     reminderType: ReminderType.STATUS_CHANGED,
     message,
     pushTitle: "Task status updated",
-    emailSubject: `[AI Centralize] Status changed: ${params.task}`,
+    emailSubject: `[${APP_DISPLAY_NAME}] Status changed: ${params.task}`,
     deepLinkPath
   });
 }
@@ -175,7 +176,7 @@ export async function notifyActionItemPriorityChanged(params: {
     reminderType: ReminderType.PRIORITY_CHANGED,
     message,
     pushTitle: "Task priority updated",
-    emailSubject: `[AI Centralize] Priority changed: ${params.task}`,
+    emailSubject: `[${APP_DISPLAY_NAME}] Priority changed: ${params.task}`,
     deepLinkPath
   });
 }

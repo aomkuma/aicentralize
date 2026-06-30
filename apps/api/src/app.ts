@@ -58,7 +58,7 @@ export function createApp() {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Centralize</title>
+  <title>Kora</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
@@ -130,7 +130,7 @@ export function createApp() {
         <a href="/" class="flex items-center gap-3">
           <div class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-emerald-400 text-lg font-extrabold text-white shadow-sm">A</div>
           <div>
-            <p class="font-display text-lg font-bold tracking-tight">AI Centralize</p>
+            <p class="font-display text-lg font-bold tracking-tight">Kora</p>
             <p class="text-xs text-slate-500">AI workspace for modern teams</p>
           </div>
         </a>
@@ -179,7 +179,7 @@ export function createApp() {
             <span class="block bg-gradient-to-r from-blue-500 to-mint bg-clip-text text-transparent">into one friendly place</span>
           </h1>
           <p class="mt-5 max-w-xl text-[17px] leading-relaxed text-slate-600">
-            From meetings and documents to reminders and action items, AI Centralize helps your team stay organized and make better decisions.
+            From meetings and documents to reminders and action items, Kora helps your team stay organized and make better decisions.
           </p>
 
           <div class="mt-7 flex flex-wrap items-center gap-3">

@@ -8,6 +8,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: devPort,
+    // Source PNGs in kora-pack/ are ingest-only; watching them on Windows can EBUSY-crash Vite.
+    watch: {
+      ignored: ['**/public/brand/kora-pack/**'],
+    },
     hmr: {
       host: 'localhost',
       protocol: 'ws'

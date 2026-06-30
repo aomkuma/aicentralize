@@ -1081,7 +1081,7 @@ export default function MeetingStudioPage() {
     <Layout currentTenantName={currentTenant?.name}>
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 text-white p-6 sm:p-8 shadow-2xl">
-          <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">AICentralize</p>
+          <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">{t('common.appName')}</p>
           <h1 className="mt-3 text-3xl sm:text-4xl font-bold">{t('meetings.title')}</h1>
           <p className="mt-3 max-w-3xl text-sm sm:text-base text-slate-300">
             {t('meetings.description')}

@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
+import { APP_DISPLAY_NAME } from "../config/brand";
 import { env } from "../config/env";
-
 function canSendEmail(): boolean {
   return Boolean(env.smtpHost && env.smtpUser && env.smtpPass);
 }
@@ -57,11 +57,11 @@ export async function sendInvitationEmail(params: {
   inviteUrl: string;
   expiresAt: Date;
 }): Promise<boolean> {
-  const subject = `You're invited to ${params.tenantName} on AICentralize`;
+  const subject = `You're invited to ${params.tenantName} on ${APP_DISPLAY_NAME}`;
   const text = [
     `Hi ${params.inviteeName},`,
     "",
-    `${params.inviterName || "An administrator"} invited you to join ${params.tenantName} on AICentralize.`,
+    `${params.inviterName || "An administrator"} invited you to join ${params.tenantName} on ${APP_DISPLAY_NAME}.`,
     "Open this link to set your password and activate your account:",
     params.inviteUrl,
     "",
@@ -74,7 +74,7 @@ export async function sendInvitationEmail(params: {
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
       <h2 style="margin:0 0 12px">You're invited to ${params.tenantName}</h2>
       <p>Hi ${params.inviteeName},</p>
-      <p>${params.inviterName || "An administrator"} invited you to join <strong>${params.tenantName}</strong> on AICentralize.</p>
+      <p>${params.inviterName || "An administrator"} invited you to join <strong>${params.tenantName}</strong> on ${APP_DISPLAY_NAME}.</p>
       <p>
         <a href="${params.inviteUrl}" style="display:inline-block;background:#2563eb;color:white;text-decoration:none;padding:10px 14px;border-radius:6px;font-weight:700">
           Accept invitation

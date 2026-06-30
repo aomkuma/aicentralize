@@ -1,4 +1,5 @@
 import { PushSubscription, ReminderType } from "@prisma/client";
+import { APP_DISPLAY_NAME } from "../config/brand";
 import { prisma } from "../lib/prisma";
 import { sendReminderEmail } from "./emailService";
 import { sendPushReminder } from "./pushService";
@@ -67,7 +68,7 @@ export async function dispatchReminder(input: DispatchReminderInput): Promise<Di
   if (input.emailEnabled && input.recipientEmail) {
     try {
       const subject = input.emailSubject
-        ?? `[AI Centralize] ${input.reminderType === "UPCOMING" ? "Upcoming" : input.reminderType === "OVERDUE" ? "Overdue" : "Task update"}: ${input.task}`;
+        ?? `[${APP_DISPLAY_NAME}] ${input.reminderType === "UPCOMING" ? "Upcoming" : input.reminderType === "OVERDUE" ? "Overdue" : "Task update"}: ${input.task}`;
       const sent = await sendReminderEmail({
         to: input.recipientEmail,
         subject,

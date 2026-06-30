@@ -386,7 +386,7 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
         to: email,
         inviteeName: name,
         inviterName: inviter?.name,
-        tenantName: tenant?.name ?? "AICentralize",
+        tenantName: tenant?.name ?? "Kora",
         inviteUrl,
         expiresAt: inviteExpiresAt
       });

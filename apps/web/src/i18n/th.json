@@ -1,7 +1,8 @@
 {
   "common": {
-    "appName": "AICentralize",
-    "tagline": "แพลตฟอร์มการประชุมอัจฉริยะ",
+    "appName": "Kora",
+    "tagline": "ระบบประชุมและงานอัจฉริยะด้วย AI",
+    "installPromptTitle": "ติดตั้ง {{appName}}",
     "logout": "ออกจากระบบ",
     "skip": "ข้ามก่อน",
     "loading": "กำลังโหลด...",
@@ -22,8 +23,61 @@
     "invalidCredentials": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
     "demoCredentials": "ข้อมูลทดลอง: admin@example.com / password"
   },
+  "landing": {
+    "eyebrow": "KORA · AI-Powered Meeting & Work OS",
+    "heroTitle": "AI Workspace ที่รวมทุกอย่างของการประชุมและการทำงานไว้ในที่เดียว",
+    "heroSubtitle": "เปลี่ยนการประชุม เอกสาร และองค์ความรู้ ให้กลายเป็น Action ที่ติดตามได้จริง พร้อม AI ที่เข้าใจบริบทขององค์กรคุณ",
+    "heroBadge": "AI ที่ทำงานร่วมกับทีมคุณ เพื่อผลลัพธ์ที่ดีขึ้นในทุกวัน",
+    "heroHighlights": {
+      "meetings": {
+        "title": "จากประชุมสู่ Action",
+        "description": "บันทึก ถอดความ สรุป และดึงงานติดตามได้ในขั้นตอนเดียว"
+      },
+      "knowledge": {
+        "title": "รวมความรู้ไว้ที่เดียว",
+        "description": "บันทึกโปรเจกต์ onboarding และเอกสารที่ทีมนำไปใช้งานจริง"
+      },
+      "ai": {
+        "title": "AI เข้าใจบริบท",
+        "description": "ถามตอบจากข้อมูลจริงของโปรเจกต์ ไม่ใช่คำตอบทั่วไป"
+      }
+    },
+    "getStarted": "เริ่มต้นใช้งาน",
+    "exploreFeatures": "ดูฟีเจอร์",
+    "signIn": "เข้าสู่ระบบ",
+    "signInToWorkspace": "เข้าสู่ระบบ workspace",
+    "featuresTitle": "ออกแบบมาเพื่อการทำงานของทีมจริง",
+    "featuresSubtitle": "จากห้องประชุมถึงการติดตามงาน — ใน workspace เดียว",
+    "features": {
+      "meetingStudio": {
+        "title": "Meeting Studio",
+        "description": "บันทึก ถอดความ และสรุปการประชุมอัจฉริยะ"
+      },
+      "projects": {
+        "title": "Projects & Continuity",
+        "description": "ติดตามงาน ความเสี่ยง และความต่อเนื่องของโปรเจกต์"
+      },
+      "knowledge": {
+        "title": "Knowledge Hub",
+        "description": "รวมความรู้ onboarding และบันทึกขององค์กร"
+      },
+      "askAi": {
+        "title": "Ask AI",
+        "description": "ถาม AI จากข้อมูลจริงของโปรเจกต์"
+      },
+      "reminders": {
+        "title": "Action & Reminders",
+        "description": "แจ้งเตือนและติดตามงานให้เดินหน้าต่อ"
+      }
+    },
+    "ctaTitle": "พร้อมรวมทีมของคุณแล้วหรือยัง?",
+    "ctaSubtitle": "เข้าสู่ระบบด้วยบัญชีองค์กร หรือรับคำเชิญจากผู้ดูแลระบบ",
+    "footer": "© {{year}} Kora สงวนลิขสิทธิ์",
+    "footerTagline": "Meeting intelligence สำหรับทีมที่ลงมือทำจริง",
+    "backToHome": "กลับหน้าแรก"
+  },
   "setup": {
-    "welcomeTitle": "ยินดีต้อนรับสู่ AICentralize",
+    "welcomeTitle": "ยินดีต้อนรับสู่ Kora",
     "welcomeSubtitle": "มาตั้งค่าองค์กรของคุณสำหรับการประชุมอัจฉริยะ",
     "startHereTitle": "เริ่มตรงนี้: ควรกรอกอะไรบ้าง",
     "startHereStep1": "ขั้นตอนที่ 1 (จำเป็น): ใส่ชื่อองค์กรที่จะใช้ในระบบ",
@@ -79,17 +133,17 @@
       "emailLabel": "แจ้งเตือนทางอีเมล",
       "emailHelp": "ส่ง reminder และการอัปเดตงานไปยังอีเมลบัญชีของคุณ",
       "pushLabel": "Push notification (PWA)",
-      "pushHelp": "รับการแจ้งเตือนบนเบราว์เซอร์หรือแอปที่ติดตั้ง แม้ไม่ได้เปิดหน้า AI Centralize อยู่ บน iPhone ต้องเพิ่มแอปลงหน้าจอโฮมก่อน แล้วเปิดจากไอคอนนั้น",
+      "pushHelp": "รับการแจ้งเตือนบนเบราว์เซอร์หรือแอปที่ติดตั้ง แม้ไม่ได้เปิดหน้า Kora อยู่ บน iPhone ต้องเพิ่มแอปลงหน้าจอโฮมก่อน แล้วเปิดจากไอคอนนั้น",
       "pushEvents": "ระบบจะ push เมื่อถูก re-assign เปลี่ยน due date/priority เปลี่ยนสถานะ และ reminder งานใกล้/เลยกำหนด",
       "pushUnsupported": "เบราว์เซอร์นี้ยังไม่รองรับ push — ลอง Chrome บนเดสก์ท็อป/Android หรือติดตั้งแอปบน iPhone",
       "iosInstallTitle": "iPhone: ติดตั้งลงหน้าจอโฮมก่อน",
       "iosInstallStep1": "เปิดเว็บนี้ใน Safari (ไม่ใช่ Chrome)",
       "iosInstallStep2": "กดปุ่มแชร์ แล้วเลือก \"เพิ่มไปที่หน้าจอโฮม\"",
-      "iosInstallStep3": "เปิด AICentralize จากไอคอนใหม่ ไปที่โปรไฟล์ แล้วกดเปิด push",
-      "iosNeedsHomeScreen": "บน iPhone ต้องเพิ่ม AICentralize ลงหน้าจอโฮมและเปิดจากไอคอนนั้นก่อน ถึงจะใช้ push ได้",
-      "iosPermissionDeniedHelp": "การแจ้งเตือนถูกปิดไว้ บน iPhone: การตั้งค่า → การแจ้งเตือน → AICentralize → อนุญาตการแจ้งเตือน",
+      "iosInstallStep3": "เปิด Kora จากไอคอนใหม่ ไปที่โปรไฟล์ แล้วกดเปิด push",
+      "iosNeedsHomeScreen": "บน iPhone ต้องเพิ่ม Kora ลงหน้าจอโฮมและเปิดจากไอคอนนั้นก่อน ถึงจะใช้ push ได้",
+      "iosPermissionDeniedHelp": "การแจ้งเตือนถูกปิดไว้ บน iPhone: การตั้งค่า → การแจ้งเตือน → Kora → อนุญาตการแจ้งเตือน",
       "setupInstallTitle": "ขั้นที่ 1: ติดตั้งแอป",
-      "setupInstallHelp": "ติดตั้ง AICentralize เพื่อเข้าใช้งานเร็วขึ้นและรับการแจ้งเตือนบนมือถือได้เสถียร",
+      "setupInstallHelp": "ติดตั้ง Kora เพื่อเข้าใช้งานเร็วขึ้นและรับการแจ้งเตือนบนมือถือได้เสถียร",
       "setupInstallIosHelp": "บน iPhone ต้องเพิ่มแอปลงหน้าจอโฮมก่อน ถึงจะเปิด push ได้",
       "setupInstallButton": "ติดตั้งแอป",
       "setupInstallIosButton": "วิธีติดตั้ง",
@@ -114,7 +168,7 @@
   },
   "invite": {
     "title": "ตอบรับคำเชิญ",
-    "description": "ตั้งรหัสผ่านเพื่อเปิดใช้งานบัญชี AICentralize ของคุณ",
+    "description": "ตั้งรหัสผ่านเพื่อเปิดใช้งานบัญชี Kora ของคุณ",
     "accept": "ตอบรับคำเชิญ",
     "missingToken": "ไม่พบ token ของคำเชิญ"
   },

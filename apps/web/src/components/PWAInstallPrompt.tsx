@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { usePWAInstall, usePWAStatus } from '../hooks/usePWA'
 
 export default function PWAInstallPrompt() {
+  const { t } = useTranslation()
   const { isInstallable, install } = usePWAInstall()
   const { isPWAInstalled } = usePWAStatus()
   const [showPrompt, setShowPrompt] = useState(false)
@@ -17,7 +19,7 @@ export default function PWAInstallPrompt() {
       <div className="bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg shadow-lg p-4 text-white">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
-            <h3 className="font-semibold text-sm mb-1">Install AICentralize</h3>
+            <h3 className="font-semibold text-sm mb-1">{t('common.installPromptTitle', { appName: t('common.appName') })}</h3>
             <p className="text-xs text-blue-100">
               Get quick access from your home screen. Install our app to stay productive on the go.
             </p>

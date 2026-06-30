@@ -115,7 +115,7 @@ export default function ProjectGeneralNotesPage() {
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600 dark:text-blue-300">
-              AICentralize
+              {t('common.appName')}
             </p>
             <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
               {t('generalNotes.title')}

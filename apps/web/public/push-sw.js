@@ -1,6 +1,6 @@
 self.addEventListener('push', (event) => {
-  const payload = event.data ? event.data.json() : { title: 'AI Centralize', body: 'New notification', url: '/' }
-  const title = payload.title || 'AI Centralize'
+  const payload = event.data ? event.data.json() : { title: 'Kora', body: 'New notification', url: '/' }
+  const title = payload.title || 'Kora'
   const body = payload.body || 'New notification'
   const url = payload.url || '/'
 

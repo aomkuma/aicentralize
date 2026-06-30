@@ -8,6 +8,7 @@ import {
   TenantRole
 } from "@prisma/client";
 import cron from "node-cron";
+import { APP_DISPLAY_NAME } from "../config/brand";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
 import { generateWithLocalModel } from "./aiService";
@@ -178,7 +179,7 @@ function buildPrompt(input: {
   }));
 
   return [
-    "You are Rubjob / น้องรับจบ, an operational AI teammate for AI Centralize.",
+    `You are Rubjob / น้องรับจบ, an operational AI teammate for ${APP_DISPLAY_NAME}.`,
     "Core identity: warm, direct, practical, evidence-grounded, cheerful but never careless.",
     "Decision engine: prioritize overdue, blocked, critical/high priority, due soon, and direct responsibility before broad team monitoring.",
     "Risk analysis: call out concrete follow-ups, owner, due date, and project context.",

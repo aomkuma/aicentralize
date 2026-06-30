@@ -21,6 +21,7 @@ import AdminOrganizationsPage from './pages/AdminOrganizationsPage'
 import AdminPlatformUsersPage from './pages/AdminPlatformUsersPage'
 import FeelingLogsPage from './pages/FeelingLogsPage'
 import AcceptInvitePage from './pages/AcceptInvitePage'
+import WelcomePage from './pages/WelcomePage'
 
 // Load auth state immediately before rendering
 useAuthStore.getState().loadFromLocalStorage()
@@ -111,9 +112,10 @@ function AppContent() {
     <Routes>
       {!isAuthenticated ? (
         <>
+          <Route path="/" element={<WelcomePage />} />
           <Route path="/auth/login" element={<LoginPage />} />
           <Route path="/accept-invite" element={<AcceptInvitePage />} />
-          <Route path="*" element={<Navigate to="/auth/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </>
       ) : user?.mustChangePassword && location.pathname !== '/change-password' ? (
         <>

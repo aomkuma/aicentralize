@@ -128,7 +128,7 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
           <div className="px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.12em] font-semibold text-gray-500 dark:text-slate-400">AICentralize</p>
+                <p className="text-xs uppercase tracking-[0.12em] font-semibold text-gray-500 dark:text-slate-400">{t('common.appName')}</p>
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">{currentPageTitle}</h2>
               </div>
 

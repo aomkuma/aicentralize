@@ -1,14 +1,14 @@
 {
-  "name": "AICentralize",
-  "short_name": "AICentralize",
-  "description": "Meeting Intelligence Platform with AI-powered analysis and action tracking",
+  "name": "Kora",
+  "short_name": "Kora",
+  "description": "AI-Powered Meeting & Work OS — meetings, knowledge, and trackable actions",
   "start_url": "/",
   "id": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#0ea5e9",
+  "background_color": "#030712",
+  "theme_color": "#000000",
   "icons": [
     {
       "src": "/icon-192x192.png",

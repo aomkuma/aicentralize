@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi } from '../hooks/useApi'
@@ -48,6 +49,12 @@ export default function LoginPage() {
 
       {/* Theme and Language switcher */}
       <div className="absolute top-4 right-4 z-20 flex items-center gap-4">
+        <Link
+          to="/"
+          className="hidden sm:inline-flex rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm font-medium text-white/90 backdrop-blur transition hover:bg-white/10 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200"
+        >
+          {t('landing.backToHome')}
+        </Link>
         <button
           onClick={toggleTheme}
           className="p-2 rounded-lg bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-slate-200 hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors"

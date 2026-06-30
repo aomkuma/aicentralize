@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: AI Centralized Minutes API
+  title: Kora API
   version: 0.1.0
 servers:
   - url: http://localhost:4000
