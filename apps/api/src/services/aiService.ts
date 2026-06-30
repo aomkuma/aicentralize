@@ -120,6 +120,7 @@ async function transcribeWithRemoteAsr(input: WhisperTranscribeInput): Promise<W
   const fileName = path.basename(input.audioPath);
   const fileBuffer = fs.readFileSync(input.audioPath);
   const form = new FormData();
+  const targetUrl = `${baseUrl}/transcribe`;
 
   form.append("audio", new Blob([fileBuffer]), fileName);
   form.append("model", model);
@@ -130,16 +131,26 @@ async function transcribeWithRemoteAsr(input: WhisperTranscribeInput): Promise<W
     headers.Authorization = `Bearer ${env.asrApiKey}`;
   }
 
-  const response = await fetch(`${baseUrl}/transcribe`, {
-    method: "POST",
-    body: form,
-    headers,
-    signal: AbortSignal.timeout(env.asrRequestTimeoutMs)
-  });
+  let response: Response;
+  try {
+    response = await fetch(targetUrl, {
+      method: "POST",
+      body: form,
+      headers,
+      signal: AbortSignal.timeout(env.asrRequestTimeoutMs)
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
+    throw new Error([
+      `Cannot reach ASR service at ${baseUrl}.`,
+      `Check ASR_BASE_URL on the API service, confirm the ASR deployment is running, and prefer the ASR public URL if private networking fails.`,
+      `Underlying error: ${reason}`
+    ].join(" "));
+  }
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Remote ASR failed (${response.status}): ${text.slice(0, 240)}`);
+    throw new Error(`Remote ASR failed (${response.status}) at ${baseUrl}: ${text.slice(0, 240)}`);
   }
 
   const payload = await response.json();

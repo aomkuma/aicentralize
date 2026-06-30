@@ -40,16 +40,28 @@ Railway sets `PORT` automatically. Do not hardcode it.
 Set these on the **API service**:
 
 ```env
-ASR_BASE_URL=http://asr.railway.internal:8090
+ASR_BASE_URL=https://YOUR-ASR-PUBLIC-URL.up.railway.app
 ASR_API_KEY=your-long-random-secret
 ASR_REQUEST_TIMEOUT_MS=600000
 ```
 
+**Recommended:** start with the ASR **public URL** (Settings → Networking → Generate Domain on the ASR service). Private networking is optional and easier to misconfigure.
+
+Private networking alternative (only if both services are in the same Railway project):
+
+```env
+ASR_BASE_URL=http://YOUR-ASR-SERVICE-NAME.railway.internal:8090
+```
+
+For private networking to work reliably:
+
+1. On the **ASR service**, set `PORT=8090` in Variables so the internal port is predictable.
+2. Replace `YOUR-ASR-SERVICE-NAME` with the exact Railway service name (not the repo name).
+3. Redeploy both ASR and API after changing variables.
+
 Notes:
-- Replace `asr` with your actual Railway ASR service name if different.
-- If private networking is unavailable, use the ASR public URL instead:
-  `ASR_BASE_URL=https://asr-production-xxxx.up.railway.app`
 - `ASR_API_KEY` must match on both services.
+- If API returns `fetch failed`, the API cannot reach `ASR_BASE_URL`. Use the ASR public URL first.
 
 ## 4) Enable Whisper in app settings
 
@@ -108,7 +120,7 @@ ASR_API_KEY=dev-secret
 | Symptom | Likely cause | Fix |
 |--------|---------------|-----|
 | `Whisper runtime is not available` on API | `ASR_BASE_URL` missing on API | Set env and redeploy API |
-| `401 Unauthorized` | API key mismatch | Match `ASR_API_KEY` on both services |
+| `fetch failed` on `/ai/playground/transcribe` | API cannot reach `ASR_BASE_URL` | Use ASR public URL; verify ASR `/health`; match `ASR_API_KEY`; redeploy API |
 | `413` on upload | File too large | Increase nginx/web limit and `ASR_MAX_UPLOAD_BYTES` |
 | Very slow transcription | CPU-only `small`/`medium` model | Keep clips shorter or upgrade Railway plan/resources |
 | First deploy is slow | Model download/warmup | Normal; service preloads `small` during Docker build |
