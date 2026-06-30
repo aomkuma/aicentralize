@@ -38,6 +38,10 @@ enum ActionStatus {
 enum ReminderType {
   UPCOMING
   OVERDUE
+  REASSIGNED
+  DUE_DATE_CHANGED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
 }
 
 enum ReminderLogType {

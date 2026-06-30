@@ -15,6 +15,7 @@ import {
 import type { MeetingStudioJobResult } from '../lib/meetingStudio/jobTypes'
 import { useTenantStore } from '../stores/tenantStore'
 import { useMeetingStudioJobStore } from '../stores/meetingStudioJobStore'
+import { isMeetingStudioJobResultEmpty } from '../lib/meetingStudio/pendingJobStorage'
 import type { Project } from '../types'
 
 type UploadedFileMeta = {
@@ -494,6 +495,11 @@ export default function MeetingStudioPage() {
   const jobProjectId = useMeetingStudioJobStore((state) => state.projectId)
   const jobError = useMeetingStudioJobStore((state) => state.error)
   const startAudioJob = useMeetingStudioJobStore((state) => state.startAudioJob)
+  const hydratePendingJob = useMeetingStudioJobStore((state) => state.hydratePendingJob)
+
+  useEffect(() => {
+    hydratePendingJob()
+  }, [hydratePendingJob])
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -587,7 +593,10 @@ export default function MeetingStudioPage() {
     })
   }
 
-  const applyJobResult = (result: MeetingStudioJobResult) => {
+  const applyJobResult = (result: MeetingStudioJobResult, projectId?: string) => {
+    if (projectId) {
+      setSelectedProjectId(projectId)
+    }
     if (result.transcript) {
       setTranscript(result.transcript)
     }
@@ -608,8 +617,13 @@ export default function MeetingStudioPage() {
     setRecordingInfo(result.recordingInfo)
     setStatus(result.statusMessage)
     setGuidedStep(result.guidedStep)
-    setError('')
-    updateProgress('audio', 'completed')
+    if (isMeetingStudioJobResultEmpty(result)) {
+      setError(result.statusMessage || t('meetings.errors.emptyTranscript'))
+      updateProgress('audio', 'failed')
+    } else {
+      setError('')
+      updateProgress('audio', 'completed')
+    }
   }
 
   const startBackgroundAudioJob = (file: File, preferredTranscript = '') => {
@@ -628,6 +642,8 @@ export default function MeetingStudioPage() {
         uploadFailed: t('meetings.errors.uploadFailed'),
         transcriptionFailed: t('meetings.errors.transcriptionFailed'),
         transcriptionUnavailable: t('meetings.errors.transcriptionUnavailable'),
+        transcriptionGatewayTimeout: t('meetings.errors.transcriptionGatewayTimeout'),
+        emptyTranscript: t('meetings.errors.emptyTranscript'),
         documentAnalysisFailed: t('meetings.errors.documentAnalysisFailed'),
         transcribed: t('meetings.status.transcribed'),
         recordingAnalyzed: t('meetings.status.recordingAnalyzed'),
@@ -664,14 +680,10 @@ export default function MeetingStudioPage() {
       return
     }
 
-    if (jobProjectId && selectedProjectId && jobProjectId !== selectedProjectId) {
-      return
-    }
-
-    applyJobResult(store.result)
+    applyJobResult(store.result, jobProjectId || undefined)
     store.acknowledgeResult()
     setIsTranscribing(false)
-  }, [jobStatus, jobProjectId, jobError, selectedProjectId, t])
+  }, [jobStatus, jobProjectId, jobError, t])
 
   useEffect(() => {
     const nextActions = checklistToTemplateText(checklistItems)

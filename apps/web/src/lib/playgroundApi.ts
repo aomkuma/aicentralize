@@ -89,14 +89,15 @@ export function isTranscriptionUnavailable(
   return (
     data?.code === 'WHISPER_UNAVAILABLE' ||
     response.status === 403 ||
-    response.status === 503 ||
-    response.status === 502 ||
-    response.status === 504 ||
     /Whisper transcription is disabled/i.test(data?.message || '') ||
     /Whisper transcription unavailable/i.test(data?.message || '') ||
     /Whisper runtime is not available/i.test(detail) ||
     /configure a production ASR service/i.test(detail)
   )
+}
+
+export function isTranscriptionGatewayError(response: Response) {
+  return response.status === 502 || response.status === 504
 }
 
 export async function postPlaygroundFormData<T>(path: string, formData: FormData) {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
+import NotificationPreferences from '../components/NotificationPreferences'
 import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/authStore'
 import type { User } from '../types'
@@ -81,6 +82,8 @@ export default function ProfilePage() {
             </div>
           </form>
         </div>
+
+        <NotificationPreferences />
       </div>
     </Layout>
   )

@@ -1,5 +1,11 @@
 import { ActionItemPriority, ActionStatus, UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import {
+  notifyActionItemDueDateChanged,
+  notifyActionItemPriorityChanged,
+  notifyActionItemReassigned,
+  notifyActionItemStatusChanged
+} from "./actionItemNotificationService";
 
 type ListActionItemsInput = {
   page: number;
@@ -55,6 +61,14 @@ async function assertCanMutate(actionItemId: string, user: { id: string; role: U
   }
 
   return item;
+}
+
+async function loadActorName(userId: string) {
+  const actor = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true }
+  });
+  return actor?.name ?? "Someone";
 }
 
 export async function listActionItems(input: ListActionItemsInput) {
@@ -274,6 +288,36 @@ export async function updateActionItem(
     return item;
   });
 
+  const actorName = await loadActorName(user.id);
+
+  if (payload.dueDate && payload.dueDate.getTime() !== current.dueDate.getTime()) {
+    void notifyActionItemDueDateChanged({
+      actionItemId: id,
+      assigneeUserId: current.assigneeId,
+      actorUserId: user.id,
+      actorName,
+      task: current.task,
+      previousDueDate: current.dueDate,
+      nextDueDate: payload.dueDate
+    }).catch((error) => {
+      console.error("[action-item-notification] due date", error);
+    });
+  }
+
+  if (payload.priority && payload.priority !== current.priority) {
+    void notifyActionItemPriorityChanged({
+      actionItemId: id,
+      assigneeUserId: current.assigneeId,
+      actorUserId: user.id,
+      actorName,
+      task: current.task,
+      fromPriority: current.priority,
+      toPriority: payload.priority
+    }).catch((error) => {
+      console.error("[action-item-notification] priority", error);
+    });
+  }
+
   return updated;
 }
 
@@ -315,6 +359,19 @@ export async function reassignActionItem(
     return item;
   });
 
+  const actorName = await loadActorName(user.id);
+  void notifyActionItemReassigned({
+    actionItemId: id,
+    newAssigneeUserId: target.id,
+    previousAssigneeUserId: current.assigneeId,
+    actorUserId: user.id,
+    actorName,
+    task: current.task,
+    newAssigneeName: target.name
+  }).catch((error) => {
+    console.error("[action-item-notification] reassign", error);
+  });
+
   return updated;
 }
 
@@ -350,6 +407,21 @@ export async function changeActionItemStatus(
 
     return item;
   });
+
+  if (payload.status !== current.status) {
+    const actorName = await loadActorName(user.id);
+    void notifyActionItemStatusChanged({
+      actionItemId: id,
+      assigneeUserId: current.assigneeId,
+      actorUserId: user.id,
+      actorName,
+      task: current.task,
+      fromStatus: current.status,
+      toStatus: payload.status
+    }).catch((error) => {
+      console.error("[action-item-notification] status", error);
+    });
+  }
 
   return updated;
 }

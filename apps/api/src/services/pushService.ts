@@ -44,6 +44,7 @@ export async function sendPushMessage(params: {
   subscriptions: PushSubscription[];
   title: string;
   message: string;
+  url?: string;
 }): Promise<PushSendResult> {
   if (!params.subscriptions.length) {
     return {
@@ -68,7 +69,8 @@ export async function sendPushMessage(params: {
 
   const payload = JSON.stringify({
     title: params.title,
-    body: params.message
+    body: params.message,
+    url: params.url ?? "/"
   });
 
   let staleRemoved = 0;
@@ -114,6 +116,7 @@ export async function sendPushReminder(params: {
   subscriptions: PushSubscription[];
   title: string;
   message: string;
+  url?: string;
 }): Promise<boolean> {
   const result = await sendPushMessage(params);
   return result.sent > 0;

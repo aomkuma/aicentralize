@@ -1,4 +1,5 @@
 import {
+  isTranscriptionGatewayError,
   isTranscriptionUnavailable,
   playgroundErrorMessage,
   playgroundResponseMessage,
@@ -163,6 +164,9 @@ export async function runMeetingAudioJob(input: AudioJobInput): Promise<MeetingS
   try {
     data = await readPlaygroundJson(response)
   } catch (readError) {
+    if (isTranscriptionGatewayError(response)) {
+      throw new Error(messages.transcriptionGatewayTimeout)
+    }
     if (isTranscriptionUnavailable(response)) {
       onProgress('completed')
       return {
@@ -180,6 +184,9 @@ export async function runMeetingAudioJob(input: AudioJobInput): Promise<MeetingS
   }
 
   if (!response.ok) {
+    if (isTranscriptionGatewayError(response)) {
+      throw new Error(messages.transcriptionGatewayTimeout)
+    }
     if (isTranscriptionUnavailable(response, data)) {
       onProgress('completed')
       return {
@@ -212,16 +219,7 @@ export async function runMeetingAudioJob(input: AudioJobInput): Promise<MeetingS
   }
 
   onProgress('completed')
-  return {
-    transcript: '',
-    summary: '',
-    template: {},
-    checklistItems: [],
-    recordingInfo: `${messages.uploadedOnly}: ${uploadData.fileName}`,
-    statusMessage: messages.transcribed,
-    guidedStep: 2,
-    transcriptionOnly: false
-  }
+  throw new Error(messages.emptyTranscript)
 }
 
 export function isTranscriptionUnavailableError(message: string) {

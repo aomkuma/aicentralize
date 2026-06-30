@@ -32,6 +32,8 @@ export type MeetingStudioJobMessages = {
   uploadFailed: string
   transcriptionFailed: string
   transcriptionUnavailable: string
+  transcriptionGatewayTimeout: string
+  emptyTranscript: string
   documentAnalysisFailed: string
   transcribed: string
   recordingAnalyzed: string

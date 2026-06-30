@@ -108,14 +108,35 @@ notificationRouter.get("/push/vapid-public-key", (_req, res) => {
 
 notificationRouter.get("/push/sw.js", (_req, res) => {
   res.type("application/javascript").send(`self.addEventListener("push", (event) => {
-  const payload = event.data ? event.data.json() : { title: "AI Centralize", body: "New notification" };
+  const payload = event.data ? event.data.json() : { title: "AI Centralize", body: "New notification", url: "/" };
   const title = payload && payload.title ? payload.title : "AI Centralize";
   const body = payload && payload.body ? payload.body : "New notification";
+  const url = payload && payload.url ? payload.url : "/";
 
   event.waitUntil(self.registration.showNotification(title, {
     body,
-    icon: "/favicon.ico"
+    icon: "/favicon.ico",
+    data: { url }
   }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data && event.notification.data.url ? event.notification.data.url : "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ("focus" in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+      return undefined;
+    })
+  );
 });`);
 });
 

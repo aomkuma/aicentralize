@@ -15,6 +15,9 @@ type DispatchReminderInput = {
   pushEnabled: boolean;
   reminderType: ReminderType;
   message: string;
+  pushTitle?: string;
+  emailSubject?: string;
+  deepLinkPath?: string;
 };
 
 type DispatchReminderResult = {
@@ -63,9 +66,11 @@ export async function dispatchReminder(input: DispatchReminderInput): Promise<Di
 
   if (input.emailEnabled && input.recipientEmail) {
     try {
+      const subject = input.emailSubject
+        ?? `[AI Centralize] ${input.reminderType === "UPCOMING" ? "Upcoming" : input.reminderType === "OVERDUE" ? "Overdue" : "Task update"}: ${input.task}`;
       const sent = await sendReminderEmail({
         to: input.recipientEmail,
-        subject: `[AI Centralize] ${input.reminderType === "UPCOMING" ? "Upcoming" : "Overdue"} Task: ${input.task}`,
+        subject,
         message: input.message
       });
       channelMeta.email = sent ? "sent" : "failed";
@@ -77,10 +82,16 @@ export async function dispatchReminder(input: DispatchReminderInput): Promise<Di
 
   if (input.pushEnabled && input.pushSubscriptions && input.pushSubscriptions.length > 0) {
     try {
+      const defaultTitle = input.reminderType === "UPCOMING"
+        ? "Upcoming Task"
+        : input.reminderType === "OVERDUE"
+          ? "Overdue Task"
+          : "Task update";
       await sendPushReminder({
         subscriptions: input.pushSubscriptions,
-        title: input.reminderType === "UPCOMING" ? "Upcoming Task" : "Overdue Task",
-        message: input.message
+        title: input.pushTitle ?? defaultTitle,
+        message: input.message,
+        url: input.deepLinkPath
       });
       channelMeta.push = "sent";
       hasAnySent = true;
