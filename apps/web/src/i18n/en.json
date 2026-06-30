@@ -45,6 +45,7 @@
     },
     "getStarted": "Get started",
     "exploreFeatures": "Explore features",
+    "heroOriginLine": "Built from a real workplace problem—not a startup idea.",
     "signIn": "Sign in",
     "signInToWorkspace": "Sign in to your workspace",
     "featuresTitle": "Built for how teams actually work",
@@ -118,6 +119,20 @@
       "YEARLY": "/ year",
       "ONE_TIME": "one-time",
       "CUSTOM": "custom billing"
+    },
+    "story": {
+      "eyebrow": "Why we built this",
+      "introNot": "We didn't start by asking how to build AI.",
+      "introBut": "We started by asking why talented people still exhaust themselves on work that shouldn't take so much energy.",
+      "scene": "One day we saw a quiet teammate who carried more than anyone noticed—every meeting, every note, every follow-up, the same questions again and again, and the team's context on her shoulders alone.",
+      "absence": "When she was away, work stalled. No one knew the status. No one remembered what was agreed—and no AI understood that context.",
+      "belief": "The problem isn't the people. It's a system that makes people remember everything on their own.",
+      "purpose": "Kora exists so knowledge doesn't leave with a person, meetings don't end when the room empties, and everyone can work with AI that understands real context.",
+      "tribute": "Kora's inspiration came from one quiet teammate—who may never know that her exhaustion became the starting point of this product.",
+      "quote": {
+        "line1": "We didn't build AI to replace people at work.",
+        "line2": "We built it so the people who carry the most don't have to carry everything alone."
+      }
     },
     "footer": "© {{year}} Kora. All rights reserved.",
     "footerTagline": "Organizational knowledge + team pulse for teams that ship.",

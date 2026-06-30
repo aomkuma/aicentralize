@@ -181,6 +181,10 @@ export default function WelcomePage() {
               </a>
             </div>
 
+            <p className="mt-5 text-center text-sm leading-relaxed text-slate-400 sm:text-[0.95rem]">
+              {t('landing.heroOriginLine')}
+            </p>
+
             <p className="mt-8 flex justify-center">
               <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-100">
                 <span className="text-cyan-400" aria-hidden>✦</span>
@@ -424,6 +428,47 @@ export default function WelcomePage() {
                 </article>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section id="our-story" className="border-t border-white/10 bg-gradient-to-b from-slate-100 via-[#eef2f7] to-slate-50 py-12 sm:py-16">
+          <div className="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <p className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-blue-700 sm:text-sm">
+              {t('landing.story.eyebrow')}
+            </p>
+
+            <div className="mt-8 space-y-5 text-[0.98rem] leading-7 text-slate-600 sm:text-base">
+              <p className="text-center text-slate-700">{t('landing.story.introNot')}</p>
+              <p className="rounded-2xl border border-blue-100/80 bg-white/70 px-5 py-4 text-center font-medium text-slate-800 shadow-sm">
+                {t('landing.story.introBut')}
+              </p>
+
+              <p>{t('landing.story.scene')}</p>
+              <p>{t('landing.story.absence')}</p>
+
+              <p className="text-lg font-semibold leading-snug text-slate-900 sm:text-xl">
+                {t('landing.story.belief')}
+              </p>
+
+              <p className="text-slate-700">{t('landing.story.purpose')}</p>
+            </div>
+
+            <p className="mt-8 border-t border-slate-200/80 pt-8 text-center text-sm leading-relaxed text-slate-500 sm:text-[0.95rem]">
+              {t('landing.story.tribute')}
+            </p>
+          </div>
+        </section>
+
+        <section className="border-y border-blue-100/60 bg-gradient-to-b from-blue-50/90 to-cyan-50/70 py-10 sm:py-14">
+          <div className="mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+            <blockquote className="space-y-3">
+              <p className="text-xl font-semibold leading-snug text-slate-700 sm:text-2xl sm:leading-tight">
+                {t('landing.story.quote.line1')}
+              </p>
+              <p className="text-xl font-semibold leading-snug text-blue-900 sm:text-2xl sm:leading-tight">
+                {t('landing.story.quote.line2')}
+              </p>
+            </blockquote>
           </div>
         </section>
 
