@@ -20,8 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
 
-# Pre-download the default Whisper model during image build.
-RUN python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')"
+# Pre-download the default Whisper model during image build (after deps are installed).
+RUN python -c "import requests; from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')"
 
 EXPOSE 8090
 
