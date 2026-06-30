@@ -513,6 +513,7 @@ export interface FeelingLog {
   content: string
   emoji?: string | null
   isPrivate: boolean
+  processedAt?: string | null
   createdAt: string
   updatedAt: string
   mentions: FeelingLogMention[]

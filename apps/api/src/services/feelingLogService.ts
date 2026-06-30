@@ -1,17 +1,20 @@
 import {
   AiRunOperation,
+  AiRunStatus,
   FeelingLogAnalysisAudience,
   type Prisma,
   TenantRole
 } from "@prisma/client";
-import crypto from "node:crypto";
+import cron from "node-cron";
+import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
 import { generateWithLocalModel } from "./aiService";
 import { logAiRun } from "./aiRunLogService";
 import { ensureTenantMembership, ensureTenantRole, isPlatformAdmin, type TenantAuthUser } from "./tenantAccessService";
 
-const PROMPT_VERSION = "feeling-log-v1";
+const PROMPT_VERSION = "feeling-log-batch-v2";
 const ANALYSIS_LOOKBACK_DAYS = 30;
+const BATCH_INTERVAL_MS = env.feelingLogBatchIntervalDays * 24 * 60 * 60 * 1000;
 
 type TenantMember = {
   id: string;
@@ -38,6 +41,41 @@ type FeelingLogCreateInput = {
   user: TenantAuthUser;
 };
 
+type PendingLog = Prisma.FeelingLogGetPayload<{
+  include: {
+    mentions: {
+      include: {
+        mentionedUser: {
+          select: { id: true; name: true; email: true };
+        };
+      };
+    };
+    author: {
+      select: { id: true; name: true };
+    };
+  };
+}>;
+
+const pendingLogInclude = {
+  mentions: {
+    include: {
+      mentionedUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    }
+  },
+  author: {
+    select: {
+      id: true,
+      name: true
+    }
+  }
+} satisfies Prisma.FeelingLogInclude;
+
 function extractJsonCandidate(raw: string): string | null {
   const stripped = raw
     .trim()
@@ -61,63 +99,74 @@ function safePreview(content: string, maxLength = 260) {
   return content.replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
-function buildHeuristicAnalysis(input: {
-  content: string;
-  emoji?: string | null;
-  mentionNames: string[];
-}): FeelingLogAnalysisResult {
-  const preview = safePreview(input.content, 200);
-  const hasStress = /เครียด|เหนื่อย|กดดัน|ไม่ไหว|ท้อ|เบื่อ|frustrat|stress|anxious/i.test(input.content);
-  const hasJoy = /ดีใจ|สบายใจ|ขอบคุณ|happy|good|calm|relief/i.test(input.content);
-  const hasConflict = /โกรธ|หงุดหงิด|ไม่โอเค|ทะเลาะ|ผิดหวัง|upset|annoy/i.test(input.content);
+function serializeEntries(logs: PendingLog[]) {
+  return logs.map((log) => ({
+    createdAt: log.createdAt.toISOString(),
+    emoji: log.emoji,
+    content: log.content,
+    mentions: log.mentions.map((mention) => mention.mentionLabel)
+  }));
+}
 
-  const riskLevel = hasConflict || hasStress ? "MEDIUM" : hasJoy ? "LOW" : "LOW";
+function buildHeuristicAnalysis(input: {
+  entries: Array<{ content: string; emoji?: string | null; mentions: string[] }>;
+  mentionNames: string[];
+  mode: "author" | "mention" | "leadership";
+}): FeelingLogAnalysisResult {
+  const combined = input.entries.map((entry) => entry.content).join("\n");
+  const preview = safePreview(combined, 240);
+  const hasStress = /เครียด|เหนื่อย|กดดัน|ไม่ไหว|ท้อ|เบื่อ|frustrat|stress|anxious/i.test(combined);
+  const hasConflict = /โกรธ|หงุดหงิด|ไม่โอเค|ทะเลาะ|ผิดหวัง|upset|annoy/i.test(combined);
+  const riskLevel = hasConflict || hasStress ? "MEDIUM" : "LOW";
 
   return {
-    personalTitle: input.emoji ? `สะท้อนจาก ${input.emoji}` : "สะท้อนจากบันทึก",
+    personalTitle: input.entries.length > 1 ? `สรุปรอบ ${input.entries.length} บันทึก` : "สะท้อนจากบันทึก",
     personalSummary: hasStress
-      ? "ข้อความนี้สะท้อนความตึงเครียดหรือความล้าทางอารมณ์บางส่วน ควรค่อยๆ แยกประเด็นที่หนักที่สุดออกมาก่อน"
-      : hasConflict
-        ? "ข้อความนี้มีโทนขัดข้องหรือไม่สบายใจอยู่บ้าง แต่ยังเป็นข้อมูลเชิงสังเกตที่นำไปคุยต่อได้"
-        : "ข้อความนี้มีโทนค่อนข้างเป็นกลางและใช้ต่อยอดทำความเข้าใจสภาวะภายในได้",
+      ? "ช่วงนี้มีสัญญาณความตึงเครียดหรือความล้าในหลายบันทึก ควรแยกประเด็นหนักและเบาอย่างเป็นลำดับ"
+      : "ช่วงนี้มีบันทึกที่ใช้ทำความเข้าใจแนวโน้มความรู้สึกได้ ยังไม่พบสัญญาณรุนแรงชัดเจน",
     interpretation: [
-      `สารตั้งต้นจากบันทึก: ${preview || "ไม่มีข้อความที่ชัดเจน"}.`,
-      hasStress
-        ? "มีสัญญาณของความกดดัน ความล้า หรือพื้นที่ทางใจที่ต้องพัก"
-        : "ยังไม่เห็นสัญญาณความเสี่ยงเชิงอารมณ์ที่รุนแรงจากข้อความนี้",
+      `สรุปจาก ${input.entries.length} บันทึก: ${preview || "ไม่มีข้อความชัดเจน"}.`,
       input.mentionNames.length > 0
         ? `มีการ mention ถึง: ${input.mentionNames.join(", ")}`
         : "ไม่มี mention ที่ระบุบุคคล"
     ].join(" "),
-    executiveSummary: input.mentionNames.length > 0
-      ? "มีบันทึกส่วนตัวที่สะท้อนประเด็นการทำงาน/ความรู้สึกซึ่งเกี่ยวข้องกับเพื่อนร่วมงานบางคน ควรติดตามอย่างระวังและไม่เปิดชื่อผู้เขียน"
-      : "มีบันทึกส่วนตัวที่สะท้อนสภาวะความรู้สึกของทีม/บุคคล ควรติดตามเชิงสนับสนุนมากกว่าการตีความเชิงตัดสิน",
+    executiveSummary: input.mode === "leadership"
+      ? "มีบันทึกส่วนตัวหลายรายการในช่วงนี้ ควรติดตามเชิงสนับสนุนโดยไม่เปิดเผยตัวตนผู้เขียน"
+      : input.mentionNames.length > 0
+        ? "มีบันทึกที่สะท้อนประเด็นเกี่ยวกับเพื่อนร่วมงาน ควรติดตามอย่างระมัดระวัง"
+        : "มีบันทึกส่วนตัวที่สะท้อนสภาวะทีม ควรดูแนวโน้มต่อเนื่อง",
     mentionSummary: input.mentionNames.length > 0
-      ? `ประเด็น mention กระทบกับ: ${input.mentionNames.join(", ")}`
+      ? `ประเด็น mention ที่เกี่ยวข้อง: ${input.mentionNames.join(", ")}`
       : "ไม่มี mention target",
     recommendation: hasStress
-      ? "ควรเช็กอินแบบอ่อนโยน ถามว่าต้องการความช่วยเหลืออะไรหรืออยากให้ลดงานส่วนไหนชั่วคราว"
-      : hasConflict
-        ? "ควรชวนคุยแบบเป็นข้อเท็จจริงและหลีกเลี่ยงการตอบโต้ด้วยอารมณ์"
-        : "เก็บเป็นข้อมูลต่อเนื่องและดูแพตเทิร์นในช่วงถัดไป",
+      ? "ควรเช็กอินแบบอ่อนโยนและถามว่าต้องการความช่วยเหลือด้านใด"
+      : "เก็บเป็นข้อมูลต่อเนื่องและดูแพทเทิร์นในรอบถัดไป",
     riskLevel
   };
 }
 
-function buildAiPrompt(input: {
-  content: string;
-  emoji?: string | null;
+function buildBatchAiPrompt(input: {
+  mode: "author" | "mention" | "leadership";
+  entries: ReturnType<typeof serializeEntries>;
   mentionNames: string[];
+  mentionedPersonName?: string;
   heuristic: FeelingLogAnalysisResult;
 }) {
+  const modeLabel = input.mode === "author"
+    ? "personal journal batch for one recorder"
+    : input.mode === "mention"
+      ? `mention-target batch for ${input.mentionedPersonName ?? "a teammate"}`
+      : "leadership summary batch without author identity";
+
   return [
     "You are Rubjob, a supportive workplace-aware reflection assistant.",
-    "Analyze a private feeling log with extreme care.",
+    `Analyze a ${modeLabel}.`,
     "Do NOT diagnose mental health, personality, intent, or relationships.",
     "Do NOT write harsh, shaming, or emotionally escalated wording.",
     "Keep the response factual, cautious, and supportive.",
-    "Never mention the author name.",
-    "If mentions are present, treat the mentioned people separately and summarize only the observable context.",
+    input.mode === "leadership" || input.mode === "mention"
+      ? "Never mention or infer the author identity."
+      : "This is only for the recorder's private reflection.",
     "Return ONLY valid JSON with this schema:",
     "{",
     '  "personalTitle": "string",',
@@ -131,28 +180,31 @@ function buildAiPrompt(input: {
     "Use Thai for all text fields.",
     "Heuristic baseline:",
     JSON.stringify(input.heuristic, null, 2),
-    "Input:",
-    JSON.stringify({
-      content: input.content,
-      emoji: input.emoji ?? null,
-      mentionNames: input.mentionNames
-    }, null, 2)
+    "Batch entries:",
+    JSON.stringify(input.entries, null, 2)
   ].join("\n");
 }
 
-async function analyzeFeelingLogWithAi(input: {
-  content: string;
-  emoji?: string | null;
+async function analyzeBatchWithAi(input: {
+  mode: "author" | "mention" | "leadership";
+  logs: PendingLog[];
   mentionNames: string[];
+  mentionedPersonName?: string;
 }): Promise<{ analysis: FeelingLogAnalysisResult; model?: string }> {
-  const heuristic = buildHeuristicAnalysis(input);
+  const entries = serializeEntries(input.logs);
+  const heuristic = buildHeuristicAnalysis({
+    entries,
+    mentionNames: input.mentionNames,
+    mode: input.mode
+  });
 
   try {
     const result = await generateWithLocalModel({
-      prompt: buildAiPrompt({
-        content: input.content,
-        emoji: input.emoji,
+      prompt: buildBatchAiPrompt({
+        mode: input.mode,
+        entries,
         mentionNames: input.mentionNames,
+        mentionedPersonName: input.mentionedPersonName,
         heuristic
       })
     });
@@ -196,17 +248,11 @@ async function validateMentionedMembers(tenantId: string, mentionedUserIds: stri
         some: {
           tenantId,
           isActive: true,
-          tenant: {
-            isActive: true
-          }
+          tenant: { isActive: true }
         }
       }
     },
-    select: {
-      id: true,
-      name: true,
-      email: true
-    }
+    select: { id: true, name: true, email: true }
   });
 
   const byId = new Map(members.map((member) => [member.id, member]));
@@ -216,55 +262,34 @@ async function validateMentionedMembers(tenantId: string, mentionedUserIds: stri
 }
 
 async function createAnalysisRecords(input: {
-  feelingLogId: string;
-  mentionTargets: TenantMember[];
+  feelingLogIds: string[];
+  audience: FeelingLogAnalysisAudience;
+  targetUserId?: string | null;
   analysis: FeelingLogAnalysisResult;
   model?: string;
+  titleOverride?: string;
+  summaryOverride?: string;
 }) {
-  type AnalysisRow = {
-    feelingLogId: string;
-    audience: FeelingLogAnalysisAudience;
-    targetUserId?: string | null;
-    title: string;
-    summary: string;
-    interpretation: string;
-    recommendation: string;
-    riskLevel: FeelingLogAnalysisResult["riskLevel"];
-    model: string | null;
-    promptVersion: string;
-  };
+  const title = input.titleOverride
+    ?? (input.audience === FeelingLogAnalysisAudience.LEADERSHIP
+      ? "สรุปบันทึกความรู้สึกสำหรับหัวหน้าทีม"
+      : input.audience === FeelingLogAnalysisAudience.MENTION_TARGET
+        ? "บริบท mention จากบันทึกส่วนตัว"
+        : input.analysis.personalTitle);
 
-  const analyses: AnalysisRow[] = [
-    {
-      feelingLogId: input.feelingLogId,
-      audience: FeelingLogAnalysisAudience.PERSONAL,
-      title: input.analysis.personalTitle,
-      summary: input.analysis.personalSummary,
-      interpretation: input.analysis.interpretation,
-      recommendation: input.analysis.recommendation,
-      riskLevel: input.analysis.riskLevel,
-      model: input.model ?? null,
-      promptVersion: PROMPT_VERSION
-    },
-    {
-      feelingLogId: input.feelingLogId,
-      audience: FeelingLogAnalysisAudience.LEADERSHIP,
-      title: "ข้อความบันทึกส่วนตัวสำหรับหัวหน้าทีม",
-      summary: input.analysis.executiveSummary,
-      interpretation: input.analysis.interpretation,
-      recommendation: input.analysis.recommendation,
-      riskLevel: input.analysis.riskLevel,
-      model: input.model ?? null,
-      promptVersion: PROMPT_VERSION
-    }
-  ];
+  const summary = input.summaryOverride
+    ?? (input.audience === FeelingLogAnalysisAudience.LEADERSHIP
+      ? input.analysis.executiveSummary
+      : input.audience === FeelingLogAnalysisAudience.MENTION_TARGET
+        ? input.analysis.mentionSummary
+        : input.analysis.personalSummary);
 
-  const mentionAnalyses: AnalysisRow[] = input.mentionTargets.map((target) => ({
-    feelingLogId: input.feelingLogId,
-    audience: FeelingLogAnalysisAudience.MENTION_TARGET,
-    targetUserId: target.id,
-    title: `Context for ${target.name}`,
-    summary: input.analysis.mentionSummary,
+  const rows = input.feelingLogIds.map((feelingLogId) => ({
+    feelingLogId,
+    audience: input.audience,
+    targetUserId: input.targetUserId ?? null,
+    title,
+    summary,
     interpretation: input.analysis.interpretation,
     recommendation: input.analysis.recommendation,
     riskLevel: input.analysis.riskLevel,
@@ -272,20 +297,256 @@ async function createAnalysisRecords(input: {
     promptVersion: PROMPT_VERSION
   }));
 
-  await prisma.feelingLogAnalysis.createMany({
-    data: analyses.concat(mentionAnalyses).map((item) => ({
-      feelingLogId: item.feelingLogId,
-      audience: item.audience,
-      targetUserId: item.targetUserId ?? null,
-      title: item.title,
-      summary: item.summary,
-      interpretation: item.interpretation,
-      recommendation: item.recommendation,
-      riskLevel: item.riskLevel,
-      model: item.model,
-      promptVersion: item.promptVersion
-    }))
+  if (rows.length === 0) {
+    return;
+  }
+
+  await prisma.feelingLogAnalysis.createMany({ data: rows });
+}
+
+async function listPendingLogs() {
+  return prisma.feelingLog.findMany({
+    where: { processedAt: null },
+    orderBy: { createdAt: "asc" },
+    include: pendingLogInclude
   });
+}
+
+async function getLastBatchRunAt() {
+  const row = await prisma.aiRunLog.findFirst({
+    where: {
+      operation: AiRunOperation.FEELING_LOG_ANALYSIS,
+      status: AiRunStatus.SUCCESS
+    },
+    orderBy: { createdAt: "desc" }
+  });
+
+  const trace = row?.traceJson as { batchRun?: boolean } | null | undefined;
+  if (!trace?.batchRun) {
+    return null;
+  }
+
+  return row?.createdAt ?? null;
+}
+
+export async function shouldRunFeelingLogBatch(now = new Date()) {
+  const pendingCount = await prisma.feelingLog.count({ where: { processedAt: null } });
+  if (pendingCount === 0) {
+    return false;
+  }
+
+  const lastRunAt = await getLastBatchRunAt();
+  if (!lastRunAt) {
+    return true;
+  }
+
+  return now.getTime() - lastRunAt.getTime() >= BATCH_INTERVAL_MS;
+}
+
+export async function processPendingFeelingLogsBatch(options?: { force?: boolean; now?: Date }) {
+  const startedAt = Date.now();
+  const now = options?.now ?? new Date();
+  const pendingLogs = await listPendingLogs();
+
+  if (pendingLogs.length === 0) {
+    return {
+      skipped: true,
+      reason: "NO_PENDING_LOGS",
+      processedLogs: 0,
+      tenants: 0,
+      authorGroups: 0,
+      mentionGroups: 0
+    };
+  }
+
+  if (!options?.force && !(await shouldRunFeelingLogBatch(now))) {
+    const lastRunAt = await getLastBatchRunAt();
+    return {
+      skipped: true,
+      reason: "INTERVAL_NOT_REACHED",
+      pendingLogs: pendingLogs.length,
+      nextEligibleAt: lastRunAt
+        ? new Date(lastRunAt.getTime() + BATCH_INTERVAL_MS).toISOString()
+        : null
+    };
+  }
+
+  const logsByTenant = new Map<string, PendingLog[]>();
+  for (const log of pendingLogs) {
+    const bucket = logsByTenant.get(log.tenantId) ?? [];
+    bucket.push(log);
+    logsByTenant.set(log.tenantId, bucket);
+  }
+
+  let authorGroups = 0;
+  let mentionGroups = 0;
+  let modelsUsed: string[] = [];
+
+  for (const [tenantId, tenantLogs] of logsByTenant) {
+    const logsByAuthor = new Map<string, PendingLog[]>();
+    for (const log of tenantLogs) {
+      const bucket = logsByAuthor.get(log.authorId) ?? [];
+      bucket.push(log);
+      logsByAuthor.set(log.authorId, bucket);
+    }
+
+    for (const authorLogs of logsByAuthor.values()) {
+      authorGroups += 1;
+      const mentionNames = Array.from(new Set(
+        authorLogs.flatMap((log) => log.mentions.map((mention) => mention.mentionLabel))
+      ));
+      const outcome = await analyzeBatchWithAi({
+        mode: "author",
+        logs: authorLogs,
+        mentionNames
+      });
+      if (outcome.model) {
+        modelsUsed.push(outcome.model);
+      }
+      await createAnalysisRecords({
+        feelingLogIds: authorLogs.map((log) => log.id),
+        audience: FeelingLogAnalysisAudience.PERSONAL,
+        analysis: outcome.analysis,
+        model: outcome.model
+      });
+    }
+
+    const logsByMention = new Map<string, { target: TenantMember; logs: PendingLog[] }>();
+    for (const log of tenantLogs) {
+      for (const mention of log.mentions) {
+        const existing = logsByMention.get(mention.mentionedUserId);
+        if (existing) {
+          if (!existing.logs.some((item) => item.id === log.id)) {
+            existing.logs.push(log);
+          }
+        } else {
+          logsByMention.set(mention.mentionedUserId, {
+            target: mention.mentionedUser,
+            logs: [log]
+          });
+        }
+      }
+    }
+
+    for (const { target, logs } of logsByMention.values()) {
+      mentionGroups += 1;
+      const outcome = await analyzeBatchWithAi({
+        mode: "mention",
+        logs,
+        mentionNames: [target.name],
+        mentionedPersonName: target.name
+      });
+      if (outcome.model) {
+        modelsUsed.push(outcome.model);
+      }
+      await createAnalysisRecords({
+        feelingLogIds: logs.map((log) => log.id),
+        audience: FeelingLogAnalysisAudience.MENTION_TARGET,
+        targetUserId: target.id,
+        analysis: outcome.analysis,
+        model: outcome.model
+      });
+    }
+
+    const leadershipMentionNames = Array.from(new Set(
+      tenantLogs.flatMap((log) => log.mentions.map((mention) => mention.mentionLabel))
+    ));
+    const leadershipOutcome = await analyzeBatchWithAi({
+      mode: "leadership",
+      logs: tenantLogs,
+      mentionNames: leadershipMentionNames
+    });
+    if (leadershipOutcome.model) {
+      modelsUsed.push(leadershipOutcome.model);
+    }
+    await createAnalysisRecords({
+      feelingLogIds: tenantLogs.map((log) => log.id),
+      audience: FeelingLogAnalysisAudience.LEADERSHIP,
+      analysis: leadershipOutcome.analysis,
+      model: leadershipOutcome.model
+    });
+  }
+
+  await prisma.feelingLog.updateMany({
+    where: { id: { in: pendingLogs.map((log) => log.id) } },
+    data: { processedAt: now }
+  });
+
+  const summary = {
+    skipped: false,
+    processedLogs: pendingLogs.length,
+    tenants: logsByTenant.size,
+    authorGroups,
+    mentionGroups,
+    durationMs: Date.now() - startedAt
+  };
+
+  await logAiRun({
+    operation: AiRunOperation.FEELING_LOG_ANALYSIS,
+    status: AiRunStatus.SUCCESS,
+    promptVersion: PROMPT_VERSION,
+    durationMs: summary.durationMs,
+    model: modelsUsed[0],
+    trace: {
+      batchRun: true,
+      ...summary,
+      completedAt: now.toISOString()
+    }
+  }).catch(() => void 0);
+
+  return summary;
+}
+
+export async function getFeelingLogBatchSchedulerStatus() {
+  const lastRun = await prisma.aiRunLog.findFirst({
+    where: {
+      operation: AiRunOperation.FEELING_LOG_ANALYSIS,
+      status: AiRunStatus.SUCCESS
+    },
+    orderBy: { createdAt: "desc" }
+  });
+
+  const pendingCount = await prisma.feelingLog.count({ where: { processedAt: null } });
+  const trace = (lastRun?.traceJson ?? null) as Record<string, unknown> | null;
+  const lastBatchAt = trace?.batchRun ? lastRun?.createdAt ?? null : null;
+
+  return {
+    cron: env.feelingLogBatchCron,
+    timezone: env.feelingLogBatchTimezone,
+    intervalDays: env.feelingLogBatchIntervalDays,
+    pendingCount,
+    lastBatchAt: lastBatchAt?.toISOString() ?? null,
+    nextEligibleAt: lastBatchAt
+      ? new Date(lastBatchAt.getTime() + BATCH_INTERVAL_MS).toISOString()
+      : null,
+    latestTrace: trace
+  };
+}
+
+export function startFeelingLogBatchScheduler() {
+  cron.schedule(env.feelingLogBatchCron, async () => {
+    try {
+      const summary = await processPendingFeelingLogsBatch();
+      if (!summary.skipped) {
+        console.log("[FEELING_LOG_BATCH] Run summary", summary);
+      }
+    } catch (error) {
+      await logAiRun({
+        operation: AiRunOperation.FEELING_LOG_ANALYSIS,
+        status: AiRunStatus.FAILED,
+        promptVersion: PROMPT_VERSION,
+        trace: { batchRun: true },
+        errorMessage: error instanceof Error ? error.message : "unknown feeling log batch error"
+      }).catch(() => void 0);
+      console.error("[FEELING_LOG_BATCH] Scheduler failed", error);
+    }
+  }, {
+    timezone: env.feelingLogBatchTimezone
+  });
+
+  console.log(
+    `[FEELING_LOG_BATCH] Scheduler started with cron ${env.feelingLogBatchCron} (${env.feelingLogBatchTimezone}), interval ${env.feelingLogBatchIntervalDays} day(s)`
+  );
 }
 
 export async function createFeelingLog(input: FeelingLogCreateInput) {
@@ -299,19 +560,15 @@ export async function createFeelingLog(input: FeelingLogCreateInput) {
 
   const mentionIds = normalizeMentions(input.mentionedUserIds);
   const mentionTargets = await validateMentionedMembers(input.tenantId, mentionIds);
-  const analysisOutcome = await analyzeFeelingLogWithAi({
-    content: input.content,
-    emoji: input.emoji ?? null,
-    mentionNames: mentionTargets.map((member) => member.name)
-  });
 
-  const log = await prisma.feelingLog.create({
+  return prisma.feelingLog.create({
     data: {
       tenantId: input.tenantId,
       authorId: input.authorId,
       content: input.content,
       emoji: input.emoji ?? null,
       isPrivate: true,
+      processedAt: null,
       mentions: {
         create: mentionTargets.map((target) => ({
           mentionedUserId: target.id,
@@ -320,29 +577,6 @@ export async function createFeelingLog(input: FeelingLogCreateInput) {
       }
     }
   });
-
-  await createAnalysisRecords({
-    feelingLogId: log.id,
-    mentionTargets,
-    analysis: analysisOutcome.analysis,
-    model: analysisOutcome.model
-  });
-
-  await logAiRun({
-    operation: AiRunOperation.FEELING_LOG_ANALYSIS,
-    status: "SUCCESS",
-    userId: input.authorId,
-    trace: {
-      feelingLogId: log.id,
-      tenantId: input.tenantId,
-      mentionCount: mentionTargets.length,
-      createdAt: new Date().toISOString()
-    },
-    model: analysisOutcome.model,
-    promptVersion: PROMPT_VERSION
-  }).catch(() => void 0);
-
-  return log;
 }
 
 export async function listMyFeelingLogs(tenantId: string, user: TenantAuthUser) {
@@ -388,9 +622,8 @@ export async function getFeelingLogInbox(tenantId: string, user: TenantAuthUser)
     where: {
       feelingLog: {
         tenantId,
-        createdAt: {
-          gte: windowStart
-        }
+        processedAt: { not: null },
+        createdAt: { gte: windowStart }
       },
       audience: {
         in: [FeelingLogAnalysisAudience.LEADERSHIP, FeelingLogAnalysisAudience.MENTION_TARGET]
@@ -405,9 +638,7 @@ export async function getFeelingLogInbox(tenantId: string, user: TenantAuthUser)
           emoji: true,
           createdAt: true,
           mentions: {
-            select: {
-              mentionLabel: true
-            }
+            select: { mentionLabel: true }
           }
         }
       },
@@ -426,37 +657,25 @@ export async function getFeelingLogInbox(tenantId: string, user: TenantAuthUser)
     where: {
       feelingLog: {
         tenantId,
-        createdAt: {
-          gte: windowStart
-        }
+        processedAt: { not: null },
+        createdAt: { gte: windowStart }
       }
     },
-    _count: {
-      mentionedUserId: true
-    },
+    _count: { mentionedUserId: true },
     having: {
-      mentionedUserId: {
-        _count: {
-          gt: 5
-        }
-      }
+      mentionedUserId: { _count: { gt: 5 } }
     }
   });
 
   const mentionUsers = mentionTotals.length > 0
     ? await prisma.user.findMany({
-      where: {
-        id: { in: mentionTotals.map((item) => item.mentionedUserId) }
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true
-      }
+      where: { id: { in: mentionTotals.map((item) => item.mentionedUserId) } },
+      select: { id: true, name: true, email: true }
     })
     : [];
 
   const userById = new Map(mentionUsers.map((member) => [member.id, member]));
+  const scheduler = await getFeelingLogBatchSchedulerStatus();
 
   return {
     recentInsights: recentInsights.map((item) => ({
@@ -474,15 +693,16 @@ export async function getFeelingLogInbox(tenantId: string, user: TenantAuthUser)
       targetUser: item.targetUser
     })),
     frequentMentions: mentionTotals.map((item) => {
-      const user = userById.get(item.mentionedUserId);
+      const mentionUser = userById.get(item.mentionedUserId);
       return {
         userId: item.mentionedUserId,
-        name: user?.name ?? item.mentionedUserId,
-        email: user?.email,
+        name: mentionUser?.name ?? item.mentionedUserId,
+        email: mentionUser?.email,
         count: item._count.mentionedUserId
       };
     }),
     windowStart: windowStart.toISOString(),
-    windowEnd: new Date().toISOString()
+    windowEnd: new Date().toISOString(),
+    batchScheduler: scheduler
   };
 }

@@ -211,7 +211,7 @@ export default function FeelingLogsPage() {
       setContent('')
       setEmoji(null)
       setMentionedUsers([])
-      setNotice(t('feelingLogs.saved'))
+      setNotice(t('feelingLogs.savedPending'))
       await loadLogs()
       if (canViewInsights) {
         await loadInbox()
@@ -233,6 +233,9 @@ export default function FeelingLogsPage() {
           </h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
             {t('feelingLogs.description')}
+          </p>
+          <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">
+            {t('feelingLogs.batchScheduleNote')}
           </p>
         </div>
 
@@ -385,6 +388,11 @@ export default function FeelingLogsPage() {
                         <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
                           {t('feelingLogs.mentions')}: {log.mentions.map((mention) => mention.mentionLabel).join(', ')}
                         </p>
+                      )}
+                      {!log.processedAt && (
+                        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+                          {t('feelingLogs.pendingAnalysis')}
+                        </div>
                       )}
                       {analysis && (
                         <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50/70 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">

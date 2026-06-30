@@ -173,7 +173,8 @@ This document is the product feature map (main modules and sub-features). For da
 |-------------|-------------|
 | **Private journal** | Text + emoji; only author sees raw entries |
 | **@mention** | Autocomplete coworkers in organization |
-| **AI analysis (Rubjob)** | Personal interpretation; leadership/mention-target derived streams |
+| **AI analysis (Rubjob)** | Batch every **3 days at 02:00** (Asia/Bangkok); grouped by author and mentioned people |
+| **Save flow** | Store immediately (`processedAt` null); no inline AI on save |
 | **Manager inbox** | `TENANT_ADMIN` / `MANAGER` see derived insights only (no author name) |
 | **Frequent mentions** | Names surfaced when mentioned >5 times in 30 days |
 | **Observability** | `AiRunOperation.FEELING_LOG_ANALYSIS` |

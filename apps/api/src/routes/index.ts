@@ -16,3 +16,4 @@ export { systemSettingsRouter } from "./system-settings";
 export { adminRouter } from "./admin";
 export { communicationSentimentRouter } from "./communication-sentiment";
 export { feelingLogRouter } from "./feeling-logs";
+export { feelingLogBatchRouter } from "./feeling-log-batch";

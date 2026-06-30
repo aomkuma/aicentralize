@@ -21,6 +21,7 @@ function serializeFeelingLog(log: Awaited<ReturnType<typeof listMyFeelingLogs>>[
     content: log.content,
     emoji: log.emoji,
     isPrivate: log.isPrivate,
+    processedAt: log.processedAt?.toISOString() ?? null,
     createdAt: log.createdAt.toISOString(),
     updatedAt: log.updatedAt.toISOString(),
     mentions: log.mentions.map((mention) => ({

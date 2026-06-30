@@ -18,6 +18,7 @@ import {
   continuityRouter,
   communicationSentimentRouter,
   feelingLogRouter,
+  feelingLogBatchRouter,
   observabilityRouter,
   projectRouter,
   reminderRouter,
@@ -312,6 +313,7 @@ export function createApp() {
   app.use("/retrieval", retrievalRouter);
   app.use("/reminders", reminderRouter);
   app.use("/morning-briefings", morningBriefingRouter);
+  app.use("/feeling-log-batch", feelingLogBatchRouter);
   app.use("/continuity", continuityRouter);
   app.use("/observability", observabilityRouter);
   app.use("/tenants", tenantRouter);
