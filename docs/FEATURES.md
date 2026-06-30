@@ -1,6 +1,6 @@
 # AICentralize — Feature Catalog
 
-**Last updated:** 2026-06-30 · **`main` through `ab2611f`** (Feeling Log pending next commit)
+**Last updated:** 2026-06-30 (end of day) · **`main` through `37eac5d`**
 
 This document is the product feature map (main modules and sub-features). For day-to-day commands and access rules, see [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md). For chronological implementation notes, see [`next-day-handover-2026-06-28.md`](./next-day-handover-2026-06-28.md).
 
@@ -42,7 +42,7 @@ This document is the product feature map (main modules and sub-features). For da
 | **Workload balancing** | Suggestion popup when owner load is uneven (`ContinuityDashboard`). |
 | **Navigation** | Continuity is **not** in sidebar; open from project card. Bare `/continuity` → `/projects`. |
 | **Project knowledge** | Onboarding Q&A, file import, AI extraction into knowledge items (`projectKnowledgeService`). |
-| **General notes** | Free-form project notes used as Ask-AI evidence (`projectGeneralNoteService`). |
+| **General notes** | Free-form project notes used as Ask-AI evidence (`projectGeneralNoteService`); **PUBLIC** / **PRIVATE** visibility (private excluded from shared evidence). |
 | **Team sentiment badges** | Mood indicators on projects team table (`TENANT_ADMIN` / `MANAGER`). |
 
 ---
@@ -162,10 +162,27 @@ This document is the product feature map (main modules and sub-features). For da
 | **AI run logs** | Extraction, retrieval, ask-ai, reminder runs |
 | **Ask-AI query log** | Questions, answers, evidence IDs |
 | **Tenant scoping** | Non-platform users see own tenants only |
+| **Scheduler panels** | Morning briefing cron status + Run now (`ab2611f`); feeling log batch API only (UI panel planned) |
 
 ---
 
-## 10. Feeling Log (บันทึกความรู้สึก)
+## 10. Rubjob Morning Briefing
+
+**Route:** `/dashboard` (dialog on load) · **API:** `/morning-briefings`
+
+| Sub-feature | Description |
+|-------------|-------------|
+| **Daily generation** | Cron **04:30** (`MORNING_BRIEFING_CRON`, default `30 4 * * *`, `Asia/Bangkok`) |
+| **Scope** | `MEMBER`: own action items; `TENANT_ADMIN` / `MANAGER`: own + team follow-ups |
+| **Signals** | Overdue, due today/soon, blocked, high/critical priority |
+| **Acknowledgement** | `I got it!` (+3), `I know` (0), `เออ รู้แล้ว` (-3) → communication sentiment |
+| **Evidence cards** | Deep-link to `/action-items/:id` |
+| **Admin** | `POST /morning-briefings/run-now`, scheduler status in AI Trace |
+| **Observability** | `AiRunOperation.MORNING_BRIEFING` |
+
+---
+
+## 11. Feeling Log (บันทึกความรู้สึก)
 
 **Route:** `/feeling-logs` · **API:** `/tenants/:tenantId/feeling-logs`
 
@@ -175,13 +192,14 @@ This document is the product feature map (main modules and sub-features). For da
 | **@mention** | Autocomplete coworkers in organization |
 | **AI analysis (Rubjob)** | Batch every **3 days at 02:00** (Asia/Bangkok); grouped by author and mentioned people |
 | **Save flow** | Store immediately (`processedAt` null); no inline AI on save |
-| **Manager inbox** | `TENANT_ADMIN` / `MANAGER` see derived insights only (no author name) |
+| **Manager inbox** | Tab **ภาพรวมทีม** on `/feeling-logs` (`TENANT_ADMIN` / `MANAGER`); derived insights only (no author name) |
+| **Batch admin** | `POST /feeling-log-batch/run-now`, `GET /feeling-log-batch/scheduler-status` (`SUPER_ADMIN`) |
 | **Frequent mentions** | Names surfaced when mentioned >5 times in 30 days |
 | **Observability** | `AiRunOperation.FEELING_LOG_ANALYSIS` |
 
 ---
 
-## 11. Frontend Architecture (summary)
+## 12. Frontend Architecture (summary)
 
 | Area | Location |
 |------|----------|
@@ -206,10 +224,13 @@ This document is the product feature map (main modules and sub-features). For da
 
 ## Open / planned (not shipped)
 
-See **Open Items Tracker** in [`next-day-handover-2026-06-28.md`](./next-day-handover-2026-06-28.md):
+See **Open Items Tracker** and **Development Roadmap** in [`next-day-handover-2026-06-28.md`](./next-day-handover-2026-06-28.md):
 
 - PM date-ordered timeline tab in Continuity  
 - Sentiment + suspension automated tests  
 - Project memory vector retrieval  
 - Project knowledge item-level review UI  
+- Feeling log batch scheduler panel in AI Trace  
+- Manager dashboard badge for new feeling-log insights  
+- Cron leader lock for multi-replica API  
 - Full offline PWA (no vite-plugin-pwa service worker cache yet)

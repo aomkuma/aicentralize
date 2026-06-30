@@ -1,20 +1,55 @@
 # Quick Reference - Common Commands
 
-## Session Update (2026-06-30)
+## Session Update (2026-06-30, end of day)
 
-**`main` through `db369f8`.** Full feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Handover log: `docs/next-day-handover-2026-06-28.md`.
+**`main` through `37eac5d`.** Full feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Handover + roadmap: `docs/next-day-handover-2026-06-28.md`.
 
 Recent product changes:
+- **Feeling log:** `/feeling-logs` — save text immediately; Rubjob batch AI every **3 days at 02:00** Bangkok; manager tab **ภาพรวมทีม**.
+- **Morning briefing (Rubjob):** Dashboard dialog **04:30** daily; ack moods → sentiment; AI Trace scheduler panel.
 - **Push / PWA:** Profile wizard (install app → enable push); iPhone requires Home Screen install; `PushOnboardingBanner` in layout; VAPID on API.
 - **Action-item push:** Alerts on reassign, due date, priority, status changes (+ reminder worker).
+- **General notes:** PUBLIC / PRIVATE visibility (private hidden from Ask-AI evidence).
 - **Prompt limit:** Playground / Meeting Studio up to **120,000** chars (`61127ae`).
 - **ASR:** 1-hour timeout (`ASR_REQUEST_TIMEOUT_MS=3600000`); nginx `/ai/` **3700s**.
 - **Meeting Studio:** background audio transcription (`MeetingStudioJobBanner`); uploads TXT/MD/CSV/TSV/DOCX/PDF/XLSX.
 - **Continuity:** not in sidebar; open from `/projects` → project card → `/continuity/:projectId`.
 - **Communication sentiment:** mood badges on `/projects` team table (`TENANT_ADMIN` / `MANAGER`).
 - **Project knowledge + general notes:** `/projects/:projectId/knowledge`, `/projects/:projectId/notes`.
-- **User-facing UI:** AI model/confidence labels hidden via `redactAiMetadata.ts`.
 - **Deploy:** API Docker runs `npx prisma migrate deploy` on boot (`docker/start.sh`).
+
+### Feeling log batch (env)
+
+```env
+FEELING_LOG_BATCH_CRON=0 2 * * *
+FEELING_LOG_BATCH_TIMEZONE=Asia/Bangkok
+FEELING_LOG_BATCH_INTERVAL_DAYS=3
+```
+
+Manual run (SUPER_ADMIN): `POST /feeling-log-batch/run-now`  
+Status: `GET /feeling-log-batch/scheduler-status`
+
+### Morning briefing (env)
+
+```env
+MORNING_BRIEFING_CRON=30 4 * * *
+MORNING_BRIEFING_TIMEZONE=Asia/Bangkok
+```
+
+Manual run: `POST /morning-briefings/run-now`
+
+### iPhone push troubleshooting
+
+1. Safari → Share → **Add to Home Screen**
+2. Open app **from Home Screen icon** (not Safari tab)
+3. Profile → **Enable push notifications**
+4. Confirm VAPID keys configured on API (`/system-settings` or env)
+
+## Session Update (2026-06-30, earlier — superseded)
+
+**Superseded by end-of-day section above.**
+
+**`main` through `db369f8`.**
 
 ## Session Update (2026-06-28, earlier)
 

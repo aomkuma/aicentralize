@@ -1,8 +1,45 @@
 # Next-Day Handover - 2026-06-28
 
-## Latest Status (2026-06-30, evening)
+## Latest Status (2026-06-30, end of day)
 
-**`main` is current through `ab2611f`.** Feature catalog: [`docs/FEATURES.md`](./FEATURES.md).
+**`main` is current through `37eac5d`.** Feature catalog: [`docs/FEATURES.md`](./FEATURES.md). Quick commands: [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md).
+
+### Day summary — what shipped today
+
+| Area | Commit(s) | What users get |
+|------|-----------|----------------|
+| **Meeting Studio / ASR** | `5f1d652`, `4e69563` | Long audio transcription up to **1 hour**; nginx `/ai/` **3700s** |
+| **Prompt limits** | `61127ae` | Playground + Meeting Studio up to **120k** chars (`meetingAnalysisPrompt.ts`) |
+| **Push notifications** | `4e9aaf6`, `db369f8` | Action-item push; iPhone **2-step PWA wizard** + onboarding banner |
+| **Rubjob morning briefing** | `ae26706`, `ab2611f` | Daily briefing dialog on Dashboard; ack moods feed sentiment; AI Trace scheduler panel |
+| **General notes** | `ae26706` | PUBLIC / PRIVATE visibility (private excluded from shared Ask-AI evidence) |
+| **Feeling log** | `ae265c3`, `37eac5d` | `/feeling-logs` journal + manager **ภาพรวมทีม** tab; **batch AI every 3 days at 02:00** |
+| **Docs** | `ae265c3` | `docs/FEATURES.md` product map; handover + QUICK_REFERENCE refresh |
+
+### Commit log (today, newest first)
+
+| Commit | Summary |
+|--------|---------|
+| `37eac5d` | Feeling log: save immediately; batch AI at 02:00 every 3 days (by author + mention groups) |
+| `ae265c3` | Feeling log: API + web `/feeling-logs`, `docs/FEATURES.md` |
+| `ab2611f` | Morning briefing scheduler status + Run now in AI Trace |
+| `ae26706` | Rubjob morning briefings, general note visibility, dashboard dialog |
+| `db369f8` | iPhone push setup wizard + `PushOnboardingBanner` |
+| `61127ae` | Playground / Meeting Studio prompt limit **120k** |
+| `4e69563` | ASR default timeout **1 hour** |
+| `5f1d652` | nginx `/ai/` proxy timeouts **3700s** |
+| `4e9aaf6` | Action-item push; Meeting Studio audio job fixes |
+| `648c1b3` | Handover + QUICK_REFERENCE (earlier 2026-06-30 snapshot) |
+
+**Migrations on production:** API Docker runs `npx prisma migrate deploy` on boot (`docker/start.sh`). New today: `20260630163000_morning_briefings`, `20260630170000_project_general_note_visibility`, `20260630183000_feeling_logs`, `20260630200000_feeling_log_batch_processing`.
+
+**Still open:** see **Open Items Tracker** and **Development Roadmap** at bottom.
+
+---
+
+## Latest Status (2026-06-30, mid-day — superseded)
+
+**Superseded by end-of-day table above.**
 
 | Commit | Summary |
 |--------|---------|
@@ -13,34 +50,27 @@
 | `4e69563` | ASR default timeout **1 hour** |
 | `5f1d652` | nginx `/ai/` proxy timeouts **3700s** |
 | `4e9aaf6` | Action-item push; Meeting Studio audio job fixes |
-| `648c1b3` | Handover + QUICK_REFERENCE refresh |
-| `54457cd` | Fix Railway deploy: `pnpm-lock.yaml` + `jszip` |
-| `627a446` | Communication sentiment + team mood badges |
-| `4cb67d5` | Project knowledge onboarding + general notes |
-| `e0e836b` | Meeting Studio background transcription, multi-format uploads, hide AI labels |
-
-**Migrations on production:** API Docker entrypoint runs `npx prisma migrate deploy` on boot (`docker/start.sh`).
-
-**Still open:** PM timeline tab, sentiment tests, vector retrieval, knowledge item review UI, account suspension route tests. Full list: **Open Items Tracker** at bottom.
 
 ---
 
-## Latest Status (2026-06-30, earlier)
+## Latest Status (2026-06-30, earlier — superseded)
 
-**Superseded by table above.** Kept for reference:
+**Superseded.** Kept for reference:
 
 | Commit | Summary |
 |--------|---------|
 | `4cb67d5` | Project knowledge onboarding + general notes for Ask-AI |
-| `e0e836b` | Meeting Studio background transcription, multi-format uploads, hide AI model/confidence labels, continuity nav removed from sidebar |
-| `627a446` | Communication sentiment snapshots + Projects team mood badges |
-| `54457cd` | Fix Railway deploy: sync `pnpm-lock.yaml` with `jszip` |
+| `e0e836b` | Meeting Studio background transcription, multi-format uploads, hide AI labels |
+| `627a446` | Communication sentiment + team mood badges |
+| `54457cd` | Fix Railway deploy: `pnpm-lock.yaml` + `jszip` |
 
-Sections below are a chronological log; use the **Latest Status** table at top and **Open Items Tracker** at the bottom for current truth.
+Sections below are a chronological log; use **Latest Status** at top, **Open Items Tracker**, and **Development Roadmap** at bottom for current truth.
 
-## Current Working State
+## Current Working State (historical — 2026-06-28 snapshot)
 
-Repository has uncommitted work for first-login password handling, personal profile management, and admin organization management.
+> **Note:** This section describes work-in-progress from 2026-06-28. It is **committed and shipped**. Do not treat as current uncommitted state.
+
+Repository had uncommitted work for first-login password handling, personal profile management, and admin organization management.
 
 Implemented so far:
 - Added `User.mustChangePassword` to Prisma schema.
@@ -1036,20 +1066,28 @@ Verification:
 
 ## Post-Handover Work Completed (2026-06-30, Feeling Log)
 
-Implemented locally (pending commit):
+Implemented and pushed (`ae265c3`, `37eac5d`):
 
 **Feeling log API + web (`/feeling-logs`)**
-- Prisma models `FeelingLog`, `FeelingLogMention`, `FeelingLogAnalysis`; migration `20260630183000_feeling_logs`.
-- `feelingLogService.ts`: Rubjob AI analysis with heuristic fallback; personal, leadership, mention-target audiences.
-- API: `GET/POST /tenants/:tenantId/feeling-logs/me`, `GET .../inbox` (managers), `POST /`.
-- Web: `FeelingLogsPage` with emoji picker, `@mention` autocomplete, personal history, manager insights tab.
-- Navigation: sidebar item **บันทึกความรู้สึก** / Feeling Log.
+- Prisma: `FeelingLog`, `FeelingLogMention`, `FeelingLogAnalysis`; migrations `20260630183000_feeling_logs`, `20260630200000_feeling_log_batch_processing` (`processedAt`).
+- **Save flow:** store text + emoji + `@mention` immediately — **no inline AI** on save.
+- **Batch flow:** cron daily **02:00** (`FEELING_LOG_BATCH_CRON`, default `0 2 * * *`, `Asia/Bangkok`); runs when **≥3 days** since last batch and pending logs exist.
+- Batch groups pending logs by **recorder (author)** and **mentioned person**, plus tenant **leadership** summary (no author identity in manager view).
+- API:
+  - `GET/POST /tenants/:tenantId/feeling-logs/me`
+  - `GET /tenants/:tenantId/feeling-logs/inbox` (`TENANT_ADMIN` / `MANAGER`)
+  - `POST /feeling-log-batch/run-now` (`SUPER_ADMIN`)
+  - `GET /feeling-log-batch/scheduler-status`
+- Web: `FeelingLogsPage` — tab **บันทึกของฉัน** (all users) + tab **ภาพรวมทีม** (managers only).
+- Scheduler: `startFeelingLogBatchScheduler()` in `apps/api/src/index.ts`.
+
+**Manager UI location:** same page `/feeling-logs` → tab **ภาพรวมทีม** (not a separate route). Insights appear only after batch processing.
 
 Verification:
 - `pnpm --filter api type-check` passed (after `prisma generate`)
 - `pnpm --filter web type-check` passed
 
-## Open Items Tracker (2026-06-30 doc audit)
+## Open Items Tracker (2026-06-30 end-of-day)
 
 Reconciled against the codebase. Items marked done below are implemented; remaining items are
 still open.
@@ -1077,7 +1115,9 @@ still open.
 | iPhone push setup wizard + PWA banner | **Done** | Committed `db369f8` |
 | Morning briefing engine (Rubjob) | **Done** | Committed `ae26706`, `ab2611f` |
 | General note PUBLIC/PRIVATE visibility | **Done** | Committed `ae26706` |
-| Feeling log / private mood journal | **Done** | API + web `/feeling-logs` (pending commit) |
+| Feeling log / private mood journal | **Done** | `ae265c3`, `37eac5d` — batch every 3 days 02:00 |
+| Feeling log batch scheduler admin UI in AI Trace | **Open** | API exists; no web panel yet (mirror morning briefing panel) |
+| Push notification delivery e2e test on real iPhone PWA | **Open** | Wizard shipped; production VAPID + Home Screen flow needs field verify |
 | Account suspension route-level tests | **Open** | No vitest coverage for login/requireAuth/refresh suspend path |
 | Login-page friendly suspended-account message | **Open** | `LoginPage` shows generic `error.message` only |
 | PM date-ordered timeline view | **Open** | Continuity has summary/tabs but no timeline tab |
@@ -1090,9 +1130,62 @@ still open.
 | Local Node >= 22 | **Open** | Local still v20.10.0 |
 
 Commit status:
-- Everything through `db369f8` (2026-06-30) is on `main`.
+- Everything through **`37eac5d`** (2026-06-30 end of day) is on `main`.
 - Production DB migrations apply automatically via `docker/start.sh` on API container boot.
 - Product feature map: [`docs/FEATURES.md`](./FEATURES.md).
+
+## Development Roadmap (recommended next steps)
+
+Prioritized from open items, today's architecture, and product direction. Use this as the default backlog for the next session.
+
+### P0 — Stabilize what shipped today
+
+1. **Production smoke test (manual)**
+   - Feeling log: save entry → wait for batch or `POST /feeling-log-batch/run-now` → confirm personal card + manager tab **ภาพรวมทีม**.
+   - Morning briefing: `POST /morning-briefings/run-now` → Dashboard dialog + ack → sentiment pipeline.
+   - iPhone push: Home Screen install → Profile → Enable push → reassign task → notification.
+   - Long Meeting Studio audio: 20+ min file completes within 1h ASR window.
+2. **Feeling log batch observability in UI**
+   - Add AI Trace panel for `FEELING_LOG_ANALYSIS` (like morning briefing): cron, last run, pending count, Run now.
+3. **Cron singleton risk**
+   - Document or implement leader lock if API scales to **multiple replicas** (morning briefing + feeling batch + reminders).
+
+### P1 — Rubjob / people intelligence
+
+4. **Connect feeling log → communication sentiment**
+   - Leadership batch insights could feed `communicationSentimentService` as a new source type (careful: no raw text, no author PII).
+5. **Manager dashboard entry**
+   - Optional badge on `/projects` or Dashboard when manager inbox has new post-batch insights (today: user must open `/feeling-logs` → **ภาพรวมทีม**).
+6. **Mentioned-person notification (opt-in)**
+   - After batch, notify managers when frequent-mention threshold crossed (reuse push infrastructure).
+
+### P1 — Ask-AI & knowledge depth
+
+7. **Project memory vector retrieval** — enable pgvector scoring in `hybridRetrievalService` (lexical-only today).
+8. **Project knowledge item-level review UI** — move beyond batch approve for onboarding extractions.
+9. **PM continuity timeline tab** — date-ordered action/meeting timeline (requested earlier).
+
+### P2 — Quality & governance
+
+10. **Automated tests:** sentiment tenant isolation, feeling log batch grouping, suspension login/refresh paths.
+11. **Login suspended-account friendly message** on `LoginPage`.
+12. **Review `requireRole([ADMIN, PM])` vs tenant-role routes** for remaining legacy paths.
+13. **AI deep-link navigation e2e** (Playwright or similar).
+
+### P2 — Platform & ops
+
+14. **ASR scale path** — GPU Whisper or chunked pipeline if CPU `small` remains too slow for 20–60 min meetings.
+15. **Multi-part audio** — optional upload queue + merge transcript (today: manual split + paste).
+16. **Billing / feature flags** — wire `featureFlagStore` to user API instead of hardcoded `PRO` in `App.tsx`.
+17. **Local Node >= 22** — align with repo engine requirement.
+
+### Rubjob persona — longer arc
+
+Preserve the spec blocks already in this handover (identity, decision engine, briefing, risk, retrieval, guardrails). Next incremental capabilities:
+
+- **Role-aware tone** in morning briefing (CEO vs PM vs Member) — partial in prompt, not yet per-user profile driven.
+- **Proactive nudges** when sentiment + feeling batch + overdue tasks align (needs rules engine, not more prompts alone).
+- **Evidence-first answers** everywhere Ask-AI touches people topics — never surface raw feeling log text outside author view.
 
 ## New Requirement - Morning Briefing Engine (2026-06-30)
 
@@ -1135,7 +1228,7 @@ Suggested implementation notes:
 
 ## Post-Handover Implementation (2026-06-30, Morning Briefing Engine)
 
-Implemented locally:
+Implemented and pushed (`ae26706`, `ab2611f`):
 - Added Prisma models and migration `20260630163000_morning_briefings`:
   - `MorningBriefing`
   - `MorningBriefingAcknowledgement`
@@ -1176,7 +1269,7 @@ Operational notes:
 - Apply DB migration before using the feature locally/production.
 - The API dev process was stopped during implementation to unlock Prisma Client generation; restart it if needed.
 
-Follow-up completed locally - Morning Briefing cron health/admin visibility:
+Follow-up completed (`ab2611f`) — Morning Briefing cron health/admin visibility:
 - Current state:
   - Cron runs inside the existing API process via `startMorningBriefingScheduler()`.
   - No separate Railway service is required when API has a single replica.

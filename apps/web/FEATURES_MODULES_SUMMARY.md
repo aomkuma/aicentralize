@@ -1,6 +1,6 @@
 # Frontend Features — Summary
 
-**Last updated:** 2026-06-30 · includes Feeling Log (pending commit)
+**Last updated:** 2026-06-30 (end of day) · **`main` through `37eac5d`**
 
 > **Canonical product map:** [`docs/FEATURES.md`](../../docs/FEATURES.md) (all main modules + sub-features).  
 > **Handover / changelog:** [`docs/next-day-handover-2026-06-28.md`](../../docs/next-day-handover-2026-06-28.md)
@@ -11,7 +11,7 @@
 
 | # | Module | Route(s) | Key UI |
 |---|--------|----------|--------|
-| 1 | **Dashboard & AI Chat** | `/dashboard` | `AIChatPanel.tsx` — prompt, record, upload, analyze |
+| 1 | **Dashboard & AI Chat** | `/dashboard` | `AIChatPanel.tsx`; `MorningBriefingDialog` on load when unacknowledged |
 | 2 | **Meeting Studio** | `/meetings` | 3-step wizard, live record, upload, background job banner |
 | 3 | **Meeting history** | `/meetings/history` | Saved minutes list + edit |
 | 4 | **Projects** | `/projects` | Project cards, sentiment badges, links to continuity/knowledge |
@@ -20,7 +20,7 @@
 | 7 | **General notes** | `/projects/:id/notes`, `/general-notes` | Free-form notes for Ask-AI |
 | 8 | **Reminders** | `/reminders` | Digest inspection, escalation metrics |
 | 9 | **Ask-AI trace** | `/ai-trace` | AI run logs, filters, evidence |
-| 10 | **Feeling log** | `/feeling-logs` | Journal + manager insights (`FeelingLogsPage`) |
+| 10 | **Feeling log** | `/feeling-logs` | Tab **บันทึกของฉัน** + tab **ภาพรวมทีม** (managers) |
 | 11 | **Profile & notifications** | `/profile` | In-app / email / push toggles, `PushSetupPanel` |
 | 12 | **System settings** | `/settings` | ASR, AI providers, prompt limits (`SUPER_ADMIN`) |
 | 13 | **Admin** | `/admin/organizations`, `/admin/platform-users` | Org registry, suspension, invites |
