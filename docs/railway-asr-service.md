@@ -45,6 +45,12 @@ ASR_API_KEY=your-long-random-secret
 ASR_REQUEST_TIMEOUT_MS=600000
 ```
 
+Important:
+- Use **`ASR_REQUEST_TIMEOUT_MS`** for remote Whisper/ASR calls. `AI_REQUEST_TIMEOUT_MS` only affects LLM (Ollama/Gemini) requests, not transcription.
+- Default unit is **milliseconds** (`600000` = 10 minutes, `3600000` = 60 minutes).
+- The **web** service nginx proxy must allow long responses on `/ai/` (see `docker/nginx-web.conf.template`, currently 7200s). Redeploy **web** after changing that file.
+- If transcription still fails around 5–10 minutes, Railway's edge proxy may be limiting the public HTTP request; split long audio or use shorter clips.
+
 **Recommended:** start with the ASR **public URL** (Settings → Networking → Generate Domain on the ASR service). Private networking is optional and easier to misconfigure.
 
 Private networking alternative (only if both services are in the same Railway project):

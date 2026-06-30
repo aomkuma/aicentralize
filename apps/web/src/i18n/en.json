@@ -894,7 +894,7 @@
       "selectRecording": "Please choose a recording file first.",
       "unsupportedFileType": "This file type is not supported. Use audio/video, or TXT, CSV, DOCX, PDF, XLSX.",
       "transcriptionFailed": "Transcription failed.",
-      "transcriptionGatewayTimeout": "Transcription took too long or the server stopped responding. Try a shorter file or paste a transcript manually.",
+      "transcriptionGatewayTimeout": "Transcription took too long or the proxy closed the connection (often before API ASR_REQUEST_TIMEOUT_MS applies). Try a shorter file, paste a transcript, or redeploy the web service after nginx timeout updates.",
       "emptyTranscript": "Transcription finished but returned no text. Check the audio file or paste a transcript manually.",
       "documentExtractionFailed": "Document extraction failed.",
       "documentAnalysisFailed": "Document analysis failed.",

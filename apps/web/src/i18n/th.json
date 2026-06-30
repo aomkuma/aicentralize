@@ -766,7 +766,7 @@
       "selectRecording": "กรุณาเลือกไฟล์บันทึกก่อน",
       "unsupportedFileType": "ชนิดไฟล์นี้ยังไม่รองรับ กรุณาใช้ไฟล์เสียง/วิดีโอ หรือ TXT, CSV, DOCX, PDF, XLSX",
       "transcriptionFailed": "ถอดข้อความไม่สำเร็จ",
-      "transcriptionGatewayTimeout": "ถอดเสียงใช้เวลานานเกินไปหรือเซิร์ฟเวอร์ไม่ตอบ กรุณาลองไฟล์สั้นลงหรือวาง transcript เอง",
+      "transcriptionGatewayTimeout": "ถอดเสียงใช้เวลานานเกินไปหรือ proxy ตัดการเชื่อมต่อ (มักเกิดก่อนครบ ASR_REQUEST_TIMEOUT_MS บน API) ลองไฟล์สั้นลง วาง transcript เอง หรือ redeploy web หลังอัปเดต nginx timeout",
       "emptyTranscript": "ถอดเสียงเสร็จแล้วแต่ไม่พบข้อความ กรุณาตรวจไฟล์เสียงหรือวาง transcript เอง",
       "transcriptionUnavailable": "อัปโหลดไฟล์แล้ว แต่ถอดเสียงอัตโนมัติไม่ได้ กรุณาพิมพ์หรือแก้ข้อความถอดเสียงด้านล่างเอง",
       "uploadFailed": "อัปโหลดไฟล์เสียงไม่สำเร็จ",
