@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Check, Plus, Save, Trash2 } from 'lucide-react'
 import Layout from '../components/Layout'
 import { useApi } from '../hooks/useApi'
 import type { SubscriptionPackage } from '../types'
 import { FEATURES } from '../types/features'
+
+type PackageDiscountType = 'FIXED' | 'PERCENT' | ''
 
 type PackageForm = {
   code: string
@@ -12,6 +15,8 @@ type PackageForm = {
   price: string
   currency: string
   billingInterval: string
+  discountType: PackageDiscountType
+  discount: string
   maxProjects: string
   maxUsers: string
   additionalUserPrice: string
@@ -28,6 +33,8 @@ const emptyForm: PackageForm = {
   price: '0',
   currency: 'THB',
   billingInterval: 'MONTHLY',
+  discountType: '',
+  discount: '0',
   maxProjects: '1',
   maxUsers: '5',
   additionalUserPrice: '0',
@@ -48,6 +55,30 @@ function centsFromMoney(value: string) {
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0
 }
 
+function discountFromPackage(item: SubscriptionPackage): string {
+  if (!item.discountType || item.discountValue <= 0) {
+    return '0'
+  }
+
+  if (item.discountType === 'FIXED') {
+    return moneyFromCents(item.discountValue)
+  }
+
+  return String(item.discountValue)
+}
+
+function formatDiscountLabel(item: SubscriptionPackage, noDiscountLabel: string): string {
+  if (!item.discountType || item.discountValue <= 0) {
+    return noDiscountLabel
+  }
+
+  if (item.discountType === 'PERCENT') {
+    return `${item.discountValue}%`
+  }
+
+  return `${moneyFromCents(item.discountValue)} ${item.currency}`
+}
+
 function formFromPackage(item: SubscriptionPackage): PackageForm {
   const knownFeatureIds = new Set<string>(knownFeatures.map((feature) => feature.id))
   const customFeatures = item.features.filter((feature) => !knownFeatureIds.has(feature)).join('\n')
@@ -59,6 +90,8 @@ function formFromPackage(item: SubscriptionPackage): PackageForm {
     price: moneyFromCents(item.priceCents),
     currency: item.currency,
     billingInterval: item.billingInterval,
+    discountType: item.discountType ?? '',
+    discount: discountFromPackage(item),
     maxProjects: String(item.maxProjects),
     maxUsers: String(item.maxUsers),
     additionalUserPrice: moneyFromCents(item.additionalUserPriceCents),
@@ -82,6 +115,12 @@ function packagePayload(form: PackageForm) {
     priceCents: centsFromMoney(form.price),
     currency: form.currency.trim().toUpperCase() || 'THB',
     billingInterval: form.billingInterval,
+    discountType: form.discountType || null,
+    discountValue: !form.discountType
+      ? 0
+      : form.discountType === 'FIXED'
+        ? centsFromMoney(form.discount)
+        : Math.min(100, Math.max(0, Number.parseInt(form.discount, 10) || 0)),
     maxProjects: Math.max(0, Number.parseInt(form.maxProjects, 10) || 0),
     maxUsers: Math.max(0, Number.parseInt(form.maxUsers, 10) || 0),
     additionalUserPriceCents: centsFromMoney(form.additionalUserPrice),
@@ -92,6 +131,7 @@ function packagePayload(form: PackageForm) {
 }
 
 export default function AdminPackagesPage() {
+  const { t } = useTranslation()
   const { get, post, patch, delete: deletePackage, isLoading, error } = useApi()
   const [packages, setPackages] = useState<SubscriptionPackage[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -149,11 +189,11 @@ export default function AdminPackagesPage() {
     })
     setSelectedId(saved.id)
     setForm(formFromPackage(saved))
-    setNotice('Package saved')
+    setNotice(t('adminPackages.saved'))
   }
 
   const removePackage = async () => {
-    if (!selectedPackage || !window.confirm(`Delete package "${selectedPackage.name}"?`)) {
+    if (!selectedPackage || !window.confirm(t('adminPackages.confirmDelete', { name: selectedPackage.name }))) {
       return
     }
 
@@ -170,7 +210,7 @@ export default function AdminPackagesPage() {
       setForm(nextSelected ? formFromPackage(nextSelected) : emptyForm)
       return next
     })
-    setNotice('Package deleted')
+    setNotice(t('adminPackages.deleted'))
   }
 
   const toggleFeature = (featureId: string) => {
@@ -188,11 +228,11 @@ export default function AdminPackagesPage() {
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-600 dark:text-blue-300">
-              Platform Console
+              {t('adminPackages.platformConsole')}
             </p>
-            <h1 className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">Package Management</h1>
+            <h1 className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{t('adminPackages.title')}</h1>
             <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-slate-400">
-              Configure package pricing, organization limits, overage pricing, and feature access for tenant workspaces.
+              {t('adminPackages.description')}
             </p>
           </div>
           <button
@@ -201,7 +241,7 @@ export default function AdminPackagesPage() {
             className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
             <Plus className="h-4 w-4" />
-            New package
+            {t('adminPackages.newPackage')}
           </button>
         </div>
 
@@ -218,18 +258,19 @@ export default function AdminPackagesPage() {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
           <section className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900">
             <div className="border-b border-gray-200 px-4 py-3 dark:border-slate-700">
-              <h2 className="font-semibold text-gray-900 dark:text-white">Packages</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-white">{t('adminPackages.packages')}</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-slate-700">
                 <thead className="bg-gray-50 dark:bg-slate-800">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">Package</th>
-                    <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-slate-300">Price</th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">Projects</th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">Users</th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">Features</th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">Status</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">{t('adminPackages.packageColumn')}</th>
+                    <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-slate-300">{t('adminPackages.price')}</th>
+                    <th className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-slate-300">{t('adminPackages.discount')}</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">{t('adminPackages.projects')}</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">{t('adminPackages.users')}</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">{t('adminPackages.features')}</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">{t('adminPackages.status')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -247,13 +288,16 @@ export default function AdminPackagesPage() {
                           </div>
                           {item.isDefault && (
                             <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
-                              Default
+                              {t('adminPackages.default')}
                             </span>
                           )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-300">
                         {moneyFromCents(item.priceCents)} {item.currency}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-300">
+                        {formatDiscountLabel(item, t('adminPackages.noDiscount'))}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-700 dark:text-slate-300">{item.maxProjects}</td>
                       <td className="px-4 py-3 text-center text-gray-700 dark:text-slate-300">{item.maxUsers}</td>
@@ -264,7 +308,7 @@ export default function AdminPackagesPage() {
                             ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
                             : 'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400'
                         }`}>
-                          {item.isActive ? 'Active' : 'Inactive'}
+                          {item.isActive ? t('adminPackages.active') : t('adminPackages.inactive')}
                         </span>
                       </td>
                     </tr>
@@ -274,7 +318,7 @@ export default function AdminPackagesPage() {
             </div>
             {!packages.length && (
               <p className="px-4 py-8 text-center text-sm text-gray-500 dark:text-slate-400">
-                {isLoading ? 'Loading...' : 'No packages yet'}
+                {isLoading ? t('adminPackages.loading') : t('adminPackages.empty')}
               </p>
             )}
           </section>
@@ -282,14 +326,16 @@ export default function AdminPackagesPage() {
           <aside className="rounded-lg border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900">
             <div className="border-b border-gray-200 px-4 py-3 dark:border-slate-700">
               <h2 className="font-semibold text-gray-900 dark:text-white">
-                {selectedPackage ? 'Edit package' : 'New package'}
+                {selectedPackage ? t('adminPackages.editPackage') : t('adminPackages.newPackage')}
               </h2>
-              <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{enabledFeatureCount} enabled features</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                {t('adminPackages.enabledFeatures', { count: enabledFeatureCount })}
+              </p>
             </div>
             <div className="space-y-4 p-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                  Code
+                  {t('adminPackages.code')}
                   <input
                     value={form.code}
                     onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))}
@@ -298,7 +344,7 @@ export default function AdminPackagesPage() {
                   />
                 </label>
                 <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                  Name
+                  {t('adminPackages.name')}
                   <input
                     value={form.name}
                     onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
@@ -309,7 +355,7 @@ export default function AdminPackagesPage() {
               </div>
 
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                Description
+                {t('adminPackages.descriptionField')}
                 <textarea
                   value={form.description}
                   onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
@@ -320,7 +366,7 @@ export default function AdminPackagesPage() {
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                  Price
+                  {t('adminPackages.price')}
                   <input
                     type="number"
                     min="0"
@@ -330,7 +376,7 @@ export default function AdminPackagesPage() {
                   />
                 </label>
                 <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                  Currency
+                  {t('adminPackages.currency')}
                   <input
                     value={form.currency}
                     onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value }))}
@@ -338,23 +384,63 @@ export default function AdminPackagesPage() {
                   />
                 </label>
                 <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                  Interval
+                  {t('adminPackages.interval')}
                   <select
                     value={form.billingInterval}
                     onChange={(event) => setForm((current) => ({ ...current, billingInterval: event.target.value }))}
                     className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                   >
-                    <option value="MONTHLY">Monthly</option>
-                    <option value="YEARLY">Yearly</option>
-                    <option value="ONE_TIME">One time</option>
-                    <option value="CUSTOM">Custom</option>
+                    <option value="MONTHLY">{t('adminPackages.intervals.MONTHLY')}</option>
+                    <option value="YEARLY">{t('adminPackages.intervals.YEARLY')}</option>
+                    <option value="ONE_TIME">{t('adminPackages.intervals.ONE_TIME')}</option>
+                    <option value="CUSTOM">{t('adminPackages.intervals.CUSTOM')}</option>
                   </select>
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                  {t('adminPackages.discountType')}
+                  <select
+                    value={form.discountType}
+                    onChange={(event) => {
+                      const discountType = event.target.value as PackageDiscountType
+                      setForm((current) => ({
+                        ...current,
+                        discountType,
+                        discount: discountType ? current.discount : '0',
+                      }))
+                    }}
+                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">{t('adminPackages.discountNone')}</option>
+                    <option value="FIXED">{t('adminPackages.discountFixed')}</option>
+                    <option value="PERCENT">{t('adminPackages.discountPercent')}</option>
+                  </select>
+                </label>
+                <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                  {t('adminPackages.discountValue')}
+                  <input
+                    type="number"
+                    min="0"
+                    max={form.discountType === 'PERCENT' ? 100 : undefined}
+                    step={form.discountType === 'PERCENT' ? 1 : '0.01'}
+                    value={form.discount}
+                    disabled={!form.discountType}
+                    onChange={(event) => setForm((current) => ({ ...current, discount: event.target.value }))}
+                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:disabled:bg-slate-900"
+                    placeholder={
+                      form.discountType === 'PERCENT'
+                        ? t('adminPackages.discountPercentHint')
+                        : t('adminPackages.discountFixedHint')
+                    }
+                  />
                 </label>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                  Max projects
+                  {t('adminPackages.maxProjects')}
                   <input
                     type="number"
                     min="0"
@@ -364,7 +450,7 @@ export default function AdminPackagesPage() {
                   />
                 </label>
                 <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                  Included users
+                  {t('adminPackages.includedUsers')}
                   <input
                     type="number"
                     min="0"
@@ -374,7 +460,7 @@ export default function AdminPackagesPage() {
                   />
                 </label>
                 <label className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                  Additional user
+                  {t('adminPackages.additionalUser')}
                   <input
                     type="number"
                     min="0"
@@ -386,7 +472,7 @@ export default function AdminPackagesPage() {
               </div>
 
               <div>
-                <p className="text-sm font-medium text-gray-700 dark:text-slate-300">Feature access</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-slate-300">{t('adminPackages.featureAccess')}</p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {knownFeatures.map((feature) => {
                     const checked = form.features.includes(feature.id)
@@ -417,7 +503,7 @@ export default function AdminPackagesPage() {
               </div>
 
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">
-                Custom features
+                {t('adminPackages.customFeatures')}
                 <textarea
                   value={form.customFeatures}
                   onChange={(event) => setForm((current) => ({ ...current, customFeatures: event.target.value }))}
@@ -435,7 +521,7 @@ export default function AdminPackagesPage() {
                     onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.checked }))}
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  Active
+                  {t('adminPackages.activeLabel')}
                 </label>
                 <label className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-slate-700 dark:text-slate-300">
                   <input
@@ -444,7 +530,7 @@ export default function AdminPackagesPage() {
                     onChange={(event) => setForm((current) => ({ ...current, isDefault: event.target.checked }))}
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  Default for new orgs
+                  {t('adminPackages.defaultLabel')}
                 </label>
               </div>
             </div>
@@ -456,7 +542,7 @@ export default function AdminPackagesPage() {
                 className="inline-flex items-center gap-2 rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/20"
               >
                 <Trash2 className="h-4 w-4" />
-                Delete
+                {t('adminPackages.delete')}
               </button>
               <button
                 type="button"
@@ -464,7 +550,7 @@ export default function AdminPackagesPage() {
                 className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
               >
                 <Save className="h-4 w-4" />
-                Save package
+                {t('adminPackages.savePackage')}
               </button>
             </div>
           </aside>

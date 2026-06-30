@@ -130,36 +130,105 @@ function classifyReminderRule(item: EligibleReminderItem, now: Date, lookAhead: 
   };
 }
 
+function formatReminderDueDate(dueDate: Date): string {
+  return dueDate.toLocaleString("th-TH", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+}
+
+function formatOverdueDuration(hours: number): string {
+  const wholeHours = Math.floor(hours);
+  if (wholeHours < 24) {
+    return `${wholeHours} ชม.`;
+  }
+
+  const days = Math.floor(wholeHours / 24);
+  return `${days} วัน (${wholeHours} ชม.)`;
+}
+
+function meetingContextLabel(item: EligibleReminderItem): string {
+  return item.meeting?.title ?? "งานระดับโปรเจกต์";
+}
+
 function buildOwnerMessage(item: EligibleReminderItem, rule: ReminderRule, now: Date): string {
-  const meetingLabel = item.meeting?.title ?? "project task";
+  const meetingLabel = meetingContextLabel(item);
+  const dueLabel = formatReminderDueDate(item.dueDate);
 
   if (rule.key === "DUE_SOON") {
-    return `Upcoming task: ${item.task} (project ${item.projectId}) due at ${item.dueDate.toISOString()}.`;
+    return [
+      "แจ้งเตือนงานใกล้ครบกำหนด",
+      "",
+      `งาน: ${item.task}`,
+      `บริบท: ${meetingLabel}`,
+      `กำหนดส่ง: ${dueLabel}`,
+      "",
+      `— ${APP_DISPLAY_NAME}`
+    ].join("\n");
   }
 
   const hours = overdueHours(item.dueDate, now);
+  const overdueLabel = formatOverdueDuration(hours);
+
   if (rule.key === "OVERDUE_ESCALATE") {
-    return `Escalated overdue task: ${item.task} in meeting ${meetingLabel}. Overdue for ${Math.floor(hours)} hours (due ${item.dueDate.toISOString()}).`;
+    return [
+      "แจ้งเตือนงานเกินกำหนด (Escalated)",
+      "",
+      `งาน: ${item.task}`,
+      `บริบท: ${meetingLabel}`,
+      `กำหนดส่ง: ${dueLabel}`,
+      `เกินกำหนด: ${overdueLabel}`,
+      "",
+      `— ${APP_DISPLAY_NAME}`
+    ].join("\n");
   }
 
   if (rule.key === "OVERDUE_SHORT") {
-    return `Follow-up overdue task: ${item.task} in meeting ${meetingLabel}. Overdue for ${Math.floor(hours)} hours.`;
+    return [
+      "ติดตามงานที่เกินกำหนด",
+      "",
+      `งาน: ${item.task}`,
+      `บริบท: ${meetingLabel}`,
+      `กำหนดส่ง: ${dueLabel}`,
+      `เกินกำหนด: ${overdueLabel}`,
+      "",
+      `— ${APP_DISPLAY_NAME}`
+    ].join("\n");
   }
 
-  return `Overdue task: ${item.task} (due ${item.dueDate.toISOString()}).`;
+  return [
+    "แจ้งเตือนงานเกินกำหนด",
+    "",
+    `งาน: ${item.task}`,
+    `บริบท: ${meetingLabel}`,
+    `กำหนดส่ง: ${dueLabel}`,
+    `เกินกำหนด: ${overdueLabel}`,
+    "",
+    `— ${APP_DISPLAY_NAME}`
+  ].join("\n");
 }
 
 function buildLeadEscalationMessage(item: EligibleReminderItem, now: Date): string {
   const hours = overdueHours(item.dueDate, now);
-  const meetingLabel = item.meeting?.title ?? "project task";
+  const meetingLabel = meetingContextLabel(item);
+
   return [
-    `Escalation notice: ${item.task}`,
-    `owner: ${item.assignee.name}`,
-    `meeting: ${meetingLabel}`,
-    `projectId: ${item.projectId}`,
-    `due: ${item.dueDate.toISOString()}`,
-    `overdueHours: ${Math.floor(hours)}`
-  ].join(" | ");
+    "แจ้งเตือนงานเกินกำหนด (Escalation)",
+    "",
+    `งาน: ${item.task}`,
+    `ผู้รับผิดชอบ: ${item.assignee.name}`,
+    `บริบท: ${meetingLabel}`,
+    `โปรเจกต์: ${item.projectId}`,
+    `กำหนดส่ง: ${formatReminderDueDate(item.dueDate)}`,
+    `เกินกำหนด: ${formatOverdueDuration(hours)}`,
+    "",
+    `— ${APP_DISPLAY_NAME}`
+  ].join("\n");
 }
 
 function toRecipientFromUser(user: {
@@ -277,7 +346,8 @@ async function sendToRecipient(
   item: EligibleReminderItem,
   recipient: ReminderRecipient,
   rule: ReminderRule,
-  message: string
+  message: string,
+  options?: { emailSubject?: string }
 ) {
   const result = await dispatchReminder({
     actionItemId: item.id,
@@ -290,7 +360,8 @@ async function sendToRecipient(
     emailEnabled: recipient.emailEnabled,
     pushEnabled: recipient.pushEnabled,
     reminderType: rule.reminderType,
-    message
+    message,
+    emailSubject: options?.emailSubject
   });
 
   await writeReminderLog({
@@ -420,7 +491,9 @@ async function processReminders() {
       );
 
       if (!leadDeduped) {
-        const leadResult = await sendToRecipient(item, leadRecipient, rule, escalationMessage);
+        const leadResult = await sendToRecipient(item, leadRecipient, rule, escalationMessage, {
+          emailSubject: `[${APP_DISPLAY_NAME}] Escalation: ${item.task}`
+        });
         summary.escalations.toLead += 1;
         if (leadResult.deliveryStatus === "SENT") {
           summary.sent += 1;

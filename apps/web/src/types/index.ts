@@ -31,6 +31,8 @@ export interface SubscriptionPackage {
   priceCents: number
   currency: string
   billingInterval: 'MONTHLY' | 'YEARLY' | 'ONE_TIME' | 'CUSTOM' | string
+  discountType?: 'FIXED' | 'PERCENT' | null
+  discountValue: number
   maxProjects: number
   maxUsers: number
   additionalUserPriceCents: number

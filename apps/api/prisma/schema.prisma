@@ -333,22 +333,29 @@ model Tenant {
   @@index([currentPackageId])
 }
 
+enum PackageDiscountType {
+  FIXED
+  PERCENT
+}
+
 model SubscriptionPackage {
-  id                       String   @id @default(cuid())
-  code                     String   @unique
+  id                       String                @id @default(cuid())
+  code                     String                @unique
   name                     String
   description              String?
-  priceCents               Int      @default(0)
-  currency                 String   @default("THB")
-  billingInterval          String   @default("MONTHLY")
-  maxProjects              Int      @default(1)
-  maxUsers                 Int      @default(5)
-  additionalUserPriceCents Int      @default(0)
+  priceCents               Int                   @default(0)
+  currency                 String                @default("THB")
+  billingInterval          String                @default("MONTHLY")
+  discountType             PackageDiscountType?
+  discountValue            Int                   @default(0)
+  maxProjects              Int                   @default(1)
+  maxUsers                 Int                   @default(5)
+  additionalUserPriceCents Int                   @default(0)
   features                 String[]
-  isActive                 Boolean  @default(true)
-  isDefault                Boolean  @default(false)
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  isActive                 Boolean               @default(true)
+  isDefault                Boolean               @default(false)
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
 
   tenants Tenant[]
 

@@ -25,12 +25,34 @@ const packageSchema = z.object({
   priceCents: z.number().int().min(0).max(100_000_000).default(0),
   currency: z.string().trim().min(3).max(3).default("THB"),
   billingInterval: z.enum(["MONTHLY", "YEARLY", "ONE_TIME", "CUSTOM"]).default("MONTHLY"),
+  discountType: z.enum(["FIXED", "PERCENT"]).nullable().optional(),
+  discountValue: z.number().int().min(0).max(100_000_000).default(0),
   maxProjects: z.number().int().min(0).max(100_000).default(1),
   maxUsers: z.number().int().min(0).max(100_000).default(5),
   additionalUserPriceCents: z.number().int().min(0).max(100_000_000).default(0),
   features: z.array(z.string().trim().min(1).max(80)).max(200).default([]),
   isActive: z.boolean().default(true),
   isDefault: z.boolean().default(false)
+}).superRefine((value, ctx) => {
+  if (!value.discountType) {
+    return;
+  }
+
+  if (value.discountValue <= 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Discount value must be greater than zero when a discount type is set",
+      path: ["discountValue"]
+    });
+  }
+
+  if (value.discountType === "PERCENT" && value.discountValue > 100) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Percentage discount cannot exceed 100",
+      path: ["discountValue"]
+    });
+  }
 });
 
 const updatePackageSchema = packageSchema.partial().refine((value) => Object.keys(value).length > 0, {

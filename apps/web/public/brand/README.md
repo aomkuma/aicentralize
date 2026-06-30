@@ -27,6 +27,7 @@ python scripts/ingest-kora-pack.py
 
 | File | Use |
 |------|-----|
+| `og-cover.png` | **Link preview cover** (1200×630) — Open Graph / Twitter / LINE / Facebook |
 | `kora-landing-banner.png` | Full-width welcome page banner (`WelcomePage.tsx`) |
 | `kora-banner.png` | Full marketing artwork (source) |
 | `kora-banner-visual.png` | Cropped laptop visual (legacy split hero) |

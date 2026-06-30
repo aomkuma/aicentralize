@@ -5,6 +5,14 @@ function canSendEmail(): boolean {
   return Boolean(env.smtpHost && env.smtpUser && env.smtpPass);
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 async function sendEmail(params: {
   to: string;
   subject: string;
@@ -42,10 +50,18 @@ export async function sendReminderEmail(params: {
   subject: string;
   message: string;
 }): Promise<boolean> {
+  const text = params.message;
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;white-space:pre-line">
+      ${escapeHtml(text)}
+    </div>
+  `;
+
   return sendEmail({
     to: params.to,
     subject: params.subject,
-    text: params.message
+    text,
+    html
   });
 }
 
