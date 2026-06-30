@@ -395,13 +395,18 @@
     "description": "Capture extra project insight, different participant viewpoints, or ideas that were not presented in the meeting so Ask AI can reason with broader project knowledge.",
     "stepLabel": "Step {{step}}",
     "composeTitle": "Write a note",
-    "composeHelp": "Choose the project first, then write the note. The system stores the author id automatically for future citation and retrieval.",
+    "composeHelp": "Choose the project first, then write the note. Public notes can support shared Ask AI answers; private notes stay visible only to you.",
     "project": "Project",
     "selectProject": "Select a project",
     "noteTitle": "Note title",
     "noteTitlePlaceholder": "Optional short title. If blank, the app uses the first line.",
     "noteContent": "Note content",
     "noteContentPlaceholder": "Write your perspective, extra context, assumptions, decisions heard elsewhere, or ideas not yet shared with the team.",
+    "visibility": "Visibility",
+    "visibilityPublic": "Public",
+    "visibilityPrivate": "Private",
+    "visibilityPublicHelp": "Visible to project members and available as Ask-AI evidence.",
+    "visibilityPrivateHelp": "Visible only to you and excluded from shared Ask-AI evidence.",
     "save": "Save note",
     "saved": "General note saved.",
     "savedNotes": "Saved notes",
@@ -411,7 +416,7 @@
     "defaultTitle": "General note",
     "validationProject": "Please choose a project first.",
     "validationContent": "Please write at least 10 characters for the note.",
-    "noteMeta": "By {{author}} (id: {{authorId}}) on {{date}}",
+    "noteMeta": "By {{author}} on {{date}}",
     "whyTitle": "Why this exists",
     "whyBody": "People in the same meeting can have different perspectives, and sometimes useful ideas or field knowledge never make it into the official discussion. These notes preserve that context for later search and AI analysis.",
     "steps": {
@@ -425,7 +430,7 @@
       },
       "3": {
         "title": "Save",
-        "description": "Store the note with the author id so AI and search can cite it later."
+        "description": "Store the note with the selected visibility for later search and AI context."
       }
     }
   },

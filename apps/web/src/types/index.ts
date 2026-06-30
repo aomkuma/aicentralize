@@ -149,6 +149,7 @@ export interface ProjectGeneralNote {
   projectId: string
   title: string
   content: string
+  visibility: 'PUBLIC' | 'PRIVATE'
   createdAt: string
   updatedAt: string
   author: Pick<User, 'id' | 'name' | 'email'>
@@ -368,7 +369,7 @@ export interface ReminderDigestDetail extends ReminderDigest {
 }
 
 // AI Run Log Types
-export type AiRunOperation = 'MINUTE_EXTRACTION' | 'RETRIEVAL_QUERY' | 'ASK_AI_ANSWER' | 'REMINDER_RUN'
+export type AiRunOperation = 'MINUTE_EXTRACTION' | 'RETRIEVAL_QUERY' | 'ASK_AI_ANSWER' | 'REMINDER_RUN' | 'MORNING_BRIEFING'
 export type AiRunStatus = 'SUCCESS' | 'FAILED'
 
 export interface AiRunLog {
@@ -445,4 +446,41 @@ export interface CommunicationSentimentSnapshot {
   moodState: CommunicationMoodState
   batchId: string
   createdAt: string
+}
+
+export type MorningBriefingAckMood = 'GOT_IT' | 'I_KNOW' | 'RUDENESS'
+
+export interface MorningBriefing {
+  id: string
+  tenantId: string
+  userId: string
+  briefingDate: string
+  status: 'GENERATED' | 'FAILED'
+  roleScope: string
+  headline: string
+  summary: string
+  sections: Array<{ title: string; items: string[] }>
+  evidence: Array<{
+    actionItemId: string
+    task: string
+    projectId: string
+    projectName: string
+    meetingId: string
+    meetingTitle: string
+    assigneeId: string
+    assigneeName: string
+    dueDate: string
+    priority: string
+    status: string
+    category: string
+  }>
+  actionItemIds: string[]
+  generatedAt: string
+  acknowledgement?: {
+    id: string
+    mood: MorningBriefingAckMood
+    score: number
+    reviewAgain?: boolean | null
+    createdAt: string
+  } | null
 }

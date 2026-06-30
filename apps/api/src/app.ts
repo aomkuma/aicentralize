@@ -13,6 +13,7 @@ import {
   authRouter,
   meetingRouter,
   minuteDraftRouter,
+  morningBriefingRouter,
   notificationRouter,
   continuityRouter,
   communicationSentimentRouter,
@@ -309,6 +310,7 @@ export function createApp() {
   app.use("/ask-ai", askAiRouter);
   app.use("/retrieval", retrievalRouter);
   app.use("/reminders", reminderRouter);
+  app.use("/morning-briefings", morningBriefingRouter);
   app.use("/continuity", continuityRouter);
   app.use("/observability", observabilityRouter);
   app.use("/tenants", tenantRouter);

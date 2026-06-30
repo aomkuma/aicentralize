@@ -375,13 +375,57 @@ async function collectTenantMessages(
     }
   });
 
-  return logs.map((log) => ({
+  const askAiMessages: SentimentMessage[] = logs.map((log) => ({
     id: log.id,
     userId: log.userId,
     text: log.question,
     createdAt: log.createdAt,
     sourceType: CommunicationSentimentSourceType.ASK_AI_QUERY
   }));
+
+  const acknowledgements = await prisma.morningBriefingAcknowledgement.findMany({
+    where: {
+      createdAt: {
+        gte: windowStart,
+        lte: windowEnd
+      },
+      ...(memberUserId ? { userId: memberUserId } : {}),
+      briefing: {
+        tenantId
+      }
+    },
+    orderBy: { createdAt: "asc" },
+    take: MAX_MESSAGES_PER_SCOPE,
+    select: {
+      id: true,
+      userId: true,
+      mood: true,
+      score: true,
+      reviewAgain: true,
+      createdAt: true
+    }
+  });
+
+  const acknowledgementMessages: SentimentMessage[] = acknowledgements.map((ack) => {
+    const textByScore = ack.score > 0
+      ? "Morning briefing acknowledged positively: I got it."
+      : ack.score < 0
+        ? "Morning briefing acknowledged with frustration: เออ รู้แล้ว. User may need calmer follow-up."
+        : "Morning briefing acknowledged neutrally: I know.";
+
+    return {
+      id: ack.id,
+      userId: ack.userId,
+      text: `${textByScore} score=${ack.score} reviewAgain=${ack.reviewAgain ?? false}`,
+      createdAt: ack.createdAt,
+      sourceType: CommunicationSentimentSourceType.MORNING_BRIEFING_ACK
+    };
+  });
+
+  return askAiMessages
+    .concat(acknowledgementMessages)
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .slice(0, MAX_MESSAGES_PER_SCOPE);
 }
 
 async function persistSnapshot(input: {

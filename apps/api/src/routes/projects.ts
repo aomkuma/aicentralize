@@ -3,6 +3,7 @@ import {
   MeetingParticipantRole,
   ProjectKnowledgeAuthorityLevel,
   ProjectKnowledgeSourceType,
+  ProjectGeneralNoteVisibility,
   TenantRole,
   UserRole
 } from "@prisma/client";
@@ -61,7 +62,8 @@ const createKnowledgeSourceSchema = z.object({
 
 const createProjectGeneralNoteSchema = z.object({
   title: z.string().min(2).max(180),
-  content: z.string().min(10).max(12000)
+  content: z.string().min(10).max(12000),
+  visibility: z.nativeEnum(ProjectGeneralNoteVisibility).optional().default(ProjectGeneralNoteVisibility.PUBLIC)
 });
 
 function handleProjectKnowledgeError(error: unknown, res: { status: (code: number) => { json: (body: unknown) => void } }) {
@@ -351,6 +353,7 @@ projectRouter.post("/:projectId/notes", requireAuth, async (req, res) => {
       projectId: req.params.projectId,
       title: parsed.data.title.trim(),
       content: parsed.data.content.trim(),
+      visibility: parsed.data.visibility,
       user: req.user!
     });
     res.status(201).json(note);

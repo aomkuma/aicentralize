@@ -323,6 +323,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   const [statusByItemId, setStatusByItemId] = useState<Record<string, ActionItemStatus>>({})
   const [statusNoteByItemId, setStatusNoteByItemId] = useState<Record<string, string>>({})
   const [priorityByItemId, setPriorityByItemId] = useState<Record<string, ActionPriority>>({})
+  const [openActionControlsByItemId, setOpenActionControlsByItemId] = useState<Record<string, boolean>>({})
   const [openLogsByItemId, setOpenLogsByItemId] = useState<Record<string, boolean>>({})
   const [logsByItemId, setLogsByItemId] = useState<Record<string, ActionItemLogRow[]>>({})
   const [loadingLogsByItemId, setLoadingLogsByItemId] = useState<Record<string, boolean>>({})
@@ -1263,6 +1264,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
               const selectedOwnerId = reassignOwnerByItemId[item.id] ?? ''
               const selectedStatus = statusByItemId[item.id] ?? item.status
               const selectedPriority = priorityByItemId[item.id] ?? item.priority
+              const isActionControlsOpen = Boolean(openActionControlsByItemId[item.id])
               const isLogsOpen = Boolean(openLogsByItemId[item.id])
               const logs = logsByItemId[item.id] ?? []
               const isLoadingLogs = Boolean(loadingLogsByItemId[item.id])
@@ -1323,137 +1325,157 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2 border-t border-slate-200 pt-3 dark:border-slate-700 md:grid-cols-3">
-                      <div
-                        className="rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/50"
-                        onBlur={(event) => {
-                          if (!event.currentTarget.contains(event.relatedTarget)) {
-                            void handleChangeActionItemStatus(item)
-                          }
-                        }}
-                        onMouseLeave={() => void handleChangeActionItemStatus(item)}
-                      >
-                        <label className="block">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                            {t('continuity.statusControl', { defaultValue: 'Status' })}
-                          </span>
-                          <select
-                            value={selectedStatus}
-                            disabled={isActionMutationLoading}
-                            onChange={(event) => {
-                              const value = event.target.value as ActionItemStatus
-                              setStatusByItemId((current) => ({ ...current, [item.id]: value }))
-                            }}
-                            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                          >
-                            {actionItemStatuses.map((status) => (
-                              <option key={status} value={status}>
-                                {t(`continuity.actionStatuses.${status}`, { defaultValue: status })}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <input
-                          value={statusNoteByItemId[item.id] ?? ''}
-                          disabled={isActionMutationLoading}
-                          onChange={(event) => {
-                            const value = event.target.value
-                            setStatusNoteByItemId((current) => ({ ...current, [item.id]: value }))
+                    <div className="border-t border-slate-200 pt-3 dark:border-slate-700">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          aria-expanded={isActionControlsOpen}
+                          onClick={() => {
+                            setOpenActionControlsByItemId((current) => ({
+                              ...current,
+                              [item.id]: !current[item.id],
+                            }))
                           }}
-                          placeholder={t('continuity.statusNotePlaceholder', { defaultValue: 'Status note (optional)' })}
-                          className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                        />
+                          className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
+                        >
+                          <span>{isActionControlsOpen ? '-' : '+'}</span>
+                          {t('continuity.editActionItem', { defaultValue: 'แก้ไขงาน' })}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleToggleActionLogs(item)}
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
+                        >
+                          {isLogsOpen
+                            ? t('continuity.hideActionLogs', { defaultValue: 'Hide action logs' })
+                            : t('continuity.showActionLogs', { defaultValue: 'Show action logs' })}
+                        </button>
                       </div>
 
-                      <div
-                        className="rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/50"
-                        onBlur={(event) => {
-                          if (!event.currentTarget.contains(event.relatedTarget)) {
-                            void handleReassignActionItem(item)
-                          }
-                        }}
-                        onMouseLeave={() => void handleReassignActionItem(item)}
-                      >
-                        <label className="block">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                            {t('continuity.reassignTitle', { defaultValue: 'Reassign' })}
-                          </span>
-                          <select
-                            value={selectedOwnerId}
-                            disabled={isActionMutationLoading}
-                            onChange={(event) => {
-                              const value = event.target.value
-                              setReassignOwnerByItemId((current) => ({ ...current, [item.id]: value }))
+                      {isActionControlsOpen && (
+                        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                          <div
+                            className="rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/50"
+                            onBlur={(event) => {
+                              if (!event.currentTarget.contains(event.relatedTarget)) {
+                                void handleChangeActionItemStatus(item)
+                              }
                             }}
-                            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                            onMouseLeave={() => void handleChangeActionItemStatus(item)}
                           >
-                            <option value="">{t('continuity.reassignSelectOwner', { defaultValue: 'Select new owner' })}</option>
-                            {ownerOptions.map((owner) => (
-                              <option key={owner.id} value={owner.id}>
-                                {owner.name} - {owner.email}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <input
-                          value={reassignNoteByItemId[item.id] ?? ''}
-                          disabled={isActionMutationLoading}
-                          onChange={(event) => {
-                            const value = event.target.value
-                            setReassignNoteByItemId((current) => ({ ...current, [item.id]: value }))
-                          }}
-                          placeholder={t('continuity.reassignNotePlaceholder', { defaultValue: 'Note (optional)' })}
-                          className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                        />
-                      </div>
+                            <label className="block">
+                              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                {t('continuity.statusControl', { defaultValue: 'Status' })}
+                              </span>
+                              <select
+                                value={selectedStatus}
+                                disabled={isActionMutationLoading}
+                                onChange={(event) => {
+                                  const value = event.target.value as ActionItemStatus
+                                  setStatusByItemId((current) => ({ ...current, [item.id]: value }))
+                                }}
+                                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                              >
+                                {actionItemStatuses.map((status) => (
+                                  <option key={status} value={status}>
+                                    {t(`continuity.actionStatuses.${status}`, { defaultValue: status })}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <input
+                              value={statusNoteByItemId[item.id] ?? ''}
+                              disabled={isActionMutationLoading}
+                              onChange={(event) => {
+                                const value = event.target.value
+                                setStatusNoteByItemId((current) => ({ ...current, [item.id]: value }))
+                              }}
+                              placeholder={t('continuity.statusNotePlaceholder', { defaultValue: 'Status note (optional)' })}
+                              className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                            />
+                          </div>
 
-                      <div
-                        className="rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/50"
-                        onBlur={(event) => {
-                          if (!event.currentTarget.contains(event.relatedTarget)) {
-                            void handleChangeActionItemPriority(item)
-                          }
-                        }}
-                        onMouseLeave={() => void handleChangeActionItemPriority(item)}
-                      >
-                        <label className="block">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                            {t('continuity.priorityControl', { defaultValue: 'Priority' })}
-                          </span>
-                          <select
-                            value={selectedPriority}
-                            disabled={isActionMutationLoading}
-                            onChange={(event) => {
-                              const value = event.target.value as ActionPriority
-                              setPriorityByItemId((current) => ({ ...current, [item.id]: value }))
+                          <div
+                            className="rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/50"
+                            onBlur={(event) => {
+                              if (!event.currentTarget.contains(event.relatedTarget)) {
+                                void handleReassignActionItem(item)
+                              }
                             }}
-                            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                            onMouseLeave={() => void handleReassignActionItem(item)}
                           >
-                            {actionPriorities.map((priority) => (
-                              <option key={priority} value={priority}>
-                                {t(`continuity.actionPriorities.${priority}`, { defaultValue: priority })}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                          {t('continuity.autoSaveHint', { defaultValue: 'Auto-saves when you leave this field.' })}
-                        </p>
-                      </div>
+                            <label className="block">
+                              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                {t('continuity.reassignTitle', { defaultValue: 'Reassign' })}
+                              </span>
+                              <select
+                                value={selectedOwnerId}
+                                disabled={isActionMutationLoading}
+                                onChange={(event) => {
+                                  const value = event.target.value
+                                  setReassignOwnerByItemId((current) => ({ ...current, [item.id]: value }))
+                                }}
+                                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                              >
+                                <option value="">{t('continuity.reassignSelectOwner', { defaultValue: 'Select new owner' })}</option>
+                                {ownerOptions.map((owner) => (
+                                  <option key={owner.id} value={owner.id}>
+                                    {owner.name} - {owner.email}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <input
+                              value={reassignNoteByItemId[item.id] ?? ''}
+                              disabled={isActionMutationLoading}
+                              onChange={(event) => {
+                                const value = event.target.value
+                                setReassignNoteByItemId((current) => ({ ...current, [item.id]: value }))
+                              }}
+                              placeholder={t('continuity.reassignNotePlaceholder', { defaultValue: 'Note (optional)' })}
+                              className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                            />
+                          </div>
+
+                          <div
+                            className="rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/50"
+                            onBlur={(event) => {
+                              if (!event.currentTarget.contains(event.relatedTarget)) {
+                                void handleChangeActionItemPriority(item)
+                              }
+                            }}
+                            onMouseLeave={() => void handleChangeActionItemPriority(item)}
+                          >
+                            <label className="block">
+                              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                {t('continuity.priorityControl', { defaultValue: 'Priority' })}
+                              </span>
+                              <select
+                                value={selectedPriority}
+                                disabled={isActionMutationLoading}
+                                onChange={(event) => {
+                                  const value = event.target.value as ActionPriority
+                                  setPriorityByItemId((current) => ({ ...current, [item.id]: value }))
+                                }}
+                                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+                              >
+                                {actionPriorities.map((priority) => (
+                                  <option key={priority} value={priority}>
+                                    {t(`continuity.actionPriorities.${priority}`, { defaultValue: priority })}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                              {t('continuity.autoSaveHint', { defaultValue: 'Auto-saves when you leave this field.' })}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
-                    <button
-                      type="button"
-                      onClick={() => void handleToggleActionLogs(item)}
-                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
-                    >
-                      {isLogsOpen
-                        ? t('continuity.hideActionLogs', { defaultValue: 'Hide action logs' })
-                        : t('continuity.showActionLogs', { defaultValue: 'Show action logs' })}
-                    </button>
-
+                  <div className="mt-3">
                     {isLogsOpen && (
                       <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
                         {isLoadingLogs ? (

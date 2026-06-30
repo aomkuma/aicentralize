@@ -1,8 +1,31 @@
 # Next-Day Handover - 2026-06-28
 
-## Latest Status (2026-06-30)
+## Latest Status (2026-06-30, evening)
 
-**`main` is current through `54457cd`.** Recent pushes:
+**`main` is current through `db369f8`.** Feature catalog: [`docs/FEATURES.md`](./FEATURES.md).
+
+| Commit | Summary |
+|--------|---------|
+| `db369f8` | iPhone push setup wizard (install + notification steps), onboarding banner, iOS PWA detection |
+| `61127ae` | Playground / Meeting Studio prompt limit **120k** chars; shared `meetingAnalysisPrompt.ts` |
+| `4e69563` | ASR default timeout **1 hour** (`ASR_REQUEST_TIMEOUT_MS=3600000`) |
+| `5f1d652` | nginx `/ai/` proxy timeouts **3700s** for long transcription |
+| `4e9aaf6` | Action-item push (reassign, due date, priority, status); Meeting Studio audio job fixes |
+| `648c1b3` | Handover + QUICK_REFERENCE refresh |
+| `54457cd` | Fix Railway deploy: `pnpm-lock.yaml` + `jszip` |
+| `627a446` | Communication sentiment + team mood badges |
+| `4cb67d5` | Project knowledge onboarding + general notes |
+| `e0e836b` | Meeting Studio background transcription, multi-format uploads, hide AI labels |
+
+**Migrations on production:** API Docker entrypoint runs `npx prisma migrate deploy` on boot (`docker/start.sh`).
+
+**Still open:** PM timeline tab, sentiment tests, vector retrieval, knowledge item review UI, account suspension route tests. Full list: **Open Items Tracker** at bottom.
+
+---
+
+## Latest Status (2026-06-30, earlier)
+
+**Superseded by table above.** Kept for reference:
 
 | Commit | Summary |
 |--------|---------|
@@ -11,11 +34,7 @@
 | `627a446` | Communication sentiment snapshots + Projects team mood badges |
 | `54457cd` | Fix Railway deploy: sync `pnpm-lock.yaml` with `jszip` |
 
-**Migrations on production:** API Docker entrypoint runs `npx prisma migrate deploy` on boot (`docker/start.sh`). No manual migrate step needed on Railway after deploy.
-
-**Still open:** PM date-ordered timeline tab, sentiment tenant-level tests, project memory vector retrieval, item-level knowledge review UI, account suspension route tests.
-
-Sections below are a chronological log; use this table and the **Open Items Tracker** at the bottom for current truth.
+Sections below are a chronological log; use the **Latest Status** table at top and **Open Items Tracker** at the bottom for current truth.
 
 ## Current Working State
 
@@ -985,6 +1004,34 @@ Verification:
 - `pnpm --filter api type-check` passed
 - `pnpm --filter web type-check` passed
 
+## Post-Handover Work Completed (2026-06-30, Push + prompts + ASR)
+
+Implemented and pushed:
+
+**Action-item push notifications (`4e9aaf6`)**
+- `actionItemNotificationService.ts` hooks on reassign, due date, priority, status changes.
+- `reminderDispatchService` sends push when user has `pushEnabled` and active subscription.
+- `push-sw.js` click handler navigates to target URL.
+
+**Long transcription timeouts (`5f1d652`, `4e69563`)**
+- nginx `/ai/` and `/api/playground/` proxy read timeout **3700s**.
+- API `ASR_REQUEST_TIMEOUT_MS` default **3600000** (1 hour).
+
+**Playground prompt limit (`61127ae`)**
+- `MAX_PLAYGROUND_PROMPT_CHARS = 120_000` in `apps/api/src/constants/aiLimits.ts`.
+- System settings default/max promoted from legacy 4k/12k.
+- Shared `meetingAnalysisPrompt.ts` for Meeting Studio transcript/document analysis.
+
+**iPhone push + PWA onboarding (`db369f8`)**
+- `PushSetupPanel`: Step 1 install (iOS manual guide / Android native install), Step 2 enable push.
+- `PushOnboardingBanner` in `Layout` → `/profile#notifications`.
+- `pwaUtils.ts`: iOS detection, standalone PWA check, same-origin `/api` base URL.
+- `pushNotifications.ts`: register service worker **before** `Notification.requestPermission()` on iOS.
+- `manifest.json`: added `"id": "/"`.
+
+Verification:
+- `pnpm --filter web type-check` passed
+
 ## Open Items Tracker (2026-06-30 doc audit)
 
 Reconciled against the codebase. Items marked done below are implemented; remaining items are
@@ -1007,6 +1054,10 @@ still open.
 | Hide AI model/confidence in user UI | **Done** | Committed `e0e836b` |
 | Continuity sidebar removed (Projects entry only) | **Done** | Committed `e0e836b` |
 | Communication sentiment trend | **Done** | Committed `627a446`; tests still open |
+| Action-item push notifications | **Done** | Committed `4e9aaf6` |
+| Long ASR / nginx transcription timeouts | **Done** | Committed `5f1d652`, `4e69563` |
+| Playground prompt 120k limit | **Done** | Committed `61127ae` |
+| iPhone push setup wizard + PWA banner | **Done** | Committed `db369f8` |
 | Account suspension route-level tests | **Open** | No vitest coverage for login/requireAuth/refresh suspend path |
 | Login-page friendly suspended-account message | **Open** | `LoginPage` shows generic `error.message` only |
 | PM date-ordered timeline view | **Open** | Continuity has summary/tabs but no timeline tab |
@@ -1019,5 +1070,88 @@ still open.
 | Local Node >= 22 | **Open** | Local still v20.10.0 |
 
 Commit status:
-- Everything through `54457cd` (2026-06-30) is on `main`.
+- Everything through `db369f8` (2026-06-30) is on `main`.
 - Production DB migrations apply automatically via `docker/start.sh` on API container boot.
+- Product feature map: [`docs/FEATURES.md`](./FEATURES.md).
+
+## New Requirement - Morning Briefing Engine (2026-06-30)
+
+User wants to formalize "น้องรับจบ / Rubjob" as an operational AI teammate and implement daily AI-generated morning briefings.
+
+AI capability spec to preserve:
+- Core Identity: who Rubjob is, personality, boundaries, and operating stance.
+- Decision Engine: prioritization rules for urgency, overdue work, risk, role scope, and responsibility.
+- Daily Briefing Engine: generate a ready-to-read briefing every morning.
+- Risk Analysis Engine: surface risk signals and suggested follow-ups.
+- Knowledge Retrieval Rules: use approved data/RAG evidence and cite concrete records.
+- Recommendation Engine: recommend from evidence only; never invent facts.
+- Communication Style: adapt language for CEO, Sales, PM, Developer, HR, and Member users.
+- Guardrails: do not fabricate data, do not expose cross-tenant data, do not overstate sentiment/HR conclusions.
+
+Implementation requirement:
+- Add a scheduled script/cron that runs every day at **04:30 AM**.
+- The job should scan action items relevant to each active member:
+  - overdue
+  - due today / due soon
+  - near due with high or critical priority
+  - blocked or personally assigned responsibilities
+- Generate a per-user AI morning briefing that appears when each team member opens the app.
+- Users above `MEMBER` should receive broader visibility:
+  - their own work
+  - team/project follow-ups they should monitor
+  - high-risk overdue or high-priority items in their accessible tenant/project scope
+- Add acknowledgement buttons with sentiment score:
+  - `I got it!` = `+3`
+  - `I know` = `0`
+  - `เออ รู้แล้ว` = `-3`
+- If the user clicks `เออ รู้แล้ว`, show a confirmation dialog asking whether they want to review the briefing items again (`Yes` / `No`).
+- Store acknowledgement score as a signal connected to the existing communication sentiment feature.
+
+Suggested implementation notes:
+- Add persistent `MorningBriefing` / `MorningBriefingAcknowledgement` data or equivalent.
+- Add API endpoints for "my latest briefing", manual run, and acknowledge.
+- Reuse existing action-item scope, tenant access, AI run logging, and sentiment processing patterns.
+- Frontend entry point should be the dashboard so users see the morning briefing immediately after opening the app.
+
+## Post-Handover Implementation (2026-06-30, Morning Briefing Engine)
+
+Implemented locally:
+- Added Prisma models and migration `20260630163000_morning_briefings`:
+  - `MorningBriefing`
+  - `MorningBriefingAcknowledgement`
+  - `MorningBriefingStatus`
+  - `MorningBriefingAckMood`
+- Added `AiRunOperation.MORNING_BRIEFING` for observability.
+- Added `CommunicationSentimentSourceType.MORNING_BRIEFING_ACK` so acknowledgement scores can feed the existing communication sentiment pipeline.
+- Added `morningBriefingService.ts`:
+  - scheduled daily run from `MORNING_BRIEFING_CRON`, default `30 4 * * *`
+  - timezone from `MORNING_BRIEFING_TIMEZONE`, default `Asia/Bangkok`
+  - scans overdue, due-soon, blocked, high/critical priority, and direct responsibility action items
+  - `MEMBER` scope receives own action items
+  - `TENANT_ADMIN` / `MANAGER` scope receives own work plus broader tenant/team follow-ups
+  - uses Rubjob persona/decision/guardrail prompt
+  - falls back to deterministic briefing if AI provider fails
+- Added API:
+  - `GET /morning-briefings/me/latest?tenantId=...`
+  - `POST /morning-briefings/:briefingId/acknowledge`
+  - `POST /morning-briefings/run-now` (`SUPER_ADMIN`)
+- Added scheduler startup in `src/index.ts`.
+- Added dashboard `MorningBriefingDialog`:
+  - appears on `/dashboard` when latest briefing is unacknowledged
+  - no close / x button
+  - acknowledgement choices:
+    - `I got it!` = `+3`
+    - `I know` = `0`
+    - `เออ รู้แล้ว` = `-3`
+  - clicking `เออ รู้แล้ว` opens a nested confirmation dialog asking whether to review the briefing again (`Yes` keeps the briefing open, `No` records `-3`)
+  - evidence cards deep-link to `/action-items/:actionItemId`
+
+Verification:
+- `pnpm.cmd --filter api prisma:generate` passed after stopping the local API dev process that was locking Prisma Client.
+- `pnpm.cmd --filter api type-check` passed.
+- `pnpm.cmd --filter web type-check` passed.
+- `pnpm.cmd --filter api test` passed (17 tests).
+
+Operational notes:
+- Apply DB migration before using the feature locally/production.
+- The API dev process was stopped during implementation to unlock Prisma Client generation; restart it if needed.

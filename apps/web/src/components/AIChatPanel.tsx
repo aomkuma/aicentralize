@@ -1118,17 +1118,17 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
               }}
             />
 
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <button
                 onClick={() => void generate()}
                 disabled={isBusy}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 {isBusy ? t('aiChat.status.generating') : t('aiChat.actions.generate')}
               </button>
               <button
                 onClick={clearAll}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:w-auto"
               >
                 {t('aiChat.actions.clear')}
               </button>

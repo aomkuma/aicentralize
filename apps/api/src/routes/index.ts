@@ -8,6 +8,7 @@ export { actionItemRouter } from "./action-items";
 export { askAiRouter } from "./ask-ai";
 export { retrievalRouter } from "./retrieval";
 export { reminderRouter } from "./reminders";
+export { morningBriefingRouter } from "./morning-briefings";
 export { continuityRouter } from "./continuity";
 export { observabilityRouter } from "./observability";
 export { tenantRouter } from "./tenants";

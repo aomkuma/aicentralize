@@ -27,6 +27,7 @@ export default function ProjectGeneralNotesPage() {
   const [selectedProjectId, setSelectedProjectId] = useState(routeProjectId ?? '')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC')
   const [notes, setNotes] = useState<ProjectGeneralNote[]>([])
   const [notice, setNotice] = useState('')
 
@@ -96,11 +97,13 @@ export default function ProjectGeneralNotesPage() {
     const created = await post<ProjectGeneralNote>(`/projects/${selectedProjectId}/notes`, {
       title: noteTitle.slice(0, 180),
       content: cleanContent,
+      visibility,
     })
 
     if (created) {
       setTitle('')
       setContent('')
+      setVisibility('PUBLIC')
       setNotice(t('generalNotes.saved'))
       await fetchNotes()
     }
@@ -209,6 +212,25 @@ export default function ProjectGeneralNotesPage() {
               </label>
 
               <label className="block">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  {t('generalNotes.visibility', { defaultValue: 'Visibility' })}
+                </span>
+                <select
+                  value={visibility}
+                  onChange={(event) => setVisibility(event.target.value as 'PUBLIC' | 'PRIVATE')}
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"
+                >
+                  <option value="PUBLIC">{t('generalNotes.visibilityPublic', { defaultValue: 'Public' })}</option>
+                  <option value="PRIVATE">{t('generalNotes.visibilityPrivate', { defaultValue: 'Private' })}</option>
+                </select>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {visibility === 'PUBLIC'
+                    ? t('generalNotes.visibilityPublicHelp', { defaultValue: 'Visible to project members and available as Ask-AI evidence.' })
+                    : t('generalNotes.visibilityPrivateHelp', { defaultValue: 'Visible only to you and excluded from shared Ask-AI evidence.' })}
+                </p>
+              </label>
+
+              <label className="block">
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('generalNotes.noteContent')}</span>
                 <textarea
                   value={content}
@@ -259,11 +281,21 @@ export default function ProjectGeneralNotesPage() {
                   <div key={note.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">{note.title}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-slate-900 dark:text-white">{note.title}</p>
+                          <span className={`rounded px-2 py-0.5 text-[11px] font-semibold ${
+                            note.visibility === 'PRIVATE'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'
+                              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100'
+                          }`}>
+                            {note.visibility === 'PRIVATE'
+                              ? t('generalNotes.visibilityPrivate', { defaultValue: 'Private' })
+                              : t('generalNotes.visibilityPublic', { defaultValue: 'Public' })}
+                          </span>
+                        </div>
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                           {t('generalNotes.noteMeta', {
                             author: note.author.name,
-                            authorId: note.author.id,
                             date: new Date(note.createdAt).toLocaleString(i18n.language),
                           })}
                         </p>

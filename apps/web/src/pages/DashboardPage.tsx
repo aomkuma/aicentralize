@@ -6,6 +6,7 @@ import { useTenantStore } from '../stores/tenantStore'
 import { useApi } from '../hooks/useApi'
 import Layout from '../components/Layout'
 import AIChatPanel from '../components/AIChatPanel'
+import MorningBriefingDialog from '../components/MorningBriefingDialog'
 import type { TenantMembership } from '../types'
 
 type DashboardProject = {
@@ -96,6 +97,7 @@ export default function DashboardPage() {
 
   return (
     <Layout currentTenantName={activeTenantName}>
+      <MorningBriefingDialog tenantId={activeTenantId} />
       {/* Main content area */}
       <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
         {isSuperAdmin && (

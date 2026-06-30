@@ -288,7 +288,8 @@ async function retrieveProjectGeneralNoteEvidence(input: { projectId?: string; q
 
   const rows = await prisma.projectGeneralNote.findMany({
     where: {
-      projectId: input.projectId
+      projectId: input.projectId,
+      visibility: "PUBLIC"
     },
     include: {
       author: {
@@ -326,7 +327,7 @@ async function retrieveProjectGeneralNoteEvidence(input: { projectId?: string; q
         minuteApprovedAt: "",
         snippet: [
           `[General note] ${item.title}`,
-          `author: ${item.author.name} (${item.author.id})`,
+          `author: ${item.author.name}`,
           item.content
         ].join(" | "),
         vectorScore: 0,
