@@ -8,6 +8,8 @@ import DashboardPage from './pages/DashboardPage'
 import ContinuityPage from './pages/ContinuityPage'
 import RemindersPage from './pages/RemindersPage'
 import ProjectsPage from './pages/ProjectsPage'
+import ProjectKnowledgePage from './pages/ProjectKnowledgePage'
+import ProjectGeneralNotesPage from './pages/ProjectGeneralNotesPage'
 import AiTracePage from './pages/AiTracePage'
 import MeetingStudioPage from './pages/MeetingStudioPage'
 import MeetingHistoryPage from './pages/MeetingHistoryPage'
@@ -139,6 +141,9 @@ function AppContent() {
             path="/projects"
             element={<WorkflowRoute><ProjectsPage /></WorkflowRoute>}
           />
+          <Route path="/projects/:projectId/knowledge" element={<WorkflowRoute><ProjectKnowledgePage /></WorkflowRoute>} />
+          <Route path="/projects/:projectId/notes" element={<WorkflowRoute><ProjectGeneralNotesPage /></WorkflowRoute>} />
+          <Route path="/general-notes" element={<WorkflowRoute><ProjectGeneralNotesPage /></WorkflowRoute>} />
           <Route path="/reminders/:projectId" element={<WorkflowRoute><RemindersPage /></WorkflowRoute>} />
           <Route path="/ai-trace" element={<WorkflowRoute><AiTracePage /></WorkflowRoute>} />
           <Route path="/ai-trace/:projectId" element={<WorkflowRoute><AiTracePage /></WorkflowRoute>} />

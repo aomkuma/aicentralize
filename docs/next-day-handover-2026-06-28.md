@@ -147,11 +147,12 @@ Three ways to block access now exist, smallest to largest scope:
 - `Tenant.isActive=false`: whole organization blocked.
 - `User.isActive=false`: account suspended platform-wide (blocks login everywhere).
 
-Still open / not done:
+Still open / not done (as of 2026-06-28; see later sections for items completed after this):
 - B-2 follow-up only deferred item is gone; observability/reminders are now tenant-scoped.
 - No tests yet for the suspension path at the route level (login/requireAuth/refresh).
 - No login-page banner explaining the `403 Account suspended` response to end users.
-- Explicit platform-user (moderator) management UI still not built.
+- ~~Explicit platform-user (moderator) management UI still not built.~~ **Done 2026-06-29** — see
+  `Post-Handover Work Completed (2026-06-29, platform users and action-item route)`.
 - Local Node is still v20.10.0; repo wants `>=22`.
 
 ## Remaining Implementation Plan
@@ -166,9 +167,10 @@ Phase 1 is implemented locally:
 
 Recommended follow-up hardening:
 - Review remaining backend workflow routes that still have `requireRole([UserRole.ADMIN, UserRole.PM])` and decide whether tenant-role checks should replace them.
-- Add UI controls for editing member `jobTitle` and `department`, not only role/status.
-- Add tests for inactive tenant/member access.
-- Add explicit platform-user management UI if moderators need to be created/managed from the app.
+- ~~Add UI controls for editing member `jobTitle` and `department`, not only role/status.~~ **Done** — `/admin/organizations` saves on blur.
+- ~~Add tests for inactive tenant/member access.~~ **Done** — `tenantAccessService.test.ts` and
+  `reminderDigestService.test.ts` (`pnpm --filter api test`, 17 tests).
+- ~~Add explicit platform-user management UI if moderators need to be created/managed from the app.~~ **Done 2026-06-29** — `/admin/platform-users`.
 
 Phase 2 is implemented locally:
 - `UserInvitation` stores token hash, expiry, acceptance state, tenant/member metadata.
@@ -343,11 +345,15 @@ Current state:
 
 Gap:
 - There is not yet a dedicated PM timeline view that lays out milestones/action items/meeting sequence/workload by date.
+- A suggestion-only workload balancing popup **is** live on Continuity (2026-06-29); it is not a date-ordered timeline.
 - Recommended future implementation: add a timeline section or tab under Continuity that combines action item due dates, priorities, meetings, recent decisions, and stale/risk indicators into a date-ordered PM view.
 
 ## Design Note (2026-06-28, AI workload balancing suggestion)
 
 User approved a suggestion-only workload balancing assistant for PM/manager project continuity.
+
+**Status: implemented and pushed 2026-06-29** in commit `e62e610` (`ContinuityDashboard.tsx`).
+See `Post-Handover Work Completed (2026-06-29, workload balancing)` below for what shipped.
 
 Design:
 - Scope: `/continuity/:projectId` only, using the currently open project action items and current tenant members.
@@ -442,6 +448,7 @@ Verification:
 Still open / recommended follow-up:
 - Add route-level tests for the new tenant-scoped continuity behavior.
 - Add UI/e2e coverage for AI deep-link persistence after navigation.
+- ~~Add explicit platform-user management UI.~~ **Done 2026-06-29**.
 
 ## Post-Handover Work Completed (2026-06-29, platform users and action-item route)
 
@@ -656,3 +663,284 @@ Implementation plan:
 - Add `/projects` team-management icon UI with popover/modal detail containing trend score,
   summary, caveats, and suggested supportive manager actions.
 - Add tests for tenant isolation and JSON validation.
+
+## Post-Handover Implementation (2026-06-29, ongoing project knowledge onboarding)
+
+**Status: first slice implemented locally, not yet committed. File import + AI extraction v2 added 2026-06-30.**
+
+User asked how "Rubjob / รับจบ" should work with projects that are already ongoing rather than
+newly created projects. The key concern is making sure baseline project knowledge is imported in
+a correct, repeatable, and structured way before Ask-AI starts answering project questions.
+
+Implemented first slice:
+- Added Prisma models and migration:
+  - `ProjectKnowledgeSource`
+  - `ProjectKnowledgeExtraction`
+  - `ProjectMemoryItem`
+  - enums for source type, authority level, source status, memory item type, and memory status.
+- Added project-scoped API endpoints:
+  - `GET /projects/:projectId/knowledge/baseline`
+  - `GET /projects/:projectId/knowledge/sources`
+  - `POST /projects/:projectId/knowledge/sources`
+  - `POST /projects/:projectId/knowledge/sources/:sourceId/extract`
+  - `POST /projects/:projectId/knowledge/sources/:sourceId/approve`
+  - `GET /projects/:projectId/knowledge/memory`
+- Added `/projects/:projectId/knowledge` frontend page:
+  - PM/admin can paste source text from TOR, requirements, old minutes, action/risk logs, etc.
+  - Source can be marked as current truth, supporting context, or historical context.
+  - Source can be extracted into a structured baseline draft.
+  - Extracted baseline can be approved into `ProjectMemoryItem`.
+  - Page shows baseline readiness, source queue, and approved memory grouped by type.
+- Added a project card link from `/projects` to the new baseline page.
+- Ask-AI now includes approved `ProjectMemoryItem` rows as project-memory evidence when a
+  project-scoped question is asked, so Rubjob can use the imported baseline immediately.
+
+Current limitations after first slice (superseded partially — see 2026-06-30 knowledge v2 below):
+- ~~Upload is text/paste based. DOCX/PDF parsing is still a follow-up.~~ **Done locally 2026-06-30** —
+  client-side import for DOCX, PDF (text-based), XLSX, CSV, TXT, and MD.
+- ~~Extraction is deterministic keyword/line based, not yet LLM-powered.~~ **Done locally 2026-06-30** —
+  AI extraction first (`project-knowledge-onboarding-v2-ai`), heuristic fallback on failure.
+- Review UI approves the latest extraction as a batch; item-level edit/merge/discard is still a
+  follow-up.
+- Approved memory is included in Ask-AI through lexical scoring, not yet vectorized
+  `MeetingKnowledgeChunk` style retrieval.
+
+Verification:
+- `pnpm.cmd --filter api prisma:generate` passed.
+- `pnpm.cmd --filter api type-check` passed.
+- `pnpm.cmd --filter web type-check` passed.
+
+Recommended concept:
+- Add a dedicated `Project Knowledge Onboarding` flow for existing projects.
+- The flow should let a PM/admin upload historical source material such as:
+  - TOR / proposal / contract / scope documents.
+  - System requirements, SRS, BRD, user stories, backlog exports, acceptance criteria.
+  - Architecture diagrams or technical notes where available.
+  - Old meeting minutes and decision logs.
+  - Existing action item sheets, risk registers, issue logs, and timeline/milestone plans.
+  - Customer emails or chat exports only if explicitly allowed and scoped to the project.
+- The goal is not just file storage. The system should convert raw documents into structured
+  project memory that matches the current product design: meetings, decisions, risks, action
+  items, glossary/entities, milestones, open questions, assumptions, and retrieval chunks.
+
+Suggested UX flow:
+- Entry point:
+  - `/projects/:projectId/knowledge-onboarding` or a tab inside project detail / continuity.
+  - Show as a guided checklist for ongoing projects: `Upload sources`, `Review extracted memory`,
+    `Confirm baseline`, `Activate Ask-AI`.
+- Upload step:
+  - Support batch upload with source type selection: TOR, requirement, minutes, action log,
+    risk/issue log, timeline, other.
+  - Capture document date, version, owner/uploader, project phase, and whether the source is
+    authoritative.
+  - Allow PM to mark older files as historical context rather than current truth.
+- AI extraction step:
+  - Extract structured JSON per document:
+    - project overview / objective
+    - scope in/out
+    - stakeholders and customer names
+    - requirements
+    - milestones / deadlines
+    - decisions
+    - action items
+    - risks / issues
+    - assumptions / constraints
+    - glossary and project-specific terms
+    - unresolved questions
+  - Store provenance on every extracted item: source document id, page/section if available,
+    extractedAt, confidence, and original snippet or reference.
+- Human review step:
+  - Do not activate extracted knowledge blindly.
+  - PM should approve, edit, merge duplicates, or discard extracted items.
+  - Use clear conflict handling when older minutes contradict newer requirements:
+    - prefer newer approved source
+    - surface conflict warning
+    - let PM mark the current truth.
+- Activation step:
+  - Once approved, write to the existing project knowledge surfaces:
+    - meeting/minute history where source is historical minutes
+    - action items where source contains open tasks
+    - continuity summary / project memory snapshot
+    - vector retrieval chunks with tenant/project/source metadata
+    - AI trace provenance so answers can cite imported sources later.
+
+Data model ideas:
+- `ProjectKnowledgeSource`
+  - `tenantId`
+  - `projectId`
+  - `sourceType`
+  - `fileName`
+  - `documentDate`
+  - `versionLabel`
+  - `authorityLevel` such as `AUTHORITATIVE | SUPPORTING | HISTORICAL`
+  - `status` such as `UPLOADED | EXTRACTED | REVIEWED | APPROVED | REJECTED`
+  - `uploadedById`
+  - `createdAt`
+- `ProjectKnowledgeExtraction`
+  - `sourceId`
+  - `extractionJson`
+  - `confidence`
+  - `model`
+  - `promptVersion`
+  - `createdAt`
+- `ProjectMemoryItem`
+  - `tenantId`
+  - `projectId`
+  - `sourceId`
+  - `type` such as `REQUIREMENT | DECISION | RISK | ACTION | MILESTONE | GLOSSARY | ASSUMPTION`
+  - `title`
+  - `content`
+  - `status`
+  - `effectiveDate`
+  - `supersededById?`
+  - `approvedById?`
+  - `approvedAt?`
+- Existing embedding chunks should include `sourceId`, `projectId`, `tenantId`, `sourceType`,
+  `authorityLevel`, and approved/review status so retrieval can prefer current approved knowledge.
+
+Prompt and answer behavior:
+- Ask-AI should know whether a project has a confirmed baseline.
+- If baseline is incomplete, answers should say so gently and point to missing source categories.
+- Answers should prioritize approved/current memory over raw uploads.
+- When answering project questions, Rubjob should cite or link to the source category and detail
+  page where possible, for example approved minute, requirement item, action item, or source file.
+- The assistant should separate:
+  - confirmed facts
+  - likely interpretation
+  - unresolved or conflicting information.
+
+Important safeguards:
+- Tenant/project isolation is mandatory.
+- Do not let imported knowledge leak across projects.
+- Avoid treating all old minutes as current truth; older decisions may be superseded.
+- Keep a review queue so PM remains accountable for the baseline.
+- Keep provenance for every extracted item because ongoing projects often have conflicting history.
+
+Suggested first implementation slice:
+- ~~Build upload + source registry for ongoing project knowledge.~~ **Done** (first slice + file import v2).
+- ~~Support DOCX/PDF/text extraction for TOR, requirements, and old minutes.~~ **Done locally 2026-06-30**.
+- ~~Generate a structured `Project Baseline Summary`.~~ **Done** via extraction + baseline status card.
+- ~~Add PM review/approve screen.~~ **Done** via extract + approve on `/projects/:projectId/knowledge`.
+- Store approved baseline as `ProjectMemoryItem` plus retrieval chunks. **Partial** — memory items yes, vector chunks no.
+- Add a continuity/Ask-AI indicator: `Baseline ready`, `Needs review`, or `No baseline imported`. **Partial** — baseline status on knowledge page only.
+
+## Post-Handover Work Completed (2026-06-30, project general notes)
+
+**Status: implemented locally, not yet committed.**
+
+Implemented:
+- Added a new project-level `General Notes` surface for extra human knowledge that does not
+  naturally fit into formal meeting minutes or baseline uploads.
+- Added Prisma model and migration:
+  - `ProjectGeneralNote`
+  - Fields: `projectId`, `tenantId`, `authorId`, `title`, `content`, timestamps.
+- Added project-scoped API:
+  - `GET /projects/:projectId/notes`
+  - `POST /projects/:projectId/notes`
+- Added frontend page:
+  - `/general-notes`
+  - `/projects/:projectId/notes`
+- Added sidebar menu item `General Notes` plus project-card shortcut from `/projects`.
+- The page is intentionally step-based:
+  1. Choose project.
+  2. Write note.
+  3. Save.
+- Notes store the writer's user id automatically so later retrieval and source citation can
+  identify who added the context.
+- Ask-AI now pulls `ProjectGeneralNote` rows as additional project evidence when a project-scoped
+  question is asked.
+  - Citations include author name + author id inside the evidence snippet.
+  - App links now include `Open general notes` and route to `/projects/:projectId/notes`.
+
+Why this exists:
+- People in the same meeting can interpret situations differently.
+- Some ideas, concerns, or field knowledge are never presented in the room.
+- Sometimes someone learns new context later and wants it searchable without rewriting official
+  minutes.
+- This feature gives Ask-AI a broader, attributable project memory layer beyond approved minutes
+  and baseline onboarding.
+
+Verification:
+- `pnpm.cmd --filter api type-check` passed.
+- `pnpm.cmd --filter web type-check` passed.
+
+Local environment note:
+- `pnpm.cmd --filter api exec prisma generate` hit a Windows file lock on
+  `.prisma/client/query_engine-windows.dll.node` while local processes were running.
+- If Prisma client regeneration is needed again, stop local Node/API processes first, then rerun
+  generate/deploy.
+
+## Post-Handover Work Completed (2026-06-29, workload balancing)
+
+Implemented and pushed (`e62e610`, `ContinuityDashboard.tsx`):
+- Suggestion-only workload balancing popup on `/continuity/:projectId`.
+- Runs once per calendar day per project, or again same day only when the action-item signature
+  changes (id, owner, due date, priority, status, title).
+- Cache in browser `localStorage` keyed by project id; dismiss suppresses re-open for same
+  day/signature.
+- Non-blocking dismissible popup with summary, risk level, overloaded owners, and optional
+  reassignment suggestions — no automatic reassignment.
+- User-friendly copy via i18n (`continuity.workloadSuggestions`, `Not now`, risk labels).
+
+Still open from original design:
+- Dedicated date-ordered PM timeline tab (separate from this popup) — see Follow-Up Note below.
+
+## Post-Handover Work Completed (2026-06-30, project knowledge v2)
+
+Implemented locally (uncommitted alongside first slice):
+- `ProjectKnowledgePage` now supports batch file import, not only paste:
+  - DOCX via mammoth
+  - PDF text extraction (text-based PDFs; image-only PDFs fail with a clear error)
+  - XLSX via jszip shared strings
+  - CSV/TSV and TXT/MD
+- Each imported file creates a source, auto-runs extract, and reports per-file success/failure.
+- Backend extraction now tries AI structured JSON first (`extractProjectKnowledgeWithAi`), then
+  falls back to the deterministic line classifier if the model or parse fails.
+- Ask-AI link type extended with `knowledge` for future deep links to the knowledge page.
+
+Still open:
+- Item-level edit/merge/discard in the review UI.
+- Vectorized retrieval chunks for approved `ProjectMemoryItem` rows.
+- Baseline readiness indicator on Continuity or Dashboard (currently knowledge page only).
+
+Verification:
+- `pnpm.cmd --filter api type-check` passed.
+- `pnpm.cmd --filter web type-check` passed.
+
+## Open Items Tracker (2026-06-30 doc audit)
+
+Reconciled against the codebase. Items marked done below are implemented; remaining items are
+still open.
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Platform user management UI (`/admin/platform-users`) | **Done** | Committed `3ecf3f4` |
+| Admin org member `jobTitle` / `department` edit | **Done** | `/admin/organizations`, save on blur |
+| Inactive tenant/member unit tests | **Done** | `tenantAccessService.test.ts`, `reminderDigestService.test.ts` |
+| Ask-AI deep links + session persistence | **Done** | Committed `58d5a65`; `knowledge` link type uncommitted |
+| Reminders digest detail + date filters | **Done** | 2026-06-28 section |
+| Continuity missing-info actionable rows | **Done** | 2026-06-28 section |
+| Workload balancing suggestion popup | **Done** | Committed `e62e610` |
+| Project knowledge onboarding (first slice) | **Done locally** | Uncommitted |
+| Project knowledge file import + AI extraction | **Done locally** | Uncommitted |
+| Project general notes | **Done locally** | Uncommitted |
+| Account suspension route-level tests | **Open** | No vitest coverage for login/requireAuth/refresh suspend path |
+| Login-page friendly suspended-account message | **Open** | `LoginPage` shows generic `error.message` only |
+| PM date-ordered timeline view | **Open** | Continuity has summary/tabs but no timeline tab |
+| Communication sentiment trend | **Open** | Design only; no Prisma models or API |
+| Project memory vector retrieval | **Open** | Lexical scoring only |
+| Project knowledge item-level review | **Open** | Batch approve only |
+| Continuity tenant-scope route tests | **Open** | |
+| AI deep-link navigation e2e | **Open** | |
+| Review `requireRole([ADMIN, PM])` vs tenant-role routes | **Open** | |
+| Local Node >= 22 | **Open** | Local still v20.10.0 |
+
+Uncommitted work (do not revert):
+- Project knowledge onboarding + migrations + services + page
+- Project general notes + migration + service + page
+- Ask-AI `knowledge` link type in `AIChatPanel.tsx`
+- This handover doc update
+
+Commit status:
+- Everything through `e62e610` (2026-06-29) is on `main`.
+- 2026-06-30 knowledge v2 and general notes are implemented locally but not yet committed.

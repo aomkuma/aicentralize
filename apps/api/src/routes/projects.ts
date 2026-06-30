@@ -1,4 +1,11 @@
-import { MeetingAttendanceStatus, MeetingParticipantRole, TenantRole, UserRole } from "@prisma/client";
+import {
+  MeetingAttendanceStatus,
+  MeetingParticipantRole,
+  ProjectKnowledgeAuthorityLevel,
+  ProjectKnowledgeSourceType,
+  TenantRole,
+  UserRole
+} from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
@@ -6,6 +13,19 @@ import { requireAuth } from "../middleware/auth";
 import { listMemberProjectIds } from "../services/accessScopeService";
 import { createProjectMeeting } from "../services/meetingIngestionService";
 import { ensureTenantMembership, ensureTenantRole, isSuperAdmin, listTenantIdsForUser } from "../services/tenantAccessService";
+import {
+  approveProjectKnowledgeSource,
+  createProjectKnowledgeSource,
+  extractProjectKnowledgeSource,
+  getProjectKnowledgeBaseline,
+  listProjectKnowledgeSources,
+  listProjectMemoryItems,
+  projectKnowledgeErrors
+} from "../services/projectKnowledgeService";
+import {
+  createProjectGeneralNote,
+  listProjectGeneralNotes
+} from "../services/projectGeneralNoteService";
 
 export const projectRouter = Router();
 
@@ -29,6 +49,38 @@ const createProjectMeetingSchema = z.object({
     attendanceStatus: z.nativeEnum(MeetingAttendanceStatus).optional()
   })).optional().default([])
 });
+
+const createKnowledgeSourceSchema = z.object({
+  sourceType: z.nativeEnum(ProjectKnowledgeSourceType),
+  title: z.string().min(2).max(180),
+  contentText: z.string().min(20).max(120000),
+  documentDate: z.string().datetime().optional(),
+  versionLabel: z.string().max(80).optional(),
+  authorityLevel: z.nativeEnum(ProjectKnowledgeAuthorityLevel).optional()
+});
+
+const createProjectGeneralNoteSchema = z.object({
+  title: z.string().min(2).max(180),
+  content: z.string().min(10).max(12000)
+});
+
+function handleProjectKnowledgeError(error: unknown, res: { status: (code: number) => { json: (body: unknown) => void } }) {
+  const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
+  if (message === "PROJECT_NOT_FOUND") {
+    return res.status(404).json({ message: projectKnowledgeErrors.PROJECT_NOT_FOUND });
+  }
+  if (message === "SOURCE_NOT_FOUND") {
+    return res.status(404).json({ message: projectKnowledgeErrors.SOURCE_NOT_FOUND });
+  }
+  if (message === "FORBIDDEN_PROJECT_SCOPE") {
+    return res.status(403).json({ message: projectKnowledgeErrors.FORBIDDEN_PROJECT_SCOPE });
+  }
+  if (message === "EXTRACTION_REQUIRED") {
+    return res.status(409).json({ message: projectKnowledgeErrors.EXTRACTION_REQUIRED });
+  }
+  console.error("[ProjectKnowledge] Error:", error);
+  return res.status(500).json({ message: "Project knowledge operation failed" });
+}
 
 async function buildProjectListWhere(user: NonNullable<Express.Request["user"]>, tenantId?: string) {
   const filters: object[] = [];
@@ -209,4 +261,100 @@ projectRouter.post("/:projectId/meetings", requireAuth, async (req, res) => {
   }
 
   res.status(201).json(meeting);
+});
+
+projectRouter.get("/:projectId/knowledge/baseline", requireAuth, async (req, res) => {
+  try {
+    const baseline = await getProjectKnowledgeBaseline(req.params.projectId, req.user!);
+    res.json(baseline);
+  } catch (error) {
+    handleProjectKnowledgeError(error, res);
+  }
+});
+
+projectRouter.get("/:projectId/knowledge/sources", requireAuth, async (req, res) => {
+  try {
+    const sources = await listProjectKnowledgeSources(req.params.projectId, req.user!);
+    res.json(sources);
+  } catch (error) {
+    handleProjectKnowledgeError(error, res);
+  }
+});
+
+projectRouter.post("/:projectId/knowledge/sources", requireAuth, async (req, res) => {
+  const parsed = createKnowledgeSourceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  try {
+    const source = await createProjectKnowledgeSource({
+      projectId: req.params.projectId,
+      sourceType: parsed.data.sourceType,
+      title: parsed.data.title.trim(),
+      contentText: parsed.data.contentText.trim(),
+      documentDate: parsed.data.documentDate ? new Date(parsed.data.documentDate) : undefined,
+      versionLabel: parsed.data.versionLabel?.trim() || undefined,
+      authorityLevel: parsed.data.authorityLevel,
+      user: req.user!
+    });
+    res.status(201).json(source);
+  } catch (error) {
+    handleProjectKnowledgeError(error, res);
+  }
+});
+
+projectRouter.post("/:projectId/knowledge/sources/:sourceId/extract", requireAuth, async (req, res) => {
+  try {
+    const extraction = await extractProjectKnowledgeSource(req.params.sourceId, req.user!);
+    res.status(201).json(extraction);
+  } catch (error) {
+    handleProjectKnowledgeError(error, res);
+  }
+});
+
+projectRouter.post("/:projectId/knowledge/sources/:sourceId/approve", requireAuth, async (req, res) => {
+  try {
+    const result = await approveProjectKnowledgeSource(req.params.sourceId, req.user!);
+    res.json(result);
+  } catch (error) {
+    handleProjectKnowledgeError(error, res);
+  }
+});
+
+projectRouter.get("/:projectId/knowledge/memory", requireAuth, async (req, res) => {
+  try {
+    const items = await listProjectMemoryItems(req.params.projectId, req.user!);
+    res.json(items);
+  } catch (error) {
+    handleProjectKnowledgeError(error, res);
+  }
+});
+
+projectRouter.get("/:projectId/notes", requireAuth, async (req, res) => {
+  try {
+    const notes = await listProjectGeneralNotes(req.params.projectId, req.user!);
+    res.json(notes);
+  } catch (error) {
+    handleProjectKnowledgeError(error, res);
+  }
+});
+
+projectRouter.post("/:projectId/notes", requireAuth, async (req, res) => {
+  const parsed = createProjectGeneralNoteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  try {
+    const note = await createProjectGeneralNote({
+      projectId: req.params.projectId,
+      title: parsed.data.title.trim(),
+      content: parsed.data.content.trim(),
+      user: req.user!
+    });
+    res.status(201).json(note);
+  } catch (error) {
+    handleProjectKnowledgeError(error, res);
+  }
 });

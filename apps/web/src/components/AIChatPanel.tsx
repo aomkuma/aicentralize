@@ -27,7 +27,7 @@ type SpeakerProfile = {
 type AppLink = {
   label?: string
   url: string
-  type: 'meeting' | 'project' | 'action'
+  type: 'meeting' | 'project' | 'action' | 'knowledge'
   sourceId?: string
   context?: string
 }

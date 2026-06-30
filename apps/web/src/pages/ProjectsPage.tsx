@@ -518,6 +518,18 @@ export default function ProjectsPage() {
                       {t('reminders.title')}
                     </Link>
                     <Link
+                      to={`/projects/${project.id}/knowledge`}
+                      className="text-xs px-2.5 py-1.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                    >
+                      {t('projectKnowledge.shortLabel')}
+                    </Link>
+                    <Link
+                      to={`/projects/${project.id}/notes`}
+                      className="text-xs px-2.5 py-1.5 rounded-md bg-cyan-50 text-cyan-700 dark:bg-cyan-900/20 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-900/30"
+                    >
+                      {t('generalNotes.shortLabel')}
+                    </Link>
+                    <Link
                       to={`/ai-trace/${project.id}`}
                       className="text-xs px-2.5 py-1.5 rounded-md bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/30"
                     >

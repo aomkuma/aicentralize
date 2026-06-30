@@ -140,6 +140,56 @@ enum ActionItemPriority {
   CRITICAL
 }
 
+enum ProjectKnowledgeSourceType {
+  TOR
+  PROPOSAL
+  CONTRACT
+  REQUIREMENT
+  MINUTES
+  ACTION_LOG
+  RISK_LOG
+  ISSUE_LOG
+  TIMELINE
+  TECHNICAL_NOTE
+  OTHER
+}
+
+enum ProjectKnowledgeAuthorityLevel {
+  AUTHORITATIVE
+  SUPPORTING
+  HISTORICAL
+}
+
+enum ProjectKnowledgeSourceStatus {
+  UPLOADED
+  EXTRACTED
+  REVIEWED
+  APPROVED
+  REJECTED
+}
+
+enum ProjectMemoryItemType {
+  OVERVIEW
+  SCOPE
+  REQUIREMENT
+  DECISION
+  RISK
+  ISSUE
+  ACTION
+  MILESTONE
+  GLOSSARY
+  ASSUMPTION
+  OPEN_QUESTION
+  STAKEHOLDER
+}
+
+enum ProjectMemoryItemStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
 enum AiRunOperation {
   MINUTE_EXTRACTION
   RETRIEVAL_QUERY
@@ -180,6 +230,9 @@ model User {
   reminderLogs ReminderLog[]
   askAiQueryLogs AskAiQueryLog[]
   aiRunLogs AiRunLog[]
+  projectKnowledgeSourcesUploaded ProjectKnowledgeSource[] @relation("ProjectKnowledgeSourceUploader")
+  projectMemoryItemsApproved ProjectMemoryItem[] @relation("ProjectMemoryItemApprover")
+  projectGeneralNotesAuthored ProjectGeneralNote[] @relation("ProjectGeneralNoteAuthor")
   tenantMemberships TenantMembership[]
   createdTenants Tenant[] @relation("TenantCreator")
   systemSettingsUpdates SystemSettings[]
@@ -212,6 +265,9 @@ model Tenant {
   memberships TenantMembership[]
   projects    Project[]
   invitations UserInvitation[]
+  projectKnowledgeSources ProjectKnowledgeSource[]
+  projectMemoryItems ProjectMemoryItem[]
+  projectGeneralNotes ProjectGeneralNote[]
 
   @@index([createdAt])
 }
@@ -294,8 +350,100 @@ model Project {
   askAiQueryLogs AskAiQueryLog[]
   reminderDigests ReminderDigest[]
   aiRunLogs AiRunLog[]
+  knowledgeSources ProjectKnowledgeSource[]
+  memoryItems ProjectMemoryItem[]
+  generalNotes ProjectGeneralNote[]
 
   @@index([tenantId, createdAt])
+}
+
+model ProjectKnowledgeSource {
+  id             String                         @id @default(cuid())
+  tenantId       String?
+  projectId      String
+  sourceType     ProjectKnowledgeSourceType
+  title          String
+  contentText    String
+  documentDate   DateTime?
+  versionLabel   String?
+  authorityLevel ProjectKnowledgeAuthorityLevel @default(SUPPORTING)
+  status         ProjectKnowledgeSourceStatus   @default(UPLOADED)
+  uploadedById   String?
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+
+  project        Project                        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tenant         Tenant?                        @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  uploadedBy     User?                          @relation("ProjectKnowledgeSourceUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  extractions    ProjectKnowledgeExtraction[]
+  memoryItems    ProjectMemoryItem[]
+
+  @@index([projectId, status])
+  @@index([tenantId, createdAt])
+  @@index([sourceType])
+}
+
+model ProjectKnowledgeExtraction {
+  id                String   @id @default(cuid())
+  sourceId          String
+  extractionJson    Json
+  confidence        String
+  model             String?
+  promptVersion     String?
+  createdAt         DateTime @default(now())
+
+  source            ProjectKnowledgeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, createdAt])
+}
+
+model ProjectMemoryItem {
+  id             String                  @id @default(cuid())
+  tenantId       String?
+  projectId      String
+  sourceId       String?
+  type           ProjectMemoryItemType
+  title          String
+  content        String
+  status         ProjectMemoryItemStatus @default(DRAFT)
+  effectiveDate  DateTime?
+  supersededById String?
+  approvedById   String?
+  approvedAt     DateTime?
+  metadataJson   Json?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  project        Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tenant         Tenant?                 @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  source         ProjectKnowledgeSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  approvedBy     User?                   @relation("ProjectMemoryItemApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  supersededBy   ProjectMemoryItem?      @relation("ProjectMemorySupersession", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedes     ProjectMemoryItem[]     @relation("ProjectMemorySupersession")
+
+  @@index([projectId, type, status])
+  @@index([tenantId, createdAt])
+  @@index([sourceId])
+  @@index([approvedById])
+}
+
+model ProjectGeneralNote {
+  id         String   @id @default(cuid())
+  tenantId   String?
+  projectId  String
+  authorId   String
+  title      String
+  content    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant     Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author     User     @relation("ProjectGeneralNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([authorId, createdAt])
 }
 
 model Meeting {

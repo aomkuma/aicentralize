@@ -52,6 +52,108 @@ export interface Project {
   updatedAt: string
 }
 
+export type ProjectKnowledgeSourceType =
+  | 'TOR'
+  | 'PROPOSAL'
+  | 'CONTRACT'
+  | 'REQUIREMENT'
+  | 'MINUTES'
+  | 'ACTION_LOG'
+  | 'RISK_LOG'
+  | 'ISSUE_LOG'
+  | 'TIMELINE'
+  | 'TECHNICAL_NOTE'
+  | 'OTHER'
+
+export type ProjectKnowledgeAuthorityLevel = 'AUTHORITATIVE' | 'SUPPORTING' | 'HISTORICAL'
+export type ProjectKnowledgeSourceStatus = 'UPLOADED' | 'EXTRACTED' | 'REVIEWED' | 'APPROVED' | 'REJECTED'
+export type ProjectMemoryItemType =
+  | 'OVERVIEW'
+  | 'SCOPE'
+  | 'REQUIREMENT'
+  | 'DECISION'
+  | 'RISK'
+  | 'ISSUE'
+  | 'ACTION'
+  | 'MILESTONE'
+  | 'GLOSSARY'
+  | 'ASSUMPTION'
+  | 'OPEN_QUESTION'
+  | 'STAKEHOLDER'
+
+export interface ProjectKnowledgeBaseline {
+  projectId: string
+  projectName: string
+  status: 'NO_BASELINE' | 'NEEDS_REVIEW' | 'BASELINE_READY'
+  approvedMemoryCount: number
+  needsReviewCount: number
+  sourceCounts: Array<{ status: ProjectKnowledgeSourceStatus; count: number }>
+  memoryCounts: Array<{ type: ProjectMemoryItemType; count: number }>
+  lastUpdated?: string | null
+}
+
+export interface ProjectKnowledgeSource {
+  id: string
+  projectId: string
+  sourceType: ProjectKnowledgeSourceType
+  title: string
+  contentText: string
+  documentDate?: string | null
+  versionLabel?: string | null
+  authorityLevel: ProjectKnowledgeAuthorityLevel
+  status: ProjectKnowledgeSourceStatus
+  createdAt: string
+  updatedAt: string
+  uploadedBy?: Pick<User, 'id' | 'name' | 'email'> | null
+  extractions?: Array<{
+    id: string
+    extractionJson: {
+      overview?: string
+      items?: Array<{
+        type: ProjectMemoryItemType
+        title: string
+        content: string
+        confidence?: string
+      }>
+    }
+    confidence: string
+    createdAt: string
+  }>
+  _count?: {
+    memoryItems?: number
+  }
+}
+
+export interface ProjectMemoryItem {
+  id: string
+  projectId: string
+  sourceId?: string | null
+  type: ProjectMemoryItemType
+  title: string
+  content: string
+  status: 'DRAFT' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED'
+  effectiveDate?: string | null
+  approvedAt?: string | null
+  source?: {
+    id: string
+    title: string
+    sourceType: ProjectKnowledgeSourceType
+    authorityLevel: ProjectKnowledgeAuthorityLevel
+    documentDate?: string | null
+  } | null
+  approvedBy?: Pick<User, 'id' | 'name' | 'email'> | null
+}
+
+export interface ProjectGeneralNote {
+  id: string
+  projectId: string
+  title: string
+  content: string
+  createdAt: string
+  updatedAt: string
+  author: Pick<User, 'id' | 'name' | 'email'>
+}
+
 export interface Meeting {
   id: string
   title: string

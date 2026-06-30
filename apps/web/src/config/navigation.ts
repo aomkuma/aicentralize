@@ -34,6 +34,12 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
     icon: 'projects',
   },
   {
+    id: 'general-notes',
+    to: '/general-notes',
+    labelKey: 'navigation.generalNotes',
+    icon: 'continuity',
+  },
+  {
     id: 'reminders',
     to: '/reminders',
     labelKey: 'navigation.taskReminders',

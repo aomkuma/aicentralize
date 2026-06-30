@@ -39,7 +39,7 @@ type UsedEvidence = Citation & {
 type AppLink = {
   label: string;
   url: string;
-  type: "meeting" | "project" | "action";
+  type: "meeting" | "project" | "action" | "knowledge";
   sourceId: string;
   context?: string;
 };
@@ -63,6 +63,44 @@ function buildAppLinks(citations: Citation[]): AppLink[] {
   const links: AppLink[] = [];
 
   for (const citation of citations) {
+    if (citation.sourceType === "PROJECT_GENERAL_NOTE") {
+      links.push({
+        label: "Open general notes",
+        url: `/projects/${citation.projectId}/notes`,
+        type: "knowledge",
+        sourceId: citation.sourceRowId ?? citation.projectId,
+        context: "General notes"
+      });
+
+      links.push({
+        label: "Open project continuity",
+        url: `/continuity/${citation.projectId}`,
+        type: "project",
+        sourceId: citation.projectId,
+        context: "General notes"
+      });
+      continue;
+    }
+
+    if (citation.sourceType === "PROJECT_MEMORY") {
+      links.push({
+        label: "Open knowledge baseline",
+        url: `/projects/${citation.projectId}/knowledge`,
+        type: "knowledge",
+        sourceId: citation.sourceRowId ?? citation.projectId,
+        context: "Project baseline"
+      });
+
+      links.push({
+        label: "Open project continuity",
+        url: `/continuity/${citation.projectId}`,
+        type: "project",
+        sourceId: citation.projectId,
+        context: "Project baseline"
+      });
+      continue;
+    }
+
     links.push({
       label: "Open meeting minutes",
       url: `/meetings/history/${citation.meetingId}`,
@@ -105,11 +143,11 @@ function buildGroundedPrompt(question: string, evidence: UsedEvidence[]): string
       `Evidence ${index + 1}`,
       `chunkId: ${item.chunkId}`,
       `sourceType: ${item.sourceType}`,
-      `meetingId: ${item.meetingId}`,
-      `meetingTitle: ${item.meetingTitle}`,
-      `meetingDate: ${item.meetingDate}`,
-      `minuteVersionId: ${item.minuteVersionId}`,
-      `minuteApprovedAt: ${item.minuteApprovedAt}`,
+      item.meetingId ? `meetingId: ${item.meetingId}` : "",
+      item.meetingTitle ? `meetingTitle: ${item.meetingTitle}` : "",
+      item.meetingDate ? `meetingDate: ${item.meetingDate}` : "",
+      item.minuteVersionId ? `minuteVersionId: ${item.minuteVersionId}` : "",
+      item.minuteApprovedAt ? `minuteApprovedAt: ${item.minuteApprovedAt}` : "",
       item.sourceRowId ? `sourceRowId: ${item.sourceRowId}` : "",
       `snippet: ${item.snippet}`
     ].filter(Boolean).join("\n"))
@@ -164,6 +202,145 @@ function uniqueSingle(values: Array<string | undefined | null>): string | undefi
   return list.length === 1 ? list[0] : undefined;
 }
 
+function scoreProjectMemory(text: string, query: string): number {
+  const normalizedText = text.toLowerCase();
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) {
+    return 0;
+  }
+
+  const hits = tokens.filter((token) => normalizedText.includes(token)).length;
+  return hits / tokens.length;
+}
+
+async function retrieveProjectMemoryEvidence(input: { projectId?: string; question: string; limit: number }): Promise<UsedEvidence[]> {
+  if (!input.projectId) {
+    return [];
+  }
+
+  const rows = await prisma.projectMemoryItem.findMany({
+    where: {
+      projectId: input.projectId,
+      status: "APPROVED"
+    },
+    include: {
+      source: {
+        select: {
+          id: true,
+          title: true,
+          sourceType: true,
+          authorityLevel: true,
+          documentDate: true
+        }
+      }
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 120
+  });
+
+  return rows
+    .map((item) => {
+      const text = [
+        item.type,
+        item.title,
+        item.content,
+        item.source?.title ?? "",
+        item.source?.sourceType ?? ""
+      ].filter(Boolean).join(" | ");
+      const lexical = scoreProjectMemory(text, input.question);
+      const authorityBoost = item.source?.authorityLevel === "AUTHORITATIVE"
+        ? 0.18
+        : item.source?.authorityLevel === "SUPPORTING"
+          ? 0.1
+          : 0.03;
+
+      return {
+        chunkId: `project-memory:${item.id}`,
+        sourceType: "PROJECT_MEMORY",
+        sourceRowId: item.id,
+        projectId: item.projectId,
+        meetingId: "",
+        meetingTitle: "",
+        meetingDate: item.effectiveDate ? item.effectiveDate.toISOString() : "",
+        minuteVersionId: "",
+        minuteApprovedAt: item.approvedAt ? item.approvedAt.toISOString() : "",
+        snippet: [
+          `[${item.type}] ${item.title}`,
+          item.content,
+          item.source ? `source: ${item.source.title}` : ""
+        ].filter(Boolean).join(" | "),
+        vectorScore: 0,
+        lexicalScore: lexical,
+        sourceBoost: authorityBoost,
+        recencyBoost: 0,
+        hybridScore: lexical * 0.75 + authorityBoost
+      };
+    })
+    .filter((item) => item.hybridScore > 0.08)
+    .sort((a, b) => b.hybridScore - a.hybridScore)
+    .slice(0, input.limit);
+}
+
+async function retrieveProjectGeneralNoteEvidence(input: { projectId?: string; question: string; limit: number }): Promise<UsedEvidence[]> {
+  if (!input.projectId) {
+    return [];
+  }
+
+  const rows = await prisma.projectGeneralNote.findMany({
+    where: {
+      projectId: input.projectId
+    },
+    include: {
+      author: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    },
+    orderBy: { createdAt: "desc" },
+    take: 120
+  });
+
+  return rows
+    .map((item) => {
+      const text = [
+        item.title,
+        item.content,
+        item.author.name,
+        item.author.email
+      ].filter(Boolean).join(" | ");
+      const lexical = scoreProjectMemory(text, input.question);
+      const recencyBoost = 0.08;
+
+      return {
+        chunkId: `project-general-note:${item.id}`,
+        sourceType: "PROJECT_GENERAL_NOTE",
+        sourceRowId: item.id,
+        projectId: item.projectId,
+        meetingId: "",
+        meetingTitle: "",
+        meetingDate: item.createdAt.toISOString(),
+        minuteVersionId: "",
+        minuteApprovedAt: "",
+        snippet: [
+          `[General note] ${item.title}`,
+          `author: ${item.author.name} (${item.author.id})`,
+          item.content
+        ].join(" | "),
+        vectorScore: 0,
+        lexicalScore: lexical,
+        sourceBoost: 0.09,
+        recencyBoost,
+        hybridScore: lexical * 0.78 + 0.09 + recencyBoost
+      };
+    })
+    .filter((item) => item.hybridScore > 0.1)
+    .sort((a, b) => b.hybridScore - a.hybridScore)
+    .slice(0, input.limit);
+}
+
 async function persistAskAiLog(input: {
   requesterUserId: string;
   question: string;
@@ -201,9 +378,21 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
     limit: 12
   });
 
-  const topEvidence = retrieval.evidence;
+  const [topEvidence, memoryEvidence, generalNoteEvidence] = await Promise.all([
+    Promise.resolve(retrieval.evidence),
+    retrieveProjectMemoryEvidence({
+      projectId: input.projectId,
+      question: input.question,
+      limit: 6
+    }),
+    retrieveProjectGeneralNoteEvidence({
+      projectId: input.projectId,
+      question: input.question,
+      limit: 6
+    })
+  ]);
 
-  if (!topEvidence.length) {
+  if (!topEvidence.length && !memoryEvidence.length && !generalNoteEvidence.length) {
     const emptyResult = {
       answer: "ไม่พบหลักฐานจากข้อมูลที่อนุมัติแล้วซึ่งตรงกับคำถามนี้",
       confidence: "low" as const,
@@ -301,6 +490,9 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
       hybridScore: item.hybridScore
     };
   });
+  usedEvidence.push(...memoryEvidence);
+  usedEvidence.push(...generalNoteEvidence);
+  usedEvidence.sort((a, b) => b.hybridScore - a.hybridScore);
 
   const citations: Citation[] = usedEvidence.map((item) => ({
     chunkId: item.chunkId,
@@ -331,7 +523,7 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
     citations,
     appLinks: buildAppLinks(citations),
     usedEvidence,
-    usedMeetingIds: [...new Set(citations.map((item) => item.meetingId))],
+    usedMeetingIds: [...new Set(citations.map((item) => item.meetingId).filter(Boolean))],
     usedActionItemIds: [
       ...new Set(citations
         .filter((item) => item.sourceType === "ACTION_ITEM" && Boolean(item.sourceRowId))
