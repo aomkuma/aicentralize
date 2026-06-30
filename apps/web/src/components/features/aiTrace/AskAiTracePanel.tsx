@@ -303,9 +303,6 @@ export default function AskAiTracePanel({
                 <p className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-2">
                   {log.question}
                 </p>
-                <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">
-                  {t('aiTrace.model')}: {log.model || '-'}
-                </p>
               </button>
             ))
           )}
@@ -353,17 +350,6 @@ export default function AskAiTracePanel({
                 {currentQueryLog.answer}
               </div>
               <p className="mt-2 min-h-[1.2em] text-xs text-gray-500 dark:text-slate-400">{copyNotice}</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-gray-600 dark:text-slate-400">{t('aiTrace.model')}:</span>
-                <p className="font-medium text-gray-900 dark:text-white">{currentQueryLog.model || '-'}</p>
-              </div>
-              <div>
-                <span className="text-gray-600 dark:text-slate-400">{t('aiTrace.confidence')}:</span>
-                <p className="font-medium text-gray-900 dark:text-white">{currentQueryLog.confidence || '-'}</p>
-              </div>
             </div>
           </div>
         )}

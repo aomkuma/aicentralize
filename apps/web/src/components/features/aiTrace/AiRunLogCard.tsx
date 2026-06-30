@@ -44,11 +44,6 @@ export default function AiRunLogCard({ log, onClick, isActive = false }: AiRunLo
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-slate-400 mt-2">
-        {log.model && (
-          <div>
-            <span className="font-medium">{t('aiTrace.model')}:</span> {log.model}
-          </div>
-        )}
         {log.durationMs && (
           <div>
             <span className="font-medium">{t('aiTrace.duration')}:</span> {log.durationMs}ms

@@ -724,7 +724,26 @@
     "detectedMetaLabel": "Detected meeting details",
     "detectedMetaHint": "After you upload and process the minutes file, the system will auto-fill meeting title and date/time here. You can still edit them.",
     "titleAutoPlaceholder": "Auto-filled from minutes file",
-    "uploadHelp": "Use a local audio/video recording, then refine the transcript before saving the meeting.",
+    "uploadHelp": "Supports audio/video for transcription, or TXT, CSV, DOCX, PDF, and XLSX documents for text extraction and analysis.",
+    "supportedFileTypes": "Supported: audio/video, TXT, MD, CSV, TSV, DOCX, PDF, XLSX",
+    "uploadedFileName": "Uploaded file name",
+    "uploadedFileNamePlaceholder": "No file selected yet",
+    "uploadedFileLastModified": "File last modified",
+    "uploadedFileLastModifiedPlaceholder": "Shown after you choose a file",
+    "sourceFile": {
+      "section": "Source file",
+      "content": "File name: {{fileName}} · Last modified: {{lastModified}}"
+    },
+    "fileReadErrors": {
+      "pdfImageOnly": "This PDF may be image-only and text could not be extracted.",
+      "pdfGeneric": "This PDF could not be read.",
+      "docxGeneric": "This DOCX file could not be read.",
+      "xlsxInvalid": "This XLSX file structure is invalid or unsupported.",
+      "xlsxGeneric": "This XLSX file could not be read.",
+      "csvGeneric": "This CSV/TSV file could not be read.",
+      "textGeneric": "This text file could not be read.",
+      "unsupportedType": "This file type is not supported yet."
+    },
     "templateHelp": "Fill the steering update template sections. The preview updates live.",
     "preview": "Preview",
     "previewHelp": "This is the meeting note that will be saved into the system.",
@@ -774,6 +793,7 @@
     },
     "status": {
       "transcribing": "Transcribing recording...",
+      "processingDocument": "Reading and processing document...",
       "transcribed": "Recording transcribed.",
       "processingLiveRecording": "Processing live recording...",
       "analyzingRecording": "Analyzing recording transcript...",
@@ -801,8 +821,24 @@
         "transcribingRecording": "Transcribe audio to text",
         "analyzingRecording": "Analyze transcript with AI",
         "savingMeeting": "Save meeting data to backend",
-        "completed": "Done"
+        "completed": "Done",
+        "failed": "Failed"
       }
+    },
+    "backgroundJob": {
+      "started": "Transcription and analysis started in the background. You can navigate away — we'll notify you when it's done.",
+      "runningTitle": "Transcribing and analyzing meeting",
+      "runningDescription": "{{step}} · {{fileName}}",
+      "completedTitle": "Transcription and analysis complete",
+      "completedDescription": "{{fileName}} is ready to review in Meeting Studio",
+      "failedTitle": "Transcription or analysis failed",
+      "failedDescription": "Open Meeting Studio for details and try again",
+      "openMeetingStudio": "Open Meeting Studio",
+      "safeToNavigate": "You can navigate while waiting",
+      "dismiss": "Dismiss",
+      "notificationTitle": "Meeting Studio",
+      "notificationSuccess": "Transcription complete: {{fileName}}",
+      "notificationFailed": "Transcription failed: {{fileName}}"
     },
     "errors": {
       "selectProject": "Please select a project.",
@@ -810,6 +846,7 @@
       "sessionAtRequired": "Meeting date and time is required.",
       "summaryRequired": "Executive summary is required.",
       "selectRecording": "Please choose a recording file first.",
+      "unsupportedFileType": "This file type is not supported. Use audio/video, or TXT, CSV, DOCX, PDF, XLSX.",
       "transcriptionFailed": "Transcription failed.",
       "documentExtractionFailed": "Document extraction failed.",
       "documentAnalysisFailed": "Document analysis failed.",

@@ -1,0 +1,234 @@
+import {
+  isTranscriptionUnavailable,
+  playgroundErrorMessage,
+  playgroundResponseMessage,
+  playgroundUrl,
+  postPlaygroundFormData,
+  readPlaygroundJson
+} from '../playgroundApi'
+import type {
+  MeetingStudioJobMessages,
+  MeetingStudioJobProgressKey,
+  MeetingStudioJobResult
+} from './jobTypes'
+import { parseTranscriptSummary, toChecklistItems, type OwnerOption } from './shared'
+
+type AudioJobInput = {
+  audioFile: File
+  preferredTranscript?: string
+  ownerOptions: OwnerOption[]
+  sessionAt: string
+  messages: MeetingStudioJobMessages
+  onProgress: (key: MeetingStudioJobProgressKey) => void
+}
+
+const buildTranscriptAnalysisPrompt = (text: string) => [
+  'You are a senior meeting minute analyst.',
+  'Analyze the following meeting transcript and return ONLY valid JSON.',
+  'No markdown, no code fences, no extra explanation.',
+  'Use this schema exactly:',
+  '{',
+  '  "summary": "string",',
+  '  "objective": "string",',
+  '  "consultantNotes": "string",',
+  '  "decisions": ["string"],',
+  '  "risks": ["string"],',
+  '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime","importanceScore":50,"priority":"LOW|MEDIUM|HIGH|CRITICAL"}],',
+  '  "nextSteps": "string"',
+  '}',
+  'Respond in Thai for all text values.',
+  'Preserve project-specific names, dates, owners, and action wording when present.',
+  'For consultantNotes, write 2-4 concise bullet-style recommendations about weaknesses of this minute, missing context, items to clarify, risks to watch, or details to add. Use a constructive consultant tone, not blame.',
+  'Set importanceScore from 1-100 based on business impact, urgency, blockers, customer/executive impact, and risk.',
+  'Use HIGH or CRITICAL for very important work even when the due date is later, so teams can focus earlier.',
+  '',
+  'Transcript excerpt:',
+  text.slice(0, 4000)
+].join('\n')
+
+async function analyzeTranscript(
+  text: string,
+  sourceName: string,
+  ownerOptions: OwnerOption[],
+  sessionAt: string,
+  messages: MeetingStudioJobMessages,
+  onProgress: (key: MeetingStudioJobProgressKey) => void
+): Promise<MeetingStudioJobResult> {
+  const cleanText = text.trim()
+  if (!cleanText) {
+    throw new Error(messages.transcriptionFailed)
+  }
+
+  onProgress('analyzingRecording')
+
+  const analysisResponse = await fetch('/ai/playground/generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'qwen2.5:7b',
+      prompt: buildTranscriptAnalysisPrompt(cleanText)
+    })
+  })
+
+  const analysisData = await analysisResponse.json()
+  if (!analysisResponse.ok) {
+    throw new Error(analysisData.detail || analysisData.message || messages.documentAnalysisFailed)
+  }
+
+  const parsedSummary = parseTranscriptSummary(analysisData.output || '')
+  onProgress('mappingToTemplate')
+
+  if (!parsedSummary) {
+    return {
+      transcript: cleanText,
+      summary: cleanText.slice(0, 240),
+      template: {},
+      checklistItems: [],
+      recordingInfo: `${messages.transcribed}: ${sourceName}`,
+      statusMessage: messages.transcribed,
+      guidedStep: 2,
+      transcriptionOnly: false
+    }
+  }
+
+  return {
+    transcript: cleanText,
+    summary: parsedSummary.summary || cleanText.slice(0, 240),
+    template: {
+      objective: parsedSummary.objective,
+      consultantNotes: parsedSummary.consultantNotes,
+      decisions: parsedSummary.decisions.join('\n'),
+      risks: parsedSummary.risks.join('\n'),
+      nextSteps: parsedSummary.nextSteps
+    },
+    checklistItems: toChecklistItems(parsedSummary.actionItems, ownerOptions, sessionAt),
+    recordingInfo: `${messages.recordingAnalyzed}: ${sourceName}`,
+    statusMessage: messages.recordingAnalyzed,
+    guidedStep: 3,
+    transcriptionOnly: false
+  }
+}
+
+export async function runMeetingAudioJob(input: AudioJobInput): Promise<MeetingStudioJobResult> {
+  const {
+    audioFile,
+    preferredTranscript = '',
+    ownerOptions,
+    sessionAt,
+    messages,
+    onProgress
+  } = input
+
+  onProgress('validatingInput')
+
+  if (preferredTranscript.trim()) {
+    const result = await analyzeTranscript(
+      preferredTranscript,
+      audioFile.name,
+      ownerOptions,
+      sessionAt,
+      messages,
+      onProgress
+    )
+    onProgress('completed')
+    return result
+  }
+
+  onProgress('uploadingRecording')
+
+  let uploadData: { fileName?: string }
+  try {
+    const uploadForm = new FormData()
+    uploadForm.append('audio', audioFile)
+    uploadData = await postPlaygroundFormData<{ fileName?: string }>('/record/upload', uploadForm)
+  } catch (uploadError) {
+    throw new Error(playgroundErrorMessage(uploadError, messages.uploadFailed))
+  }
+
+  const formData = new FormData()
+  formData.append('audio', audioFile)
+  formData.append('model', 'small')
+  formData.append('language', 'th')
+
+  onProgress('transcribingRecording')
+
+  const response = await fetch(playgroundUrl('/transcribe'), {
+    method: 'POST',
+    body: formData
+  })
+
+  let data: { message?: string; detail?: string; transcript?: string; code?: string }
+  try {
+    data = await readPlaygroundJson(response)
+  } catch (readError) {
+    if (isTranscriptionUnavailable(response)) {
+      onProgress('completed')
+      return {
+        transcript: '',
+        summary: '',
+        template: {},
+        checklistItems: [],
+        recordingInfo: `${messages.uploadedOnly}: ${uploadData.fileName}`,
+        statusMessage: messages.transcriptionUnavailable,
+        guidedStep: 2,
+        transcriptionOnly: true
+      }
+    }
+    throw new Error(playgroundErrorMessage(readError, messages.transcriptionFailed))
+  }
+
+  if (!response.ok) {
+    if (isTranscriptionUnavailable(response, data)) {
+      onProgress('completed')
+      return {
+        transcript: '',
+        summary: '',
+        template: {},
+        checklistItems: [],
+        recordingInfo: `${messages.uploadedOnly}: ${uploadData.fileName}`,
+        statusMessage: messages.transcriptionUnavailable,
+        guidedStep: 2,
+        transcriptionOnly: true
+      }
+    }
+
+    const detail = typeof data.detail === 'string' ? data.detail : ''
+    throw new Error(detail || playgroundResponseMessage(data, messages.transcriptionFailed))
+  }
+
+  if (data.transcript?.trim()) {
+    const result = await analyzeTranscript(
+      data.transcript,
+      uploadData.fileName || audioFile.name,
+      ownerOptions,
+      sessionAt,
+      messages,
+      onProgress
+    )
+    onProgress('completed')
+    return result
+  }
+
+  onProgress('completed')
+  return {
+    transcript: '',
+    summary: '',
+    template: {},
+    checklistItems: [],
+    recordingInfo: `${messages.uploadedOnly}: ${uploadData.fileName}`,
+    statusMessage: messages.transcribed,
+    guidedStep: 2,
+    transcriptionOnly: false
+  }
+}
+
+export function isTranscriptionUnavailableError(message: string) {
+  return (
+    /Whisper runtime is not available/i.test(message) ||
+    /configure a production ASR service/i.test(message) ||
+    /Whisper transcription unavailable/i.test(message) ||
+    /Cannot reach ASR service/i.test(message)
+  )
+}

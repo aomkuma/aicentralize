@@ -6,6 +6,7 @@ import { useTenantStore } from '../stores/tenantStore'
 import { useApi } from '../hooks/useApi'
 import Sidebar from './Sidebar'
 import Breadcrumb from './Breadcrumb'
+import MeetingStudioJobBanner from './MeetingStudioJobBanner'
 import { PRIMARY_NAVIGATION } from '../config/navigation'
 import type { TenantMembership } from '../types'
 
@@ -98,12 +99,18 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
   ])
 
   const currentPageTitle = useMemo(() => {
+    if (location.pathname.startsWith('/continuity')) {
+      return t('continuity.title')
+    }
+
     const match = PRIMARY_NAVIGATION.find((item) => isItemActive(item))
     return match ? getNavLabel(match) : t('common.appName')
   }, [location.pathname, t])
 
   return (
-    <div className="flex min-h-screen bg-white dark:bg-slate-950">
+    <>
+      <MeetingStudioJobBanner />
+      <div className="flex min-h-screen bg-white dark:bg-slate-950">
       {/* Sidebar */}
       <Sidebar
         currentTenantName={visibleTenantName}
@@ -141,5 +148,6 @@ export default function Layout({ children, currentTenantName }: LayoutProps) {
         </div>
       </main>
     </div>
+    </>
   )
 }

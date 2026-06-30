@@ -844,9 +844,6 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   const workloadRiskLabel = (level: WorkloadRiskLevel) =>
     t(`continuity.workloadRisk.${level}`)
 
-  const workloadConfidenceLabel = (confidence: WorkloadSuggestionConfidence) =>
-    t(`continuity.suggestionConfidence.${confidence}`)
-
   return (
     <div className="space-y-6">
       {actionMessage && (
@@ -1647,9 +1644,6 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                       {fromOwner?.name || suggestion.fromOwnerUserId} &rarr; {toOwner?.name || suggestion.toOwnerUserId}
                     </p>
                     <p className="mt-1 text-gray-600 dark:text-slate-400">{suggestion.reason}</p>
-                    <p className="mt-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
-                      {t('continuity.confidence')}: {workloadConfidenceLabel(suggestion.confidence)}
-                    </p>
                   </div>
                 )
               })}

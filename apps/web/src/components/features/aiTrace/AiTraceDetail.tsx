@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { redactAiMetadata } from '../../../lib/redactAiMetadata'
 import type { AiRunLog } from '../../../types'
 
 interface AiTraceDetailProps {
@@ -47,14 +48,6 @@ export default function AiTraceDetail({ log }: AiTraceDetailProps) {
           {t('aiTrace.metadata')}
         </h4>
         <div className="grid grid-cols-2 gap-3 text-sm">
-          {log.model && (
-            <div>
-              <span className="text-gray-600 dark:text-slate-400">
-                {t('aiTrace.model')}:
-              </span>
-              <p className="font-medium text-gray-900 dark:text-white">{log.model}</p>
-            </div>
-          )}
           {log.promptVersion && (
             <div>
               <span className="text-gray-600 dark:text-slate-400">
@@ -107,7 +100,7 @@ export default function AiTraceDetail({ log }: AiTraceDetailProps) {
           </h4>
           <div className="bg-gray-50 dark:bg-slate-800 rounded p-4 overflow-auto max-h-48">
             <pre className="text-xs text-gray-600 dark:text-slate-400 font-mono">
-              {JSON.stringify(log.trace, null, 2)}
+              {JSON.stringify(redactAiMetadata(log.trace), null, 2)}
             </pre>
           </div>
         </div>

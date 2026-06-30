@@ -5,21 +5,22 @@ import Layout from '../components/Layout'
 import LiveMeetingRecorder, { type LiveMeetingRecordingResult } from '../components/LiveMeetingRecorder'
 import { useApi } from '../hooks/useApi'
 import {
-  isTranscriptionUnavailable,
-  playgroundErrorMessage,
-  playgroundResponseMessage,
-  playgroundUrl,
-  postPlaygroundFormData,
-  readPlaygroundJson
-} from '../lib/playgroundApi'
+  describeDocumentFileError,
+  extractFileText,
+  formatFileLastModified,
+  isAudioVideoFile,
+  isDocumentFile,
+  MEETING_STUDIO_FILE_ACCEPT
+} from '../lib/documentText'
+import type { MeetingStudioJobResult } from '../lib/meetingStudio/jobTypes'
 import { useTenantStore } from '../stores/tenantStore'
+import { useMeetingStudioJobStore } from '../stores/meetingStudioJobStore'
 import type { Project } from '../types'
 
-type DocxTextExtractor = {
-  extractRawText?: (input: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }>
-  default?: {
-    extractRawText?: (input: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }>
-  }
+type UploadedFileMeta = {
+  fileName: string
+  lastModified: string
+  lastModifiedAt: number
 }
 
 type DocxMinuteSummary = {
@@ -461,7 +462,7 @@ const progressFlowByMode: Record<Exclude<ProgressMode, null>, ProgressKey[]> = {
 }
 
 export default function MeetingStudioPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { projectId: projectIdParam } = useParams<{ projectId?: string }>()
   const currentTenant = useTenantStore((state) => state.currentTenant)
@@ -480,12 +481,19 @@ export default function MeetingStudioPage() {
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [recordingInfo, setRecordingInfo] = useState('')
+  const [uploadedFileMeta, setUploadedFileMeta] = useState<UploadedFileMeta | null>(null)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [progressMode, setProgressMode] = useState<ProgressMode>(null)
   const [progressKey, setProgressKey] = useState<ProgressKey>('validatingInput')
   const [guidedStep, setGuidedStep] = useState(1)
   const [hoveredGuideStep, setHoveredGuideStep] = useState<number | null>(null)
+
+  const jobStatus = useMeetingStudioJobStore((state) => state.status)
+  const jobProgressKey = useMeetingStudioJobStore((state) => state.progressKey)
+  const jobProjectId = useMeetingStudioJobStore((state) => state.projectId)
+  const jobError = useMeetingStudioJobStore((state) => state.error)
+  const startAudioJob = useMeetingStudioJobStore((state) => state.startAudioJob)
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -566,6 +574,105 @@ export default function MeetingStudioPage() {
     setProgressKey(key)
   }
 
+  const captureUploadedFileMeta = (file: File | null) => {
+    if (!file) {
+      setUploadedFileMeta(null)
+      return
+    }
+
+    setUploadedFileMeta({
+      fileName: file.name,
+      lastModifiedAt: file.lastModified,
+      lastModified: formatFileLastModified(file.lastModified, i18n.language)
+    })
+  }
+
+  const applyJobResult = (result: MeetingStudioJobResult) => {
+    if (result.transcript) {
+      setTranscript(result.transcript)
+    }
+    if (result.summary) {
+      setSummary(result.summary)
+    }
+    setTemplate((current) => ({
+      ...current,
+      objective: result.template.objective ?? current.objective,
+      consultantNotes: result.template.consultantNotes ?? current.consultantNotes,
+      decisions: result.template.decisions ?? current.decisions,
+      risks: result.template.risks ?? current.risks,
+      nextSteps: result.template.nextSteps ?? current.nextSteps
+    }))
+    if (result.checklistItems.length > 0) {
+      setChecklistItems(result.checklistItems)
+    }
+    setRecordingInfo(result.recordingInfo)
+    setStatus(result.statusMessage)
+    setGuidedStep(result.guidedStep)
+    setError('')
+    updateProgress('audio', 'completed')
+  }
+
+  const startBackgroundAudioJob = (file: File, preferredTranscript = '') => {
+    if (!selectedProjectId) {
+      setError(t('meetings.errors.selectProject'))
+      return
+    }
+
+    startAudioJob({
+      file,
+      projectId: selectedProjectId,
+      preferredTranscript,
+      ownerOptions,
+      sessionAt,
+      messages: {
+        uploadFailed: t('meetings.errors.uploadFailed'),
+        transcriptionFailed: t('meetings.errors.transcriptionFailed'),
+        transcriptionUnavailable: t('meetings.errors.transcriptionUnavailable'),
+        documentAnalysisFailed: t('meetings.errors.documentAnalysisFailed'),
+        transcribed: t('meetings.status.transcribed'),
+        recordingAnalyzed: t('meetings.status.recordingAnalyzed'),
+        uploadedOnly: t('meetings.status.uploadedOnly')
+      },
+      notificationTitle: t('meetings.backgroundJob.notificationTitle'),
+      notificationBodySuccess: t('meetings.backgroundJob.notificationSuccess'),
+      notificationBodyFailed: t('meetings.backgroundJob.notificationFailed')
+    })
+  }
+
+  useEffect(() => {
+    if (jobStatus === 'running') {
+      setIsTranscribing(true)
+      setProgressMode('audio')
+      setProgressKey(jobProgressKey as ProgressKey)
+    }
+  }, [jobStatus, jobProgressKey])
+
+  useEffect(() => {
+    if (jobStatus === 'failed') {
+      setError(jobError || t('meetings.errors.transcriptionFailed'))
+      setIsTranscribing(false)
+      updateProgress('audio', 'failed')
+      return
+    }
+
+    if (jobStatus !== 'completed') {
+      return
+    }
+
+    const store = useMeetingStudioJobStore.getState()
+    if (!store.result) {
+      return
+    }
+
+    if (jobProjectId && selectedProjectId && jobProjectId !== selectedProjectId) {
+      return
+    }
+
+    applyJobResult(store.result)
+    store.acknowledgeResult()
+    setIsTranscribing(false)
+  }, [jobStatus, jobProjectId, jobError, selectedProjectId, t])
+
   useEffect(() => {
     const nextActions = checklistToTemplateText(checklistItems)
     setTemplate((current) => {
@@ -579,17 +686,6 @@ export default function MeetingStudioPage() {
       }
     })
   }, [checklistItems])
-
-  const isDocxFile = (file: File | null) => {
-    if (!file) {
-      return false
-    }
-
-    return (
-      file.name.toLowerCase().endsWith('.docx') ||
-      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    )
-  }
 
   const extractJsonCandidate = (raw: string): string | null => {
     const trimmed = raw.trim()
@@ -653,175 +749,15 @@ export default function MeetingStudioPage() {
     text.slice(0, 2400)
   ].join('\n')
 
-  const buildTranscriptAnalysisPrompt = (text: string) => [
-    'You are a senior meeting minute analyst.',
-    'Analyze the following meeting transcript and return ONLY valid JSON.',
-    'No markdown, no code fences, no extra explanation.',
-    'Use this schema exactly:',
-    '{',
-    '  "summary": "string",',
-    '  "objective": "string",',
-    '  "consultantNotes": "string",',
-    '  "decisions": ["string"],',
-    '  "risks": ["string"],',
-    '  "actionItems": [{"task":"string","detail":"string","ownerName":"string","dueDate":"ISO-8601 datetime","importanceScore":50,"priority":"LOW|MEDIUM|HIGH|CRITICAL"}],',
-    '  "nextSteps": "string"',
-    '}',
-    'Respond in Thai for all text values.',
-    'Preserve project-specific names, dates, owners, and action wording when present.',
-    'For consultantNotes, write 2-4 concise bullet-style recommendations about weaknesses of this minute, missing context, items to clarify, risks to watch, or details to add. Use a constructive consultant tone, not blame.',
-    'Set importanceScore from 1-100 based on business impact, urgency, blockers, customer/executive impact, and risk.',
-    'Use HIGH or CRITICAL for very important work even when the due date is later, so teams can focus earlier.',
-    '',
-    'Transcript excerpt:',
-    text.slice(0, 4000)
-  ].join('\n')
-
-  const applyTranscriptAnalysis = async (text: string, sourceName: string) => {
-    const cleanText = text.trim()
-    if (!cleanText) {
-      return
-    }
-
-    setTranscript(cleanText)
-    if (!summary.trim()) {
-      setSummary(cleanText.slice(0, 240))
-    }
-
-    setStatus(t('meetings.status.analyzingRecording'))
-    updateProgress('audio', 'analyzingRecording')
-
-    const analysisResponse = await fetch('/ai/playground/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'qwen2.5:7b',
-        prompt: buildTranscriptAnalysisPrompt(cleanText)
-      })
-    })
-
-    const analysisData = await analysisResponse.json()
-    if (!analysisResponse.ok) {
-      throw new Error(analysisData.detail || analysisData.message || t('meetings.errors.documentAnalysisFailed'))
-    }
-
-    const parsedSummary = parseDocxSummary(analysisData.output || '')
-    if (!parsedSummary) {
-      setRecordingInfo(`${t('meetings.status.transcribed')}: ${sourceName}`)
-      return
-    }
-
-    updateProgress('audio', 'mappingToTemplate')
-    setSummary(parsedSummary.summary || cleanText.slice(0, 240))
-    setTemplate((current) => ({
-      ...current,
-      objective: parsedSummary.objective || current.objective,
-      consultantNotes: parsedSummary.consultantNotes || current.consultantNotes,
-      decisions: parsedSummary.decisions.join('\n') || current.decisions,
-      risks: parsedSummary.risks.join('\n') || current.risks,
-      nextSteps: parsedSummary.nextSteps || current.nextSteps
-    }))
-    setChecklistItems(toChecklistItems(parsedSummary.actionItems, ownerOptions, sessionAt))
-    setRecordingInfo(`${t('meetings.status.recordingAnalyzed')}: ${sourceName}`)
-    setStatus(t('meetings.status.recordingAnalyzed'))
-  }
-
-  const processAudioFile = async (audioFile: File, preferredTranscript = '') => {
-    if (preferredTranscript.trim()) {
-      await applyTranscriptAnalysis(preferredTranscript, audioFile.name)
-      updateProgress('audio', 'completed')
-      return
-    }
-
-    updateProgress('audio', 'uploadingRecording')
-
-    let uploadData: { fileName?: string }
-    try {
-      const uploadForm = new FormData()
-      uploadForm.append('audio', audioFile)
-      uploadData = await postPlaygroundFormData<{ fileName?: string }>('/record/upload', uploadForm)
-    } catch (uploadError) {
-      throw new Error(playgroundErrorMessage(uploadError, t('meetings.errors.uploadFailed'), t))
-    }
-
-    setRecordingInfo(`${t('meetings.status.uploadedOnly')}: ${uploadData.fileName}`)
-
-    const finishWithoutTranscript = () => {
-      setError('')
-      setStatus(t('meetings.errors.transcriptionUnavailable'))
-      updateProgress('audio', 'completed')
-    }
-
-    const formData = new FormData()
-    formData.append('audio', audioFile)
-    formData.append('model', 'small')
-    formData.append('language', 'th')
-
-    updateProgress('audio', 'transcribingRecording')
-
-    const response = await fetch(playgroundUrl('/transcribe'), {
-      method: 'POST',
-      body: formData,
-    })
-
-    let data: { message?: string; detail?: string; transcript?: string; code?: string }
-    try {
-      data = await readPlaygroundJson(response)
-    } catch (readError) {
-      if (isTranscriptionUnavailable(response)) {
-        finishWithoutTranscript()
-        return
-      }
-      throw new Error(playgroundErrorMessage(readError, t('meetings.errors.transcriptionFailed'), t))
-    }
-
-    if (!response.ok) {
-      if (isTranscriptionUnavailable(response, data)) {
-        finishWithoutTranscript()
-        return
-      }
-      const detail = typeof data.detail === 'string' ? data.detail : ''
-      throw new Error(detail || playgroundResponseMessage(data, t('meetings.errors.transcriptionFailed')))
-    }
-
-    if (data.transcript) {
-      await applyTranscriptAnalysis(data.transcript, uploadData.fileName || audioFile.name)
-    } else {
-      setStatus(t('meetings.status.transcribed'))
-    }
-
-    updateProgress('audio', 'completed')
-  }
-
-  const handleLiveRecordingReady = async (result: LiveMeetingRecordingResult) => {
+  const handleLiveRecordingReady = (result: LiveMeetingRecordingResult) => {
     const liveFile = new File([result.audioBlob], result.fileName, { type: result.audioBlob.type || 'audio/webm' })
     setRecordingFile(liveFile)
+    captureUploadedFileMeta(liveFile)
     setError('')
-    setStatus(t('meetings.status.processingLiveRecording'))
+    startBackgroundAudioJob(liveFile, result.transcript)
+    setStatus(t('meetings.backgroundJob.started'))
     setIsTranscribing(true)
     updateProgress('audio', 'validatingInput')
-
-    try {
-      await processAudioFile(liveFile, result.transcript)
-    } catch (recordingError) {
-      const message = recordingError instanceof Error ? recordingError.message : ''
-      if (
-        /Whisper runtime is not available/i.test(message) ||
-        /configure a production ASR service/i.test(message) ||
-        /Whisper transcription unavailable/i.test(message)
-      ) {
-        setError('')
-        setStatus(t('meetings.errors.transcriptionUnavailable'))
-        updateProgress('audio', 'completed')
-        return
-      }
-      setError(message || t('meetings.errors.transcriptionFailed'))
-      updateProgress('audio', 'failed')
-    } finally {
-      setIsTranscribing(false)
-    }
   }
 
   const preview = useMemo(() => {
@@ -876,23 +812,28 @@ export default function MeetingStudioPage() {
       return
     }
 
+    if (!isDocumentFile(recordingFile)) {
+      if (!isAudioVideoFile(recordingFile)) {
+        setError(t('meetings.errors.unsupportedFileType'))
+        return
+      }
+
+      setError('')
+      startBackgroundAudioJob(recordingFile)
+      setStatus(t('meetings.backgroundJob.started'))
+      setIsTranscribing(true)
+      updateProgress('audio', 'validatingInput')
+      return
+    }
+
     setError('')
-    setStatus(t('meetings.status.transcribing'))
+    setStatus(t('meetings.status.processingDocument'))
     setIsTranscribing(true)
-    updateProgress(isDocxFile(recordingFile) ? 'docx' : 'audio', 'validatingInput')
+    updateProgress('docx', 'validatingInput')
 
     try {
-      if (isDocxFile(recordingFile)) {
-        updateProgress('docx', 'extractingDocumentText')
-        const mammothModule = (await import('mammoth/mammoth.browser')) as DocxTextExtractor
-        const extractRawText = mammothModule.extractRawText ?? mammothModule.default?.extractRawText
-
-        if (!extractRawText) {
-          throw new Error(t('meetings.errors.documentExtractionFailed'))
-        }
-
-        const extracted = await extractRawText({ arrayBuffer: await recordingFile.arrayBuffer() })
-        const extractedText = extracted.value.trim()
+      updateProgress('docx', 'extractingDocumentText')
+      const extractedText = await extractFileText(recordingFile)
         const heuristicSummary = deriveDocxSummaryHeuristic(extractedText)
         const inferredMeta = deriveMeetingMetaFromDocx(extractedText, recordingFile.name)
 
@@ -1000,24 +941,12 @@ export default function MeetingStudioPage() {
           }
         }
         updateProgress('docx', 'completed')
-        return
-      }
-
-      await processAudioFile(recordingFile)
     } catch (transcribeError) {
-      const message = transcribeError instanceof Error ? transcribeError.message : ''
-      if (
-        /Whisper runtime is not available/i.test(message) ||
-        /configure a production ASR service/i.test(message) ||
-        /Whisper transcription unavailable/i.test(message)
-      ) {
-        setError('')
-        setStatus(t('meetings.errors.transcriptionUnavailable'))
-        updateProgress(isDocxFile(recordingFile) ? 'docx' : 'audio', 'completed')
-        return
-      }
-      setError(message || t('meetings.errors.transcriptionFailed'))
-      updateProgress(isDocxFile(recordingFile) ? 'docx' : 'audio', 'failed')
+      const message = transcribeError instanceof Error
+        ? describeDocumentFileError(recordingFile, transcribeError, t)
+        : t('meetings.errors.documentExtractionFailed')
+      setError(message)
+      updateProgress('docx', 'failed')
     } finally {
       setIsTranscribing(false)
     }
@@ -1078,6 +1007,15 @@ export default function MeetingStudioPage() {
         { section: t('meetings.template.risks'), content: template.risks || '-' },
         { section: t('meetings.template.actions'), content: template.actions || '-' },
         { section: t('meetings.template.nextSteps'), content: template.nextSteps || '-' },
+        ...(uploadedFileMeta
+          ? [{
+              section: t('meetings.sourceFile.section'),
+              content: t('meetings.sourceFile.content', {
+                fileName: uploadedFileMeta.fileName,
+                lastModified: uploadedFileMeta.lastModified
+              })
+            }]
+          : [])
       ]
 
       await post('/meetings', {
@@ -1282,13 +1220,15 @@ export default function MeetingStudioPage() {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.recordingFile')}</span>
               <input
                 type="file"
-                accept="audio/*,video/*,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                accept={MEETING_STUDIO_FILE_ACCEPT}
                 onChange={(event) => {
                   const nextFile = event.target.files?.[0] ?? null
                   setRecordingFile(nextFile)
+                  captureUploadedFileMeta(nextFile)
                 }}
                 className="mt-1 block w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800 dark:text-slate-300"
               />
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('meetings.supportedFileTypes')}</p>
             </label>
 
             <LiveMeetingRecorder
@@ -1338,6 +1278,26 @@ export default function MeetingStudioPage() {
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{t('meetings.detectedMetaHint')}</p>
 
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.uploadedFileName')}</span>
+                  <input
+                    readOnly
+                    value={uploadedFileMeta?.fileName ?? ''}
+                    placeholder={t('meetings.uploadedFileNamePlaceholder')}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-200"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.uploadedFileLastModified')}</span>
+                  <input
+                    readOnly
+                    value={uploadedFileMeta?.lastModified ?? ''}
+                    placeholder={t('meetings.uploadedFileLastModifiedPlaceholder')}
+                    className="mt-1 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-200"
+                  />
+                </label>
+
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.titleField')}</span>
                   <input

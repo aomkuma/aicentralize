@@ -596,7 +596,26 @@
     "detectedMetaLabel": "ข้อมูลการประชุมที่ระบบตรวจพบ",
     "detectedMetaHint": "หลังอัปโหลดและประมวลผลไฟล์บันทึกการประชุม ระบบจะเติมชื่อประชุมและวันเวลาให้อัตโนมัติ โดยคุณยังแก้ไขเองได้",
     "titleAutoPlaceholder": "ระบบเติมจากไฟล์บันทึกการประชุมอัตโนมัติ",
-    "uploadHelp": "ใช้ไฟล์เสียงหรือวิดีโอจริง แล้วปรับข้อความถอดเสียงก่อนบันทึกการประชุม",
+    "uploadHelp": "รองรับไฟล์เสียง/วิดีโอสำหรับถอดเสียง หรือเอกสาร TXT, CSV, DOCX, PDF, XLSX สำหรับอ่านข้อความแล้ววิเคราะห์",
+    "supportedFileTypes": "รองรับ: เสียง/วิดีโอ, TXT, MD, CSV, TSV, DOCX, PDF, XLSX",
+    "uploadedFileName": "ชื่อไฟล์ที่อัปโหลด",
+    "uploadedFileNamePlaceholder": "ยังไม่ได้เลือกไฟล์",
+    "uploadedFileLastModified": "แก้ไขล่าสุดของไฟล์",
+    "uploadedFileLastModifiedPlaceholder": "จะแสดงหลังเลือกไฟล์",
+    "sourceFile": {
+      "section": "ไฟล์ต้นทาง",
+      "content": "ชื่อไฟล์: {{fileName}} · แก้ไขล่าสุด: {{lastModified}}"
+    },
+    "fileReadErrors": {
+      "pdfImageOnly": "PDF นี้อาจเป็นไฟล์ภาพล้วน ระบบอ่านข้อความไม่ได้",
+      "pdfGeneric": "อ่านไฟล์ PDF นี้ไม่สำเร็จ",
+      "docxGeneric": "อ่านไฟล์ DOCX นี้ไม่สำเร็จ",
+      "xlsxInvalid": "โครงสร้างไฟล์ XLSX นี้ไม่ถูกต้องหรือระบบยังไม่รองรับ",
+      "xlsxGeneric": "อ่านไฟล์ XLSX นี้ไม่สำเร็จ",
+      "csvGeneric": "อ่านไฟล์ CSV/TSV นี้ไม่สำเร็จ",
+      "textGeneric": "อ่านไฟล์ข้อความนี้ไม่สำเร็จ",
+      "unsupportedType": "ชนิดไฟล์นี้ยังไม่รองรับ"
+    },
     "templateHelp": "กรอกหัวข้อในแบบฟอร์มรายงานการประชุม แล้วดูตัวอย่างแบบเรียลไทม์",
     "preview": "ตัวอย่างก่อนบันทึก",
     "previewHelp": "นี่คือรายงานการประชุมที่จะถูกบันทึกลงระบบ",
@@ -646,6 +665,7 @@
     },
     "status": {
       "transcribing": "กำลังถอดข้อความ...",
+      "processingDocument": "กำลังอ่านและประมวลผลเอกสาร...",
       "transcribed": "ถอดข้อความเรียบร้อย",
       "processingLiveRecording": "กำลังประมวลผลเสียงที่อัดสด...",
       "analyzingRecording": "กำลังวิเคราะห์ข้อความถอดเสียง...",
@@ -673,8 +693,24 @@
         "transcribingRecording": "ถอดเสียงเป็นข้อความ",
         "analyzingRecording": "วิเคราะห์ข้อความถอดเสียงด้วย AI",
         "savingMeeting": "บันทึกข้อมูลการประชุมเข้าระบบ",
-        "completed": "เสร็จเรียบร้อย"
+        "completed": "เสร็จเรียบร้อย",
+        "failed": "ล้มเหลว"
       }
+    },
+    "backgroundJob": {
+      "started": "เริ่มถอดเสียงและวิเคราะห์เบื้องหลังแล้ว คุณไปหน้าอื่นได้ ระบบจะแจ้งเมื่อเสร็จ",
+      "runningTitle": "กำลังถอดเสียงและวิเคราะห์การประชุม",
+      "runningDescription": "{{step}} · {{fileName}}",
+      "completedTitle": "ถอดเสียงและวิเคราะห์เสร็จแล้ว",
+      "completedDescription": "{{fileName}} พร้อมตรวจสอบใน Meeting Studio",
+      "failedTitle": "ถอดเสียงหรือวิเคราะห์ไม่สำเร็จ",
+      "failedDescription": "กรุณาเปิด Meeting Studio เพื่อดูรายละเอียดและลองใหม่",
+      "openMeetingStudio": "เปิด Meeting Studio",
+      "safeToNavigate": "ไปหน้าอื่นได้ระหว่างรอ",
+      "dismiss": "ปิดแถบนี้",
+      "notificationTitle": "Meeting Studio",
+      "notificationSuccess": "ถอดเสียงสำเร็จ: {{fileName}}",
+      "notificationFailed": "ถอดเสียงไม่สำเร็จ: {{fileName}}"
     },
     "errors": {
       "selectProject": "กรุณาเลือกโปรเจคก่อน",
@@ -682,6 +718,7 @@
       "sessionAtRequired": "กรุณาระบุวันและเวลาประชุม",
       "summaryRequired": "กรุณาระบุสรุปผู้บริหาร",
       "selectRecording": "กรุณาเลือกไฟล์บันทึกก่อน",
+      "unsupportedFileType": "ชนิดไฟล์นี้ยังไม่รองรับ กรุณาใช้ไฟล์เสียง/วิดีโอ หรือ TXT, CSV, DOCX, PDF, XLSX",
       "transcriptionFailed": "ถอดข้อความไม่สำเร็จ",
       "documentExtractionFailed": "อ่านเอกสารไม่สำเร็จ",
       "documentAnalysisFailed": "วิเคราะห์เอกสารไม่สำเร็จ",

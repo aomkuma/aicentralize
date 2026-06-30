@@ -45,7 +45,7 @@ export default function ActionItemRedirectPage() {
   }, [actionItemId, get, navigate])
 
   if (!actionItemId) {
-    return <Navigate to="/continuity" replace />
+    return <Navigate to="/projects" replace />
   }
 
   return (

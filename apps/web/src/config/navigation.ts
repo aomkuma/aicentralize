@@ -22,12 +22,6 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
     icon: 'meetings',
   },
   {
-    id: 'continuity',
-    to: '/continuity',
-    labelKey: 'navigation.projectContinuity',
-    icon: 'continuity',
-  },
-  {
     id: 'projects',
     to: '/projects',
     labelKey: 'navigation.allProjects',

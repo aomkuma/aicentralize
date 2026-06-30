@@ -1,11 +1,11 @@
-import { useParams } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
-import Layout from '../components/Layout'
-import { ContinuityDashboard } from '../components/features/continuity'
+import { Navigate, useParams } from 'react-router-dom'
+import Layout from '../components/Layout'import { ContinuityDashboard } from '../components/features/continuity'
 
 export default function ContinuityPage() {
-  const { t } = useTranslation()
   const { projectId } = useParams<{ projectId?: string }>()
+  if (!projectId) {
+    return <Navigate to="/projects" replace />
+  }
 
   return (
     <Layout>

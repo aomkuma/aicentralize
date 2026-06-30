@@ -21,6 +21,20 @@ export default function Breadcrumb() {
     ]
 
     // Find the current page in navigation
+    const pathParts = location.pathname.split('/').filter(Boolean)
+
+    if (pathParts[0] === 'continuity') {
+      breadcrumbs.push({
+        label: t('continuity.title'),
+      })
+      if (pathParts[1]) {
+        breadcrumbs.push({
+          label: t('continuity.project'),
+        })
+      }
+      return breadcrumbs
+    }
+
     const currentItem = PRIMARY_NAVIGATION.find((item) => {
       if (item.external) {
         return location.pathname.startsWith(item.to)
@@ -35,16 +49,10 @@ export default function Breadcrumb() {
         to: currentItem.to,
       })
 
-      // Parse path for sub-pages (e.g., /continuity/:projectId)
+      // Parse path for sub-pages (e.g., /reminders/:projectId)
       const pathParts = location.pathname.split('/').filter(Boolean)
       
       // Handle project-based routes
-      if (pathParts[0] === 'continuity' && pathParts[1]) {
-        breadcrumbs.push({
-          label: t('continuity.project') || 'Project',
-        })
-      }
-      
       if (pathParts[0] === 'reminders' && pathParts[1]) {
         breadcrumbs.push({
           label: t('reminders.project') || 'Project',
