@@ -25,6 +25,8 @@ import FeelingLogsPage from './pages/FeelingLogsPage'
 import AcceptInvitePage from './pages/AcceptInvitePage'
 import WelcomePage from './pages/WelcomePage'
 import MyTasksPage from './pages/MyTasksPage'
+import StarterTourPage from './pages/StarterTourPage'
+import IndividualTourPage from './pages/IndividualTourPage'
 import { canAccessFeelingLogs, canAccessMeetingStudio, isIndividualPackage, canAccessAiChatHistory } from './lib/packageAccess'
 import FeatureRoute from './components/FeatureRoute'
 import LoginPage from './pages/LoginPage'
@@ -186,6 +188,8 @@ function AppContent() {
           <Route path="/admin/packages" element={<SuperAdminRoute><AdminPackagesPage /></SuperAdminRoute>} />
           <Route path="/admin/billing" element={<SuperAdminRoute><AdminBillingPage /></SuperAdminRoute>} />
           <Route path="/dashboard" element={<WorkflowRoute><FeatureRoute feature="AI_CHAT_BASIC"><DashboardPage /></FeatureRoute></WorkflowRoute>} />
+          <Route path="/starter-tour" element={<WorkflowRoute><StarterTourPage /></WorkflowRoute>} />
+          <Route path="/individual-tour" element={<WorkflowRoute><IndividualTourPage /></WorkflowRoute>} />
           <Route path="/my-tasks" element={<WorkflowRoute><MyTasksPage /></WorkflowRoute>} />
           <Route path="/continuity" element={<WorkflowRoute><FeatureRoute feature="CONTINUITY_SUMMARY"><ContinuityPage /></FeatureRoute></WorkflowRoute>} />
           <Route path="/continuity/:projectId" element={<WorkflowRoute><FeatureRoute feature="CONTINUITY_SUMMARY"><ContinuityPage /></FeatureRoute></WorkflowRoute>} />

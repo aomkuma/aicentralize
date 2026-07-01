@@ -1,6 +1,6 @@
 # Handover — Kora
 
-**Last updated:** 2026-07-01 · **`main` through `b78cbfa`**
+**Last updated:** 2026-07-01 · **`main` through `2157f3e`**
 
 | Doc | Purpose |
 |-----|---------|
@@ -28,6 +28,8 @@
 | **Package feature gating** | Checkbox features on `/admin/packages` enforced in sidebar, `FeatureRoute`, and key API routes (`packageAccessService`) |
 | **Tenant billing** | `billingStartDate` on first login; admin billing — see [`guides/BILLING.md`](./guides/BILLING.md) |
 | **Project Knowledge import** | Server-side parsing; async `import-jobs` + poll; jobs persisted in DB (`ProjectKnowledgeImportJob`) |
+| **Knowledge library UX** | Personal + org memory grouped by source file (drill-down); org tabs **คิวตรวจ / ความจำ**; add-source form collapses when `BASELINE_READY` |
+| **First-run tours** | `/starter-tour` and `/individual-tour`; Dashboard prompts guide Starter users through project/knowledge/meeting/tasks/AI and Individual users through personal knowledge/AI/tasks |
 | **INDIVIDUAL AI history** | `/ai-trace` conversations for `AI_CHAT_BASIC`; `GET /ask-ai/conversations` (self-scoped) |
 | **Dashboard chat persist** | `sessionStorage` with stable `persistKey` on INDIVIDUAL dashboard |
 | **Tenant AI persona** | Signup category (`tenantCategory`) injected into server-side AI prompts |
@@ -74,10 +76,13 @@ cd apps/api && npx prisma generate
 1. Guest `/` — hero, packages, story section, EN/TH.
 2. `/my-tasks` — create task; tenant admin assignee dropdown (needs 2+ members).
 3. `/admin/packages` — create/edit package with discount; assign package to org; verify nav hides gated routes.
-4. `/projects/:id/knowledge` — upload XLSX/PDF; `POST .../import-jobs` + poll until completed (no 404 at 100%).
-5. INDIVIDUAL tenant — dashboard chat → `/ai-trace` shows conversation; navigate away/back restores chat.
-6. INDIVIDUAL package tenant — `/feeling-logs` hidden; other tiers show feeling log.
-7. Share welcome URL — OG image absolute (after `VITE_APP_PUBLIC_URL` set).
+4. STARTER tenant — dashboard banner -> `/starter-tour`; links step through `/projects`, knowledge, meeting studio, My Tasks, Ask AI; finish hides prompt.
+5. INDIVIDUAL tenant — dashboard guide -> `/individual-tour`; flow prioritizes personal knowledge, Ask AI, and My Tasks; finish hides prompt.
+6. `/projects/:id/knowledge` — upload XLSX/PDF; poll import job; **คิวตรวจ** tab shows pending approval; **ความจำ** tab groups by document; add-source accordion collapsed when baseline ready.
+7. INDIVIDUAL `/projects/:id/knowledge` — **คลังความจำ** lists files first; drill into categories per file.
+8. INDIVIDUAL tenant — dashboard chat → `/ai-trace` shows conversation; navigate away/back restores chat.
+9. INDIVIDUAL package tenant — `/feeling-logs` hidden; other tiers show feeling log.
+10. Share welcome URL — OG image absolute (after `VITE_APP_PUBLIC_URL` set).
 
 ---
 

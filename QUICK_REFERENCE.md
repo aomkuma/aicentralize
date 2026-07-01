@@ -1,5 +1,33 @@
 # Quick Reference - Common Commands
 
+## Session Update (2026-07-01, latest)
+
+**`main` through `2157f3e`.** Feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Status: [`docs/HANDOVER.md`](docs/HANDOVER.md).
+
+Recent product changes:
+- **Onboarding tours:** `/starter-tour` for STARTER packages (project -> knowledge -> meeting -> tasks -> Ask AI) and `/individual-tour` for INDIVIDUAL packages (personal workspace -> knowledge -> Ask AI -> personal tasks); Dashboard banners store completed/dismissed state per user + tenant.
+- **Personal knowledge (INDIVIDUAL):** approved memory grouped by uploaded file → drill-down by category (`PersonalKnowledgePage`, `groupMemoryItemsBySource`).
+- **Project knowledge (org):** library tabs **คิวตรวจ** / **ความจำที่อนุมัติ**; pending `EXTRACTED` sources as approval cards; memory grouped by source document then type.
+- **Baseline-ready UX:** add-source form collapses into accordion when `BASELINE_READY` (auto-expands if user picks files or types content).
+
+### Onboarding tour quick test
+
+1. STARTER tenant: open `/dashboard` -> banner **Open Starter tour** -> `/starter-tour`; verify steps link to `/projects`, `/projects/:id/knowledge`, `/meetings/:id`, `/my-tasks`, `/dashboard#individual-ask-ai`.
+2. INDIVIDUAL tenant: open `/dashboard` -> **Open Individual tour** -> `/individual-tour`; verify steps emphasize personal workspace, knowledge upload/approval, Ask AI, and My Tasks.
+3. Click **Finish tour** or dismiss banner; reload dashboard and confirm the tour prompt stays hidden for that user + tenant.
+
+### Knowledge library quick test (org)
+
+1. Open `/projects/:id/knowledge` (non-INDIVIDUAL package).
+2. After baseline ready — add-source section collapsed; click header to expand.
+3. Tab **คิวตรวจ** — pending extractions with approve button; **ความจำที่อนุมัติ** — file cards → drill into types.
+
+### Knowledge library quick test (INDIVIDUAL)
+
+1. Open `/projects/:id/knowledge` from dashboard.
+2. Upload → approve → **คลังความจำของคุณ** shows one card per file.
+3. Tap file → categories and items inside that document.
+
 ## Session Update (2026-07-01)
 
 **`main` through `b78cbfa`.** Feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Status: [`docs/HANDOVER.md`](docs/HANDOVER.md).

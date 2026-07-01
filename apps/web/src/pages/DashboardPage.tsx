@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { BookOpen, Brain, ClipboardList, Pencil, Sparkles, X } from 'lucide-react'
+import { ArrowRight, BookOpen, Brain, ClipboardList, Pencil, Rocket, Sparkles, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
@@ -13,6 +13,13 @@ import {
   isIndividualPackage,
   canAccessAiChatHistory,
 } from '../lib/packageAccess'
+import {
+  hasIndividualTourFlag,
+  hasStarterTourFlag,
+  isStarterPackage,
+  setIndividualTourFlag,
+  setStarterTourFlag,
+} from '../lib/starterTour'
 import { useFeatureFlagStore } from '../stores/featureFlagStore'
 import type { TenantMembership } from '../types'
 
@@ -54,6 +61,8 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<DashboardProject[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [individualGuideDismissed, setIndividualGuideDismissed] = useState(false)
+  const [individualTourDismissed, setIndividualTourDismissed] = useState(false)
+  const [starterTourDismissed, setStarterTourDismissed] = useState(false)
   const isSuperAdmin = user?.systemRole === 'SUPER_ADMIN'
   const activeMembership = memberships.find((membership) => membership.tenantId === currentTenant?.id) ?? memberships[0]
   const activeTenantId = activeMembership?.tenantId
@@ -63,9 +72,21 @@ export default function DashboardPage() {
     ?? currentTenant?.currentPackage?.maxProjects
   const canCreateProject = canCreateProjectForPackage(projects.length, packageMaxProjects)
   const isIndividual = isIndividualPackage(packageCode)
+  const isStarter = isStarterPackage(packageCode)
   const canOpenAiChatHistory = canAccessAiChatHistory(packageCode, canAccessFeature)
   const primaryProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0] ?? null
   const activeChatProjectId = selectedProjectId || projects[0]?.id || undefined
+  const shouldShowStarterTourBanner =
+    isStarter &&
+    !isSuperAdmin &&
+    !starterTourDismissed &&
+    !hasStarterTourFlag('completed', user?.id, activeTenantId)
+  const shouldShowIndividualGuide =
+    isIndividual &&
+    !isSuperAdmin &&
+    !individualGuideDismissed &&
+    !individualTourDismissed &&
+    !hasIndividualTourFlag('completed', user?.id, activeTenantId)
 
   useEffect(() => {
     const fetchMemberships = async () => {
@@ -124,14 +145,40 @@ export default function DashboardPage() {
     )
   }, [user?.id, activeTenantId])
 
+  useEffect(() => {
+    if (!user?.id || !activeTenantId || !isStarter) {
+      setStarterTourDismissed(false)
+      return
+    }
+
+    setStarterTourDismissed(hasStarterTourFlag('dismissed', user.id, activeTenantId))
+  }, [user?.id, activeTenantId, isStarter])
+
+  useEffect(() => {
+    if (!user?.id || !activeTenantId || !isIndividual) {
+      setIndividualTourDismissed(false)
+      return
+    }
+
+    setIndividualTourDismissed(hasIndividualTourFlag('dismissed', user.id, activeTenantId))
+  }, [user?.id, activeTenantId, isIndividual])
+
   const dismissIndividualGuide = () => {
     if (!user?.id || !activeTenantId) {
       setIndividualGuideDismissed(true)
+      setIndividualTourDismissed(true)
       return
     }
 
     window.localStorage.setItem(individualGuideStorageKey(user.id, activeTenantId), '1')
+    setIndividualTourFlag('dismissed', user.id, activeTenantId)
     setIndividualGuideDismissed(true)
+    setIndividualTourDismissed(true)
+  }
+
+  const dismissStarterTour = () => {
+    setStarterTourFlag('dismissed', user?.id, activeTenantId)
+    setStarterTourDismissed(true)
   }
 
   const handleSelectTenant = (membership: TenantMembership) => {
@@ -145,7 +192,7 @@ export default function DashboardPage() {
       <MorningBriefingDialog tenantId={activeTenantId} />
       {/* Main content area */}
       <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {isIndividual && !isSuperAdmin && !individualGuideDismissed && (
+        {shouldShowIndividualGuide && (
           <section className="relative mb-8 overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-5 sm:p-7 shadow-sm dark:border-amber-900/40 dark:from-amber-950/30 dark:via-slate-900 dark:to-orange-950/20">
             <button
               type="button"
@@ -170,6 +217,22 @@ export default function DashboardPage() {
                 <p className="mt-2 max-w-3xl text-sm sm:text-base text-gray-600 dark:text-slate-300">
                   {t('dashboard.individual.description')}
                 </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link
+                    to="/individual-tour"
+                    className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-600"
+                  >
+                    {t('individualTour.banner.action')}
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={dismissIndividualGuide}
+                    className="rounded-lg border border-amber-200 bg-white/80 px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-white dark:border-amber-800/50 dark:bg-slate-900/70 dark:text-amber-200 dark:hover:bg-slate-800"
+                  >
+                    {t('individualTour.banner.dismiss')}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -231,6 +294,45 @@ export default function DashboardPage() {
                 </li>
               ))}
             </ol>
+          </section>
+        )}
+
+        {shouldShowStarterTourBanner && (
+          <section className="relative mb-8 overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-5 shadow-sm dark:border-blue-900/50 dark:from-blue-950/30 dark:via-slate-900 dark:to-cyan-950/20 sm:p-6">
+            <button
+              type="button"
+              onClick={dismissStarterTour}
+              aria-label={t('starterTour.banner.dismiss')}
+              title={t('starterTour.banner.dismiss')}
+              className="absolute right-4 top-4 rounded-lg border border-blue-200 bg-white/80 p-1.5 text-blue-800 transition hover:bg-white hover:text-blue-950 dark:border-blue-800/50 dark:bg-slate-900/70 dark:text-blue-200 dark:hover:bg-slate-800"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="flex flex-col gap-4 pr-10 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                  <Rocket className="h-6 w-6" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                    {t('starterTour.banner.eyebrow')}
+                  </p>
+                  <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
+                    {t('starterTour.banner.title')}
+                  </h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600 dark:text-slate-300">
+                    {t('starterTour.banner.description')}
+                  </p>
+                </div>
+              </div>
+              <Link
+                to="/starter-tour"
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                {t('starterTour.banner.action')}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </section>
         )}
 

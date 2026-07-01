@@ -500,6 +500,102 @@
     "meetings": "Meetings",
     "systemSettings": "System Settings"
   },
+  "starterTour": {
+    "eyebrow": "Starter onboarding",
+    "title": "Set up your first useful workspace in Kora",
+    "description": "Follow this short path to create a project, add approved knowledge, save your first meeting, track work, and ask AI with real context.",
+    "primaryActionStart": "Create your first project",
+    "primaryActionContinue": "Continue setup",
+    "finishAction": "Finish tour",
+    "progressTitle": "Starter setup progress",
+    "progressDescription": "{{completed}} of {{total}} signals detected",
+    "workspaceFallback": "Current workspace",
+    "activeProject": "Using {{project}} as the first project for this tour.",
+    "noProjectYet": "No project yet. Create one first so knowledge, meetings, tasks, and AI answers have a shared home.",
+    "done": "Detected",
+    "projectRequiredHint": "Create a project first; the next steps will open inside that project.",
+    "createProjectFirst": "Create project first",
+    "banner": {
+      "eyebrow": "First-time Starter guide",
+      "title": "Want a quick path through Kora?",
+      "description": "Start with a project, add project knowledge, save one meeting, then ask AI about the work you just captured.",
+      "action": "Open Starter tour",
+      "dismiss": "Dismiss Starter tour"
+    },
+    "steps": {
+      "project": {
+        "title": "Create the first project",
+        "description": "Projects are the main container for meetings, knowledge, notes, action items, and AI context.",
+        "action": "Create project",
+        "openAction": "Open projects"
+      },
+      "knowledge": {
+        "title": "Add project knowledge",
+        "description": "Upload or paste a source document, then approve useful extracted memory so AI can use it as trusted evidence.",
+        "action": "Add knowledge"
+      },
+      "meeting": {
+        "title": "Save the first meeting",
+        "description": "Use Meeting Studio to paste a transcript or import a document, review the generated minutes, and save them to the project.",
+        "action": "Open Meeting Studio"
+      },
+      "tasks": {
+        "title": "Turn follow-ups into tasks",
+        "description": "Review action items, assign owners, set due dates, and keep your personal task list clear.",
+        "action": "View My Tasks"
+      },
+      "askAi": {
+        "title": "Ask AI with real context",
+        "description": "Return to the dashboard and ask about project status, deadlines, risks, or the knowledge you approved.",
+        "action": "Ask AI"
+      }
+    }
+  },
+  "individualTour": {
+    "eyebrow": "Individual onboarding",
+    "title": "Build your personal knowledge space",
+    "description": "Individual is centered on your own knowledge library and Ask AI. Start by creating a workspace, approve useful knowledge, ask questions from it, and keep personal follow-ups in My Tasks.",
+    "primaryActionStart": "Create your knowledge space",
+    "primaryActionContinue": "Open knowledge library",
+    "finishAction": "Finish tour",
+    "progressTitle": "Individual setup progress",
+    "progressDescription": "{{completed}} of {{total}} signals detected",
+    "workspaceFallback": "Personal workspace",
+    "activeWorkspace": "{{project}} is your active knowledge space for this tour.",
+    "noWorkspaceYet": "No personal workspace yet. Create one first so uploads, AI answers, and tasks stay organized together.",
+    "done": "Detected",
+    "workspaceRequiredHint": "Create a personal workspace first; the knowledge and AI steps will open inside it.",
+    "createWorkspaceFirst": "Create workspace first",
+    "tipTitle": "Best first question",
+    "tipDescription": "After approving knowledge, ask AI to summarize the topic, list weak points, create a study or work plan, or turn important items into personal tasks.",
+    "banner": {
+      "action": "Open Individual tour",
+      "dismiss": "Hide this guide"
+    },
+    "steps": {
+      "workspace": {
+        "title": "Create your personal workspace",
+        "description": "This acts like your personal subject, notebook, or project folder. It keeps your files, notes, AI context, and tasks together.",
+        "action": "Create workspace",
+        "openAction": "Open workspaces"
+      },
+      "knowledge": {
+        "title": "Add and approve knowledge",
+        "description": "Upload study files, notes, PDFs, spreadsheets, or reference documents. Review what Kora extracts so your AI answers use approved memory.",
+        "action": "Open knowledge library"
+      },
+      "askAi": {
+        "title": "Ask AI from your library",
+        "description": "Use the dashboard chat to ask for summaries, explanations, risks, comparisons, next steps, or exam-style practice from what you saved.",
+        "action": "Ask AI"
+      },
+      "tasks": {
+        "title": "Keep personal action items",
+        "description": "Create reminders for what to read, revise, submit, or follow up. My Tasks collects your personal work across spaces.",
+        "action": "View My Tasks"
+      }
+    }
+  },
   "meetingHistory": {
     "navLabel": "Minute History",
     "title": "Meeting Minutes History",

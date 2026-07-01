@@ -1,6 +1,6 @@
 # AICentralize — Feature Catalog
 
-**Last updated:** 2026-07-01 · **`main` through `b78cbfa`**
+**Last updated:** 2026-07-01 · **`main` through `2157f3e`**
 
 This document is the product feature map (main modules and sub-features). For day-to-day commands and access rules, see [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md). For current status and open work, see [`HANDOVER.md`](./HANDOVER.md).
 
@@ -24,6 +24,19 @@ This document is the product feature map (main modules and sub-features). For da
 | **Brand assets** | `apps/web/public/brand/` — see `brand/README.md`; ingest via `scripts/ingest-kora-pack.py` |
 
 **i18n:** `landing.*` in `en.json` / `th.json`. Product positioning emphasizes organizational knowledge and team atmosphere, not meetings alone.
+
+---
+
+## 0.5 First-Run Tours
+
+**Routes:** `/starter-tour`, `/individual-tour` · **Entry:** Dashboard banners
+
+| Tour | Package | Path |
+|------|---------|------|
+| **Starter tour** | `STARTER` | Create project -> add project knowledge -> save first meeting -> review My Tasks -> ask AI |
+| **Individual tour** | `INDIVIDUAL` | Create personal workspace -> add/approve knowledge -> ask AI from the library -> manage personal action items |
+
+Tour prompts are dismissed/completed per user + tenant in localStorage (`starterTour.ts`). The INDIVIDUAL tour intentionally centers knowledge and Ask AI, with My Tasks as a personal follow-up layer rather than a meeting-first workflow.
 
 ---
 
@@ -60,10 +73,12 @@ This document is the product feature map (main modules and sub-features). For da
 | Sub-feature | Description |
 |-------------|-------------|
 | **Project list** | Cards with links to continuity, knowledge, notes, meeting studio context. |
+| **First-run entry** | Dashboard tour cards route STARTER users to `/starter-tour` and INDIVIDUAL users to `/individual-tour`. |
 | **Continuity dashboard** | Risk summary, overdue by owner/project, missing owner/due-date audit, saved meetings section. |
 | **Workload balancing** | Suggestion popup when owner load is uneven (`ContinuityDashboard`). |
 | **Navigation** | Continuity is **not** in sidebar; open from project card. Bare `/continuity` → `/projects`. |
-| **Project knowledge** | Onboarding baseline: paste text or **upload files to server** (`POST .../knowledge/sources/import` sync, or **`POST .../import-jobs`** async + poll `GET .../import-jobs/:id`); job state in `ProjectKnowledgeImportJob` table; guided 3-step UX + `WorkflowProgressPanel`; supported: `.txt`, `.md`, `.csv`, `.tsv`, `.docx`, `.pdf`, `.xlsx` (120k char clip); AI extraction into review queue. Scanned PDFs return `PDF_NO_TEXT`. |
+| **Project knowledge** | Org route `/projects/:projectId/knowledge` (`ProjectKnowledgePage`): paste or upload (`POST .../import-jobs` + poll); guided 3-step UX; **library panel** with tabs **Review queue** / **Approved memory**; pending `EXTRACTED` sources highlighted; approved memory **grouped by source document** then by memory type; **add-source form collapses** when baseline status is `BASELINE_READY`. INDIVIDUAL tenants on the same route get `PersonalKnowledgePage` instead (see below). Supported files: `.txt`, `.md`, `.csv`, `.tsv`, `.docx`, `.pdf`, `.xlsx` (120k clip). |
+| **Personal knowledge (INDIVIDUAL)** | Same route `/projects/:projectId/knowledge` for INDIVIDUAL package — 3-step upload → review → memory; student vs general persona from `tenantCategory`; approved memory **grouped by uploaded file** with drill-down into chapter/type categories (`personalKnowledge.ts`). |
 | **General notes** | Free-form project notes used as Ask-AI evidence (`projectGeneralNoteService`); **PUBLIC** / **PRIVATE** visibility (private excluded from shared evidence); saved-note URLs are linkified and open in a new tab. |
 | **Team sentiment badges** | Mood indicators on projects team table (`TENANT_ADMIN` / `MANAGER`). |
 

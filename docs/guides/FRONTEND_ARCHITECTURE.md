@@ -93,8 +93,20 @@ features/
 **Pages (not under `features/`):**
 - `pages/WelcomePage.tsx` — guest marketing landing
 - `pages/MyTasksPage.tsx` — wraps `ActionItemsPanel` with `mode="mine"`
+- `pages/StarterTourPage.tsx` — first-run checklist for STARTER tenants
+- `pages/IndividualTourPage.tsx` — first-run checklist for INDIVIDUAL tenants
 
 **Permissions helper:** `lib/actionItemPermissions.ts` — `canAssignActionItemsToOthers`, `resolveTenantMembership`
+
+### First-run tours
+
+**Routes:** `/starter-tour`, `/individual-tour`
+
+- `DashboardPage` shows package-specific tour prompts and stores dismiss/completion state per user + tenant.
+- `lib/starterTour.ts` stores `starter-tour.*` and `individual-tour.*` localStorage flags.
+- STARTER tour flow: project -> knowledge -> meeting -> My Tasks -> Ask AI.
+- INDIVIDUAL tour flow: personal workspace -> approved knowledge -> Ask AI -> personal action items.
+- INDIVIDUAL intentionally avoids a meeting-first path; its primary value moment is a personal knowledge library powering dashboard AI.
 
 ### ActionItemsPanel modes
 
@@ -138,7 +150,23 @@ useAiRunLogs() -> {
   fetchLogs({ operation, status, projectId, ... }),
   fetchLogDetail(), fetchLogsByOperation()
 }
+
+// Knowledge import (shared personal + org upload flow)
+useKnowledgeImportFlow(projectId) -> {
+  importFiles(), approveSource(), progress panel state
+}
 ```
+
+### Project Knowledge pages
+
+**Route:** `/projects/:projectId/knowledge` — `KnowledgeRoute` in `App.tsx` picks page by package:
+
+| Package | Component | Memory UX |
+|---------|-----------|-----------|
+| INDIVIDUAL | `PersonalKnowledgePage` | File list → drill-down by chapter/type (`groupMemoryItemsBySource`) |
+| Org | `ProjectKnowledgePage` | Tabs: review queue / approved memory; file drill-down (`groupMemoryItemsByType`); add-source accordion when `BASELINE_READY` |
+
+**Shared helpers:** `lib/personalKnowledge.ts` — `groupMemoryItemsBySource`, `groupMemoryItemsByCategory`, `groupMemoryItemsByType`, `useKnowledgeImportFlow` hook for upload progress.
 
 ### Type Definitions
 
