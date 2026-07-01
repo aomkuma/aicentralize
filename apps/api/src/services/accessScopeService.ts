@@ -1,5 +1,6 @@
-import { TenantRole, UserRole } from "@prisma/client";
+import { SystemRole, TenantRole, UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import { isPlatformAdmin } from "./tenantAccessService";
 
 type AskAiScopeInput = {
   userId: string;
@@ -23,10 +24,11 @@ type ScopeCheckResult = {
 type AuthScopeUser = {
   id: string;
   role: UserRole;
+  systemRole?: SystemRole;
 };
 
-function canBypassByRole(role: UserRole): boolean {
-  return role === UserRole.ADMIN || role === UserRole.PM;
+function canBypassScope(user: AuthScopeUser): boolean {
+  return isPlatformAdmin(user) || user.role === UserRole.ADMIN;
 }
 
 function canManageTenant(role: TenantRole): boolean {
@@ -58,6 +60,11 @@ async function isMemberInMeeting(userId: string, meetingId: string) {
     isMeetingMember,
     projectId: meeting.projectId
   };
+}
+
+export async function canManageProjectForUser(userId: string, projectId: string) {
+  const result = await canManageProjectByTenant(userId, projectId);
+  return result.exists && result.allowed;
 }
 
 async function canManageProjectByTenant(userId: string, projectId: string) {
@@ -132,40 +139,48 @@ export async function listMemberProjectIds(userId: string): Promise<string[]> {
   ])];
 }
 
+export async function listManagedProjectIds(userId: string): Promise<string[]> {
+  const managedTenantRows = await prisma.tenantMembership.findMany({
+    where: {
+      userId,
+      isActive: true,
+      role: { in: [TenantRole.TENANT_ADMIN, TenantRole.MANAGER] },
+      tenant: { isActive: true }
+    },
+    select: { tenantId: true }
+  });
+
+  const managedTenantIds = managedTenantRows.map((item) => item.tenantId);
+  if (!managedTenantIds.length) {
+    return [];
+  }
+
+  const managedProjects = await prisma.project.findMany({
+    where: { tenantId: { in: managedTenantIds } },
+    select: { id: true }
+  });
+
+  return managedProjects.map((item) => item.id);
+}
+
 export async function listAccessibleProjectIds(user: AuthScopeUser): Promise<string[] | null> {
-  if (canBypassByRole(user.role)) {
+  if (canBypassScope(user)) {
     return null;
   }
 
-  const [memberProjectIds, managedTenantRows] = await Promise.all([
+  const [memberProjectIds, managedProjectIds] = await Promise.all([
     listMemberProjectIds(user.id),
-    prisma.tenantMembership.findMany({
-      where: {
-        userId: user.id,
-        isActive: true,
-        role: { in: [TenantRole.TENANT_ADMIN, TenantRole.MANAGER] },
-        tenant: { isActive: true }
-      },
-      select: { tenantId: true }
-    })
+    listManagedProjectIds(user.id)
   ]);
-
-  const managedTenantIds = managedTenantRows.map((item) => item.tenantId);
-  const managedProjects = managedTenantIds.length
-    ? await prisma.project.findMany({
-      where: { tenantId: { in: managedTenantIds } },
-      select: { id: true }
-    })
-    : [];
 
   return [...new Set([
     ...memberProjectIds,
-    ...managedProjects.map((item) => item.id)
+    ...managedProjectIds
   ])];
 }
 
 export async function ensureProjectScopeAccess(user: AuthScopeUser, projectId: string): Promise<ScopeCheckResult> {
-  if (canBypassByRole(user.role)) {
+  if (canBypassScope(user)) {
     const exists = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
     if (!exists) {
       return { allowed: false, reason: "PROJECT_NOT_FOUND" };
@@ -191,7 +206,7 @@ export async function ensureProjectScopeAccess(user: AuthScopeUser, projectId: s
 }
 
 export async function ensureMeetingScopeAccess(user: AuthScopeUser, meetingId: string, projectId?: string): Promise<ScopeCheckResult> {
-  if (canBypassByRole(user.role)) {
+  if (canBypassScope(user)) {
     const meeting = await prisma.meeting.findUnique({
       where: { id: meetingId },
       select: { id: true, projectId: true }
@@ -287,7 +302,7 @@ export async function ensureActionItemScopeAccess(user: AuthScopeUser, actionIte
 }
 
 export async function ensureAskAiScopeAccess(input: AskAiScopeInput): Promise<AskAiScopeResult> {
-  if (!input.projectId && !input.meetingId && !canBypassByRole(input.role)) {
+  if (!input.projectId && !input.meetingId && input.role !== UserRole.ADMIN) {
     return { allowed: false, reason: "FORBIDDEN_SCOPE" };
   }
 

@@ -69,5 +69,8 @@ export const env = {
   vapidSubject: process.env.VAPID_SUBJECT,
   asrBaseUrl: process.env.ASR_BASE_URL?.trim() || "",
   asrApiKey: process.env.ASR_API_KEY?.trim() || "",
-  asrRequestTimeoutMs: Number(process.env.ASR_REQUEST_TIMEOUT_MS ?? 3600000)
+  /** Remote Whisper/ASR call timeout (default 6h). Keep nginx `/ai/` proxy_read_timeout above this. */
+  asrRequestTimeoutMs: Number(process.env.ASR_REQUEST_TIMEOUT_MS ?? 6 * 60 * 60 * 1000),
+  /** Multipart audio upload limit — align with nginx `client_max_body_size` and ASR_MAX_UPLOAD_BYTES. */
+  maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 500 * 1024 * 1024)
 };

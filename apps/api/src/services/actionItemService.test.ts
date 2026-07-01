@@ -38,7 +38,8 @@ vi.mock("../lib/prisma", () => ({
 }));
 
 vi.mock("./tenantAccessService", () => ({
-  ensureTenantRole: (...args: unknown[]) => ensureTenantRole(...args)
+  ensureTenantRole: (...args: unknown[]) => ensureTenantRole(...args),
+  isPlatformAdmin: () => false
 }));
 
 vi.mock("./actionItemNotificationService", () => ({
@@ -101,7 +102,7 @@ describe("updateActionItem tenant hierarchy", () => {
     expect(ensureTenantRole).toHaveBeenCalledWith(
       expect.objectContaining({ id: "tenant-admin-1" }),
       "tenant-1",
-      [TenantRole.TENANT_ADMIN]
+      [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]
     );
     expect(result.detail).toBe("Updated detail");
     expect(transactionActionItemUpdate).toHaveBeenCalled();

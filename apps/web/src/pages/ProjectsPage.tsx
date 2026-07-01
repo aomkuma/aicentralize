@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
@@ -7,6 +8,7 @@ import { useApi } from '../hooks/useApi'
 import Layout from '../components/Layout'
 import { memberNickname as getMemberNickname } from '../lib/memberDisplay'
 import ConfirmDialog from '../components/ConfirmDialog'
+import EditMemberDialog from '../components/EditMemberDialog'
 import TeamSentimentBadge from '../components/TeamSentimentBadge'
 import type { CommunicationSentimentSnapshot, MemberOnboardRequest, MemberOnboardResponse, TenantMembership } from '../types'
 
@@ -61,6 +63,11 @@ export default function ProjectsPage() {
     isLoading: isRemovingMember,
     error: removeMemberError,
   } = useApi()
+  const {
+    patch: updateTeamMember,
+    isLoading: isUpdatingMember,
+    error: updateMemberError,
+  } = useApi()
 
   const [memberships, setMemberships] = useState<TenantMembership[]>([])
   const [projects, setProjects] = useState<DashboardProject[]>([])
@@ -84,6 +91,11 @@ export default function ProjectsPage() {
   const [memberSentiments, setMemberSentiments] = useState<Record<string, CommunicationSentimentSnapshot>>({})
   const [sentimentNotice, setSentimentNotice] = useState<string | null>(null)
   const [memberToRemove, setMemberToRemove] = useState<TenantMembership | null>(null)
+  const [memberToEdit, setMemberToEdit] = useState<TenantMembership | null>(null)
+  const [editNickname, setEditNickname] = useState('')
+  const [editJobTitle, setEditJobTitle] = useState('')
+  const [editDepartment, setEditDepartment] = useState('')
+  const [editRole, setEditRole] = useState<TenantMembership['role']>('MEMBER')
 
   const activeMembership = memberships.find((membership) => membership.tenantId === currentTenant?.id) ?? memberships[0]
   const activeTenantId = activeMembership?.tenantId
@@ -105,6 +117,38 @@ export default function ProjectsPage() {
     }
 
     return true
+  }
+
+  const canEditTeamMember = (member: TenantMembership) => {
+    if (!canManageTeam) {
+      return false
+    }
+
+    if (activeMembership?.role === 'MANAGER' && member.role === 'TENANT_ADMIN' && member.userId !== user?.id) {
+      return false
+    }
+
+    return true
+  }
+
+  const canChangeMemberRole = (member: TenantMembership) => {
+    if (member.userId === user?.id) {
+      return false
+    }
+
+    if (activeMembership?.role === 'MANAGER' && member.role === 'TENANT_ADMIN') {
+      return false
+    }
+
+    return true
+  }
+
+  const openEditMember = (member: TenantMembership) => {
+    setMemberToEdit(member)
+    setEditNickname(getMemberNickname(member))
+    setEditJobTitle(member.jobTitle || '')
+    setEditDepartment(member.department || '')
+    setEditRole(member.role)
   }
 
   if (user?.systemRole === 'SUPER_ADMIN') {
@@ -297,6 +341,38 @@ export default function ProjectsPage() {
     if (result?.removed) {
       setMemberNotice(t('dashboard.memberRemoved'))
       setMemberToRemove(null)
+      await fetchTenantTeam()
+    }
+  }
+
+  const handleSaveMemberEdit = async () => {
+    if (!activeTenantId || !memberToEdit) {
+      return
+    }
+
+    const payload: {
+      nickname?: string | null
+      jobTitle?: string | null
+      department?: string | null
+      role?: TenantMembership['role']
+    } = {
+      nickname: editNickname.trim() || null,
+      jobTitle: editJobTitle.trim() || null,
+      department: editDepartment.trim() || null,
+    }
+
+    if (canChangeMemberRole(memberToEdit)) {
+      payload.role = editRole
+    }
+
+    const updated = await updateTeamMember<TenantMembership>(
+      `/tenants/${activeTenantId}/members/${memberToEdit.userId}`,
+      payload,
+    )
+
+    if (updated) {
+      setMemberNotice(t('dashboard.memberSaved'))
+      setMemberToEdit(null)
       await fetchTenantTeam()
     }
   }
@@ -510,17 +586,33 @@ export default function ProjectsPage() {
                         )}
                         {canManageTeam && (
                           <td className="py-2 pr-3">
-                            {canRemoveTeamMember(member) ? (
-                              <button
-                                type="button"
-                                onClick={() => setMemberToRemove(member)}
-                                className="rounded-md border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
-                              >
-                                {t('dashboard.memberRemove')}
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-400 dark:text-slate-500">-</span>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {canEditTeamMember(member) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openEditMember(member)}
+                                  title={t('dashboard.memberEdit')}
+                                  aria-label={t('dashboard.memberEdit')}
+                                  className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              )}
+                              {canRemoveTeamMember(member) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setMemberToRemove(member)}
+                                  title={t('dashboard.memberRemove')}
+                                  aria-label={t('dashboard.memberRemove')}
+                                  className="rounded-md border border-rose-200 p-1.5 text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                              {!canEditTeamMember(member) && !canRemoveTeamMember(member) && (
+                                <span className="text-xs text-gray-400 dark:text-slate-500">-</span>
+                              )}
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -544,6 +636,43 @@ export default function ProjectsPage() {
             isLoading={isRemovingMember}
             onCancel={() => setMemberToRemove(null)}
             onConfirm={() => void handleConfirmRemoveMember()}
+          />
+
+          <EditMemberDialog
+            open={Boolean(memberToEdit)}
+            member={memberToEdit}
+            canChangeRole={memberToEdit ? canChangeMemberRole(memberToEdit) : false}
+            title={t('dashboard.memberEditTitle')}
+            saveLabel={t('dashboard.memberSave')}
+            cancelLabel={t('dashboard.cancel')}
+            nicknameLabel={t('dashboard.memberNickname')}
+            jobTitleLabel={t('dashboard.memberJobTitle')}
+            departmentLabel={t('dashboard.memberDepartment')}
+            roleLabel={t('dashboard.memberRole')}
+            nicknamePlaceholder={t('dashboard.memberNicknamePlaceholder')}
+            jobTitlePlaceholder={t('dashboard.memberJobTitlePlaceholder')}
+            departmentPlaceholder={t('dashboard.memberDepartmentPlaceholder')}
+            roleOptions={([
+              'TENANT_ADMIN',
+              'MANAGER',
+              'MEMBER',
+              'VIEWER',
+            ] as const).map((role) => ({
+              value: role,
+              label: t(tenantRoleLabelKey[role]),
+            }))}
+            nickname={editNickname}
+            jobTitle={editJobTitle}
+            department={editDepartment}
+            role={editRole}
+            onNicknameChange={setEditNickname}
+            onJobTitleChange={setEditJobTitle}
+            onDepartmentChange={setEditDepartment}
+            onRoleChange={setEditRole}
+            isLoading={isUpdatingMember}
+            errorMessage={updateMemberError?.message ?? null}
+            onCancel={() => setMemberToEdit(null)}
+            onSave={() => void handleSaveMemberEdit()}
           />
 
           {removeMemberError && (

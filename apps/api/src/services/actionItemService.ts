@@ -1,7 +1,7 @@
 import { ActionItemPriority, ActionItemSource, ActionStatus, TenantRole, UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma";
-import { ensureProjectScopeAccess } from "./accessScopeService";
-import { ensureTenantRole, type TenantAuthUser } from "./tenantAccessService";
+import { ensureProjectScopeAccess, listMemberProjectIds } from "./accessScopeService";
+import { ensureTenantRole, isPlatformAdmin, type TenantAuthUser } from "./tenantAccessService";
 import {
   notifyActionItemDueDateChanged,
   notifyActionItemPriorityChanged,
@@ -70,23 +70,23 @@ async function assertCanMutate(actionItemId: string, user: TenantAuthUser) {
     throw new Error(ACTION_ITEM_NOT_FOUND_ERROR);
   }
 
-  if (user.role === UserRole.MEMBER && item.assigneeId !== user.id) {
-    const project = await prisma.project.findUnique({
-      where: { id: item.projectId },
-      select: { tenantId: true }
-    });
-
-    if (project?.tenantId) {
-      const isTenantAdmin = await ensureTenantRole(user, project.tenantId, [TenantRole.TENANT_ADMIN]);
-      if (isTenantAdmin) {
-        return item;
-      }
-    }
-
-    throw new Error(MUTABLE_BY_MEMBER_ERROR);
+  if (item.assigneeId === user.id || isPlatformAdmin(user) || user.role === UserRole.ADMIN) {
+    return item;
   }
 
-  return item;
+  const project = await prisma.project.findUnique({
+    where: { id: item.projectId },
+    select: { tenantId: true }
+  });
+
+  if (project?.tenantId) {
+    const canManage = await ensureTenantRole(user, project.tenantId, [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]);
+    if (canManage) {
+      return item;
+    }
+  }
+
+  throw new Error(MUTABLE_BY_MEMBER_ERROR);
 }
 
 async function loadActorName(userId: string) {
@@ -228,7 +228,7 @@ export async function canAssignActionItemsToOthers(
   user: TenantAuthUser,
   projectId: string
 ): Promise<boolean> {
-  if (user.role === UserRole.ADMIN || user.role === UserRole.PM) {
+  if (isPlatformAdmin(user) || user.role === UserRole.ADMIN) {
     return true;
   }
 

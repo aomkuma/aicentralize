@@ -46,7 +46,8 @@ This document is the product feature map (main modules and sub-features). For da
 
 **Limits / ops**
 
-- ASR timeout: **1 hour** (`ASR_REQUEST_TIMEOUT_MS=3600000`, nginx `/ai/` proxy **3700s**).
+- Upload max: **500 MB** (`MAX_UPLOAD_BYTES` / `ASR_MAX_UPLOAD_BYTES` / nginx `client_max_body_size 500m`).
+- ASR timeout: **6 hours** (`ASR_REQUEST_TIMEOUT_MS=21600000`, nginx `/ai/` proxy **22200s**).
 - No auto-merge of multiple audio parts; split externally and paste or upload one-by-one.
 - AI model / confidence labels hidden in user UI (`redactAiMetadata.ts`).
 
@@ -267,7 +268,7 @@ This document is the product feature map (main modules and sub-features). For da
 |------|--------|
 | **Monorepo** | `apps/api`, `apps/web`, `apps/asr` |
 | **Migrations** | `prisma migrate deploy` on API Docker boot (`docker/start.sh`) |
-| **Web proxy** | nginx: `/api/`, `/ai/` → API; `client_max_body_size 100m` |
+| **Web proxy** | nginx: `/api/`, `/ai/` → API; `client_max_body_size 500m`; `/ai/` proxy **22200s** |
 | **ASR service** | Separate Railway/container; `ASR_BASE_URL` on API |
 
 ---

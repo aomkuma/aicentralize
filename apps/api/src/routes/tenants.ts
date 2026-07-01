@@ -25,10 +25,12 @@ const addMemberSchema = z.object({
 });
 
 const updateMemberRoleSchema = z.object({
-  role: z.nativeEnum(TenantRole),
+  role: z.nativeEnum(TenantRole).optional(),
   nickname: z.string().trim().min(1).max(80).optional().nullable(),
-  jobTitle: z.string().min(1).max(120).optional(),
-  department: z.string().min(1).max(120).optional()
+  jobTitle: z.string().min(1).max(120).optional().nullable(),
+  department: z.string().min(1).max(120).optional().nullable()
+}).refine((data) => Object.values(data).some((value) => value !== undefined), {
+  message: "At least one field is required"
 });
 
 const onboardMemberSchema = z.object({
@@ -306,7 +308,6 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
       data: {
         name,
         phone,
-        role: existingUser.role === UserRole.ADMIN ? existingUser.role : workflowRole,
         mustChangePassword: existingUser ? existingUser.mustChangePassword : !parsed.data.password,
         systemRole: existingUser.systemRole
       },
@@ -473,19 +474,29 @@ tenantRouter.patch("/:tenantId/members/:userId", requireAuth, async (req, res) =
         userId: req.params.userId
       }
     },
-    select: { id: true }
+    select: { id: true, role: true }
   });
 
   if (!membership) {
     return res.status(404).json({ message: "Membership not found" });
   }
 
+  const requesterMembership = await getTenantMembership(req.user!.id, req.params.tenantId);
+  if (
+    requesterMembership?.role === TenantRole.MANAGER &&
+    membership.role === TenantRole.TENANT_ADMIN &&
+    parsed.data.role !== undefined &&
+    parsed.data.role !== membership.role
+  ) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
   const updated = await prisma.tenantMembership.update({
     where: { id: membership.id },
     data: {
-      role: parsed.data.role,
-      jobTitle: parsed.data.jobTitle,
-      department: parsed.data.department,
+      ...(parsed.data.role !== undefined ? { role: parsed.data.role } : {}),
+      ...(parsed.data.jobTitle !== undefined ? { jobTitle: parsed.data.jobTitle?.trim() || null } : {}),
+      ...(parsed.data.department !== undefined ? { department: parsed.data.department?.trim() || null } : {}),
       ...(parsed.data.nickname !== undefined
         ? { nickname: parsed.data.nickname?.trim() || null }
         : {}),

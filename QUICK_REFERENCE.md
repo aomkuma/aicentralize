@@ -19,7 +19,7 @@ Recent product changes:
 - **Action-item push:** Alerts on reassign, due date, priority, status changes (+ reminder worker).
 - **General notes:** PUBLIC / PRIVATE visibility (private hidden from Ask-AI evidence).
 - **Prompt limit:** Playground / Meeting Studio up to **120,000** chars (`61127ae`).
-- **ASR:** 1-hour timeout (`ASR_REQUEST_TIMEOUT_MS=3600000`); nginx `/ai/` **3700s**.
+- **ASR:** 6-hour timeout (`ASR_REQUEST_TIMEOUT_MS=21600000`); nginx `/ai/` **22200s**; upload **500 MB**.
 - **Meeting Studio:** background audio transcription (`MeetingStudioJobBanner`); uploads TXT/MD/CSV/TSV/DOCX/PDF/XLSX.
 - **Continuity:** not in sidebar; open from `/projects` → project card → `/continuity/:projectId`.
 - **Communication sentiment:** mood badges on `/projects` team table (`TENANT_ADMIN` / `MANAGER`).
@@ -346,10 +346,14 @@ pnpm type-check
 ### Long audio transcription times out
 ```bash
 # API env:
-ASR_REQUEST_TIMEOUT_MS=3600000
+ASR_REQUEST_TIMEOUT_MS=21600000
+MAX_UPLOAD_BYTES=524288000
 
-# nginx web template already sets /ai/ proxy_read_timeout 3700s
-# Redeploy both API and Web after changing
+# ASR env:
+ASR_MAX_UPLOAD_BYTES=524288000
+
+# nginx web template: client_max_body_size 500m; /ai/ proxy_read_timeout 22200s
+# Redeploy API, ASR, and Web after changing
 ```
 
 ## ✅ Dashboard AI Chat Smoke Test

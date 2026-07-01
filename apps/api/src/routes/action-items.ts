@@ -1,8 +1,8 @@
-import { ActionItemPriority, ActionStatus, UserRole } from "@prisma/client";
+import { ActionItemPriority, ActionStatus } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
-import { ensureActionItemScopeAccess, listAccessibleProjectIds, listMemberProjectIds } from "../services/accessScopeService";
+import { ensureActionItemScopeAccess, listAccessibleProjectIds } from "../services/accessScopeService";
 import {
   actionItemErrors,
   canAssignActionItemsToOthers,
@@ -87,14 +87,15 @@ actionItemRouter.get("/", requireAuth, async (req, res) => {
         });
       }
     }
-  } else if (user.role === UserRole.MEMBER) {
-    const memberProjectIds = await listMemberProjectIds(user.id);
-    if (projectId && !memberProjectIds.includes(projectId)) {
+  } else if (projectId) {
+    const accessibleProjectIds = await listAccessibleProjectIds(user);
+    if (accessibleProjectIds && !accessibleProjectIds.includes(projectId)) {
       return res.status(403).json({ message: "Forbidden scope" });
     }
-
-    if (!projectId) {
-      return res.status(400).json({ message: "projectId is required for member scope" });
+  } else {
+    const accessibleProjectIds = await listAccessibleProjectIds(user);
+    if (accessibleProjectIds) {
+      return res.status(400).json({ message: "projectId is required for scoped list" });
     }
   }
 

@@ -5,8 +5,7 @@ import {
   ProjectKnowledgeSourceType,
   ProjectMemoryItemStatus,
   ProjectMemoryItemType,
-  TenantRole,
-  UserRole
+  TenantRole
 } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import {
@@ -78,11 +77,9 @@ export async function assertProjectKnowledgeAccess(
     return project;
   }
 
-  if (user.role === UserRole.MEMBER) {
-    const memberProjectIds = await listMemberProjectIds(user.id);
-    if (memberProjectIds.includes(project.id)) {
-      return project;
-    }
+  const memberProjectIds = await listMemberProjectIds(user.id);
+  if (memberProjectIds.includes(project.id)) {
+    return project;
   }
 
   const hasMembership = await ensureTenantMembership(user, project.tenantId);

@@ -22,12 +22,12 @@ export function resolveTenantMembership(
   return null
 }
 
-/** Platform ADMIN/PM always may assign; tenant roles are handled by the current tenant workflow policy. */
+/** Tenant MANAGER / TENANT_ADMIN may assign; platform admins use systemRole. */
 export function canAssignActionItemsToOthers(
   user: User | null | undefined,
   membership: TenantMembership | null | undefined,
 ): boolean {
-  if (user?.role === 'ADMIN' || user?.role === 'PM') {
+  if (user?.systemRole === 'SUPER_ADMIN' || user?.systemRole === 'MODERATOR' || user?.role === 'ADMIN') {
     return true
   }
 

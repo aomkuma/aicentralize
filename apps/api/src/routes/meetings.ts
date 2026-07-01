@@ -10,12 +10,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { ensureMeetingScopeAccess, listMemberProjectIds } from "../services/accessScopeService";
+import { ensureMeetingScopeAccess, listAccessibleProjectIds, listManagedProjectIds } from "../services/accessScopeService";
 import { actionItemErrors, changeActionItemStatus } from "../services/actionItemService";
 import { buildEmbedding } from "../services/embeddingService";
 import { addMeetingArtifact, getMeetingDetail } from "../services/meetingIngestionService";
 import { extractMinuteDraft } from "../services/minuteExtractionService";
-import { ensureTenantRole, isSuperAdmin } from "../services/tenantAccessService";
+import { ensureTenantRole, isPlatformAdmin } from "../services/tenantAccessService";
 
 export const meetingRouter = Router();
 
@@ -82,7 +82,7 @@ const extractMinuteDraftSchema = z.object({
 });
 
 async function canManageProjectMeetings(user: NonNullable<Express.Request["user"]>, projectId: string) {
-  if (user.role === UserRole.ADMIN || user.role === UserRole.PM || isSuperAdmin(user)) {
+  if (isPlatformAdmin(user) || user.role === UserRole.ADMIN) {
     return true;
   }
 
@@ -104,27 +104,63 @@ async function canManageProjectMeetings(user: NonNullable<Express.Request["user"
   return ensureTenantRole(user, project.tenantId, [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]);
 }
 
+async function buildMeetingsListWhere(
+  user: NonNullable<Express.Request["user"]>,
+  projectId?: string
+) {
+  if (projectId) {
+    const canManage = await canManageProjectMeetings(user, projectId);
+    return canManage
+      ? { projectId }
+      : {
+          projectId,
+          OR: [
+            { createdById: user.id },
+            { participants: { some: { userId: user.id } } }
+          ]
+        };
+  }
+
+  if (isPlatformAdmin(user) || user.role === UserRole.ADMIN) {
+    return undefined;
+  }
+
+  const [accessibleIds, managedIds] = await Promise.all([
+    listAccessibleProjectIds(user),
+    listManagedProjectIds(user.id)
+  ]);
+
+  if (!accessibleIds?.length) {
+    return { projectId: { in: [] } };
+  }
+
+  const managedSet = new Set(managedIds.filter((id) => accessibleIds.includes(id)));
+  const memberOnlyIds = accessibleIds.filter((id) => !managedSet.has(id));
+  const clauses: object[] = [];
+
+  if (managedSet.size) {
+    clauses.push({ projectId: { in: [...managedSet] } });
+  }
+
+  if (memberOnlyIds.length) {
+    clauses.push({
+      projectId: { in: memberOnlyIds },
+      OR: [
+        { createdById: user.id },
+        { participants: { some: { userId: user.id } } }
+      ]
+    });
+  }
+
+  return clauses.length === 1 ? clauses[0] : { OR: clauses };
+}
+
 meetingRouter.get("/", requireAuth, async (req, res) => {
   const projectId = req.query.projectId as string | undefined;
-  const canManageProject = projectId
-    ? await canManageProjectMeetings(req.user!, projectId)
-    : false;
-  const memberProjectIds = req.user?.role === UserRole.MEMBER
-    ? (canManageProject ? undefined : await listMemberProjectIds(req.user.id))
-    : undefined;
+  const where = await buildMeetingsListWhere(req.user!, projectId);
 
   const meetings = await prisma.meeting.findMany({
-    where: req.user?.role === UserRole.MEMBER && !canManageProject
-      ? {
-          projectId: projectId
-            ? projectId
-            : { in: memberProjectIds },
-          OR: [
-            { createdById: req.user.id },
-            { participants: { some: { userId: req.user.id } } }
-          ]
-        }
-      : (projectId ? { projectId } : undefined),
+    where,
     include: {
       project: true,
       actionItems: { include: { assignee: true } },

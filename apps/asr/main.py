@@ -12,7 +12,7 @@ DEFAULT_MODEL = os.getenv("ASR_MODEL", "small").strip() or "small"
 DEFAULT_LANGUAGE = os.getenv("ASR_LANGUAGE", "th").strip() or "th"
 DEFAULT_COMPUTE_TYPE = os.getenv("ASR_COMPUTE_TYPE", "int8").strip() or "int8"
 DEFAULT_DEVICE = os.getenv("ASR_DEVICE", "cpu").strip() or "cpu"
-MAX_UPLOAD_BYTES = int(os.getenv("ASR_MAX_UPLOAD_BYTES", str(100 * 1024 * 1024)))
+MAX_UPLOAD_BYTES = int(os.getenv("ASR_MAX_UPLOAD_BYTES", str(500 * 1024 * 1024)))
 
 _model_cache: dict[str, WhisperModel] = {}
 _model_lock = Lock()

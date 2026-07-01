@@ -30,7 +30,7 @@ ASR_MODEL=small
 ASR_LANGUAGE=th
 ASR_COMPUTE_TYPE=int8
 ASR_DEVICE=cpu
-ASR_MAX_UPLOAD_BYTES=104857600
+ASR_MAX_UPLOAD_BYTES=524288000
 ```
 
 Railway sets `PORT` automatically. Do not hardcode it.
@@ -42,14 +42,16 @@ Set these on the **API service**:
 ```env
 ASR_BASE_URL=https://YOUR-ASR-PUBLIC-URL.up.railway.app
 ASR_API_KEY=your-long-random-secret
-ASR_REQUEST_TIMEOUT_MS=3600000
+ASR_REQUEST_TIMEOUT_MS=21600000
+MAX_UPLOAD_BYTES=524288000
 ```
 
 Important:
 - Use **`ASR_REQUEST_TIMEOUT_MS`** for remote Whisper/ASR calls. `AI_REQUEST_TIMEOUT_MS` only affects LLM (Ollama/Gemini) requests, not transcription.
-- Unit is **milliseconds**: `3600000` = **1 hour**.
-- The **web** service nginx proxy allows ~1 hour on `/ai/` (`3700s` read timeout). Redeploy **web** after changing `docker/nginx-web.conf.template`.
-- If transcription still fails around 5–10 minutes, Railway's edge proxy may be limiting the public HTTP request; split long audio or use shorter clips.
+- Unit is **milliseconds**: `21600000` = **6 hours**.
+- The **web** service nginx proxy allows ~6 hours on `/ai/` (`22200s` read timeout). Redeploy **web** after changing `docker/nginx-web.conf.template`.
+- Upload limit is **500 MB** end-to-end: nginx `client_max_body_size 500m`, API `MAX_UPLOAD_BYTES`, ASR `ASR_MAX_UPLOAD_BYTES`.
+- If transcription still fails before the timeout, Railway's edge proxy may be limiting the public HTTP request; split long audio or use shorter clips.
 
 **Recommended:** start with the ASR **public URL** (Settings → Networking → Generate Domain on the ASR service). Private networking is optional and easier to misconfigure.
 
@@ -127,6 +129,6 @@ ASR_API_KEY=dev-secret
 |--------|---------------|-----|
 | `Whisper runtime is not available` on API | `ASR_BASE_URL` missing on API | Set env and redeploy API |
 | `fetch failed` on `/ai/playground/transcribe` | API cannot reach `ASR_BASE_URL` | Use ASR public URL; verify ASR `/health`; match `ASR_API_KEY`; redeploy API |
-| `413` on upload | File too large | Increase nginx/web limit and `ASR_MAX_UPLOAD_BYTES` |
+| `413` on upload | File too large | Increase nginx `client_max_body_size`, `MAX_UPLOAD_BYTES`, and `ASR_MAX_UPLOAD_BYTES` together (default **500 MB**) |
 | Very slow transcription | CPU-only `small`/`medium` model | Keep clips shorter or upgrade Railway plan/resources |
 | First deploy is slow | Model download/warmup | Normal; service preloads `small` during Docker build |

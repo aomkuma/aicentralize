@@ -22,7 +22,8 @@ const refreshSchema = z.object({
 const profileSchema = z.object({
   name: z.string().trim().min(2).max(120),
   nickname: z.string().trim().min(1).max(80).optional().nullable(),
-  phone: z.string().trim().max(30).optional().nullable()
+  phone: z.string().trim().max(30).optional().nullable(),
+  tenantId: z.string().min(1).optional()
 });
 
 const changePasswordSchema = z.object({
@@ -377,6 +378,25 @@ authRouter.patch("/me", requireAuth, async (req, res) => {
     }
   });
 
+  if (parsed.data.tenantId && parsed.data.nickname !== undefined) {
+    const membership = await prisma.tenantMembership.findUnique({
+      where: {
+        tenantId_userId: {
+          tenantId: parsed.data.tenantId,
+          userId: req.user!.id
+        }
+      },
+      select: { id: true }
+    });
+
+    if (membership) {
+      await prisma.tenantMembership.update({
+        where: { id: membership.id },
+        data: { nickname: parsed.data.nickname?.trim() || null }
+      });
+    }
+  }
+
   return res.json(user);
 });
 
@@ -492,8 +512,7 @@ authRouter.post("/invitations/:token/accept", async (req, res) => {
         name: invitation.name,
         phone: invitation.phone,
         passwordHash,
-        mustChangePassword: false,
-        role: existingUser.role === UserRole.ADMIN ? existingUser.role : invitation.userRole
+        mustChangePassword: false
       }
     })
     : await prisma.user.create({

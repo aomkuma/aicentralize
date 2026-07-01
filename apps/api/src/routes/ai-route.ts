@@ -164,7 +164,10 @@ function formatActionItemSnapshotLine(
 }
 
 async function buildProjectContext(user: OptionalAuthUser, projectId: string, prompt: string): Promise<{ text: string; appLinks: AppLink[] } | null> {
-  const access = await ensureProjectScopeAccess({ id: user.id, role: user.role }, projectId);
+  const access = await ensureProjectScopeAccess(
+    { id: user.id, role: user.role, systemRole: user.systemRole },
+    projectId
+  );
   if (!access.allowed) {
     return null;
   }
@@ -418,7 +421,7 @@ const upload = multer({
     }
   }),
   limits: {
-    fileSize: 100 * 1024 * 1024
+    fileSize: env.maxUploadBytes
   }
 });
 

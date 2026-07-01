@@ -1,21 +1,33 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
 import NotificationPreferences from '../components/NotificationPreferences'
+import { memberNickname as getMemberNickname } from '../lib/memberDisplay'
 import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/authStore'
+import { useTenantStore } from '../stores/tenantStore'
 import type { User } from '../types'
 
 export default function ProfilePage() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.user)
   const updateUser = useAuthStore((state) => state.updateUser)
+  const currentTenant = useTenantStore((state) => state.currentTenant)
+  const currentMembership = useTenantStore((state) => state.currentMembership)
+  const setCurrentTenant = useTenantStore((state) => state.setCurrentTenant)
   const { patch, isLoading, error } = useApi()
 
   const [name, setName] = useState(user?.name ?? '')
   const [phone, setPhone] = useState(user?.phone ?? '')
+  const [nickname, setNickname] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    setName(user?.name ?? '')
+    setPhone(user?.phone ?? '')
+    setNickname(currentMembership ? getMemberNickname(currentMembership) : (user?.nickname ?? ''))
+  }, [user, currentMembership])
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -24,10 +36,18 @@ export default function ProfilePage() {
     const response = await patch<User>('/auth/me', {
       name,
       phone: phone.trim() || null,
+      nickname: nickname.trim() || null,
+      tenantId: currentTenant?.id,
     })
 
     if (response) {
       updateUser(response)
+      if (currentTenant && currentMembership) {
+        setCurrentTenant(currentTenant, {
+          ...currentMembership,
+          nickname: nickname.trim() || null,
+        })
+      }
       setNotice(t('profile.saved'))
     }
   }
@@ -54,6 +74,21 @@ export default function ProfilePage() {
                 className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                 required
               />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium text-gray-700 dark:text-slate-300">{t('dashboard.memberNickname')}</span>
+              <input
+                value={nickname}
+                onChange={(event) => setNickname(event.target.value)}
+                placeholder={t('dashboard.memberNicknamePlaceholder')}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+              />
+              <span className="mt-1 block text-xs text-gray-500 dark:text-slate-400">
+                {currentTenant
+                  ? t('profile.nicknameOrgHint', { organization: currentTenant.name })
+                  : t('profile.nicknameNoOrgHint')}
+              </span>
             </label>
 
             <label className="block">

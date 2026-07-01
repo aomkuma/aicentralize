@@ -4,16 +4,17 @@ server {
 
     root /usr/share/nginx/html;
     index index.html;
-    client_max_body_size 100m;
+    # Align with API MAX_UPLOAD_BYTES and ASR_MAX_UPLOAD_BYTES (default 500 MB).
+    client_max_body_size 500m;
 
-    # Transcription window ~1 hour (must be >= ASR_REQUEST_TIMEOUT_MS on API).
+    # Transcription window ~6 hours (must be >= ASR_REQUEST_TIMEOUT_MS on API; default 22200s > 21600000ms).
     location /api/playground/ {
         proxy_pass ${API_INTERNAL_URL}/ai/playground/;
         proxy_http_version 1.1;
-        proxy_connect_timeout 15s;
-        proxy_send_timeout 3700s;
-        proxy_read_timeout 3700s;
-        client_body_timeout 3700s;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 22200s;
+        proxy_read_timeout 22200s;
+        client_body_timeout 22200s;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -23,10 +24,10 @@ server {
     location /api/ {
         proxy_pass ${API_INTERNAL_URL}/;
         proxy_http_version 1.1;
-        proxy_connect_timeout 15s;
-        proxy_send_timeout 120s;
-        proxy_read_timeout 120s;
-        client_body_timeout 120s;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 600s;
+        proxy_read_timeout 600s;
+        client_body_timeout 600s;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -36,10 +37,10 @@ server {
     location /ai/ {
         proxy_pass ${API_INTERNAL_URL}/ai/;
         proxy_http_version 1.1;
-        proxy_connect_timeout 15s;
-        proxy_send_timeout 3700s;
-        proxy_read_timeout 3700s;
-        client_body_timeout 3700s;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 22200s;
+        proxy_read_timeout 22200s;
+        client_body_timeout 22200s;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

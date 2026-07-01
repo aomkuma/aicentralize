@@ -11,9 +11,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
-import { listMemberProjectIds } from "../services/accessScopeService";
+import { listMemberProjectIds, listManagedProjectIds } from "../services/accessScopeService";
 import { createProjectMeeting } from "../services/meetingIngestionService";
-import { ensureTenantMembership, ensureTenantRole, isSuperAdmin, listTenantIdsForUser } from "../services/tenantAccessService";
+import { ensureTenantMembership, ensureTenantRole, isPlatformAdmin, isSuperAdmin, listTenantIdsForUser } from "../services/tenantAccessService";
 import {
   approveProjectKnowledgeSource,
   createProjectKnowledgeSource,
@@ -96,25 +96,16 @@ async function buildProjectListWhere(user: NonNullable<Express.Request["user"]>,
     filters.push({ OR: [{ tenantId: null }, { tenantId: { in: tenantIds } }] });
   }
 
-  if (user.role === UserRole.MEMBER) {
-    const [memberProjectIds, managedTenantRows] = await Promise.all([
+  if (!isPlatformAdmin(user) && user.role !== UserRole.ADMIN) {
+    const [memberProjectIds, managedProjectIds] = await Promise.all([
       listMemberProjectIds(user.id),
-      prisma.tenantMembership.findMany({
-        where: {
-          userId: user.id,
-          isActive: true,
-          role: { in: [TenantRole.TENANT_ADMIN, TenantRole.MANAGER] },
-          tenant: { isActive: true }
-        },
-        select: { tenantId: true }
-      })
+      listManagedProjectIds(user.id)
     ]);
 
     const visibility: object[] = [];
-    const managedTenantIds = managedTenantRows.map((item) => item.tenantId);
 
-    if (managedTenantIds.length) {
-      visibility.push({ tenantId: { in: managedTenantIds } });
+    if (managedProjectIds.length) {
+      visibility.push({ id: { in: managedProjectIds } });
     }
 
     if (memberProjectIds.length) {
