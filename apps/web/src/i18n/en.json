@@ -46,6 +46,32 @@
     "getStarted": "Get started",
     "exploreFeatures": "Explore features",
     "heroOriginLine": "Built from a real workplace problem—not a startup idea.",
+    "inAppBrowser": {
+      "title": "Open in your browser",
+      "message": "You're viewing Kora inside {{appName}}. For login, notifications, and the best experience, please open this page in {{browser}}.",
+      "iosSteps": "Tap the ··· or Share menu at the bottom (or top), then choose Open in {{browser}}.",
+      "androidSteps": "Tap the menu (⋮) in the top-right corner, then choose Open in browser or {{browser}}.",
+      "copyLink": "Copy link",
+      "copied": "Link copied",
+      "continue": "Continue here",
+      "close": "Close",
+      "browsers": {
+        "safari": "Safari",
+        "default": "your device's default browser"
+      },
+      "apps": {
+        "line": "LINE",
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "messenger": "Messenger",
+        "twitter": "X (Twitter)",
+        "wechat": "WeChat",
+        "tiktok": "TikTok",
+        "linkedin": "LinkedIn",
+        "kakao": "KakaoTalk",
+        "generic": "an in-app browser"
+      }
+    },
     "signIn": "Sign in",
     "signInToWorkspace": "Sign in to your workspace",
     "featuresTitle": "Built for how teams actually work",
@@ -700,6 +726,7 @@
     "noSummary": "No continuity summary is available for this project yet.",
     "actionFiltersTitle": "Action list",
     "actionFiltersCount": "{{shown}} of {{total}} tasks. Default sorting puts high-priority and near-due work first.",
+    "statusFilterActiveAll": "Active (all open)",
     "showFilters": "Show filters",
     "hideFilters": "Hide filters",
     "overdueOnly": "Overdue only",

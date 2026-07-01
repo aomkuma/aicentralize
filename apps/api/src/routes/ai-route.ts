@@ -1,4 +1,4 @@
-import { ProjectGeneralNoteVisibility, SystemRole, UserRole } from "@prisma/client";
+import { SystemRole, UserRole } from "@prisma/client";
 import { Request, Router } from "express";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,6 +9,7 @@ import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { ensureProjectScopeAccess } from "../services/accessScopeService";
+import { buildProjectAiSupplementText } from "../services/projectAiContextService";
 import { askMinutes, generateWithLocalModel, transcribeWithWhisper } from "../services/aiService";
 import { MAX_PLAYGROUND_PROMPT_CHARS } from "../constants/aiLimits";
 import { getSystemSettings } from "../services/systemSettingsService";
@@ -90,6 +91,78 @@ function isSelfTaskQuestion(prompt: string): boolean {
   ].some((pattern) => pattern.test(normalized));
 }
 
+function normalizeForTaskMatch(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, "").trim();
+}
+
+function taskMatchesPrompt(task: string, prompt: string): boolean {
+  const taskNorm = normalizeForTaskMatch(task);
+  const promptNorm = normalizeForTaskMatch(prompt);
+
+  if (!taskNorm || taskNorm.length < 4) {
+    return false;
+  }
+
+  if (promptNorm.includes(taskNorm)) {
+    return true;
+  }
+
+  const quotedPhrases = [...prompt.matchAll(/["'「『]([^"'」』]{3,})["'」』]/g)]
+    .map((match) => normalizeForTaskMatch(match[1]));
+
+  return quotedPhrases.some((phrase) => phrase && (taskNorm.includes(phrase) || phrase.includes(taskNorm)));
+}
+
+function isActionItemExistenceQuestion(prompt: string): boolean {
+  const normalized = prompt.toLowerCase();
+  return [
+    /action\s*item/i,
+    /มีงาน/,
+    /งานนี้/,
+    /งาน.*ไหม/,
+    /มี.*ไหม/,
+    /แค่มี/,
+    /เสร็จ/,
+    /\bdone\b/i,
+    /\bcancel/i,
+    /ยกเลิก/
+  ].some((pattern) => pattern.test(normalized));
+}
+
+const actionItemSnapshotSelect = {
+  id: true,
+  task: true,
+  detail: true,
+  status: true,
+  dueDate: true,
+  createdAt: true,
+  updatedAt: true,
+  source: true,
+  assignee: {
+    select: {
+      name: true,
+      email: true
+    }
+  }
+} as const;
+
+function formatActionItemSnapshotLine(
+  item: {
+    id: string;
+    task: string;
+    detail: string | null;
+    status: string;
+    dueDate: Date;
+    source: string;
+    assignee: { name: string; email: string };
+  },
+  now: Date
+): string {
+  const overdueFlag = item.dueDate.getTime() < now.getTime() ? "OVERDUE" : "NOT_OVERDUE";
+  const detail = item.detail?.trim() ? ` | detail=${item.detail.trim()}` : "";
+  return `- id=${item.id} | owner=${item.assignee.name} <${item.assignee.email}> | due=${formatDateOnly(item.dueDate)} | status=${item.status} | source=${item.source} | overdue=${overdueFlag} | task=${item.task}${detail}`;
+}
+
 async function buildProjectContext(user: OptionalAuthUser, projectId: string, prompt: string): Promise<{ text: string; appLinks: AppLink[] } | null> {
   const access = await ensureProjectScopeAccess({ id: user.id, role: user.role }, projectId);
   if (!access.allowed) {
@@ -110,42 +183,48 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
   }
 
   const selfTaskQuestion = isSelfTaskQuestion(prompt);
-  const actionItems = await prisma.actionItem.findMany({
-    where: {
-      status: { notIn: ["DONE", "CANCELLED"] },
-      ...(selfTaskQuestion ? { assigneeId: user.id } : {}),
-      projectId
-    },
-    select: {
-      id: true,
-      task: true,
-      detail: true,
-      status: true,
-      dueDate: true,
-      createdAt: true,
-      assignee: {
-        select: {
-          name: true,
-          email: true
-        }
-      }
-    },
-    orderBy: [
-      { dueDate: "asc" },
-      { createdAt: "desc" }
-    ],
-    take: 40
-  });
+  const actionItemScopeFilter = selfTaskQuestion ? { assigneeId: user.id } : {};
+
+  const [actionItems, closedCandidates] = await Promise.all([
+    prisma.actionItem.findMany({
+      where: {
+        status: { notIn: ["DONE", "CANCELLED"] },
+        ...actionItemScopeFilter,
+        projectId
+      },
+      select: actionItemSnapshotSelect,
+      orderBy: [
+        { dueDate: "asc" },
+        { createdAt: "desc" }
+      ],
+      take: 40
+    }),
+    prisma.actionItem.findMany({
+      where: {
+        status: { in: ["DONE", "CANCELLED"] },
+        ...actionItemScopeFilter,
+        projectId
+      },
+      select: actionItemSnapshotSelect,
+      orderBy: { updatedAt: "desc" },
+      take: 60
+    })
+  ]);
+
+  const matchedClosedItems = closedCandidates.filter((item) => taskMatchesPrompt(item.task, prompt));
+  const closedActionItems = matchedClosedItems.length > 0
+    ? matchedClosedItems.slice(0, 15)
+    : isActionItemExistenceQuestion(prompt)
+      ? closedCandidates.slice(0, 15)
+      : [];
 
   const generalNotes = await prisma.projectGeneralNote.findMany({
-    where: {
-      projectId,
-      visibility: ProjectGeneralNoteVisibility.PUBLIC
-    },
+    where: { projectId },
     select: {
       id: true,
       title: true,
       content: true,
+      visibility: true,
       createdAt: true,
       author: {
         select: {
@@ -182,19 +261,21 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
 
   const itemLines = actionItems
     .slice(0, 25)
-    .map((item) => {
-      const overdueFlag = item.dueDate.getTime() < now.getTime() ? "OVERDUE" : "NOT_OVERDUE";
-      const detail = item.detail?.trim() ? ` | detail=${item.detail.trim()}` : "";
-      return `- owner=${item.assignee.name} <${item.assignee.email}> | due=${formatDateOnly(item.dueDate)} | status=${item.status} | overdue=${overdueFlag} | task=${item.task}${detail}`;
-    })
+    .map((item) => formatActionItemSnapshotLine(item, now))
+    .join("\n");
+
+  const closedItemLines = closedActionItems
+    .map((item) => formatActionItemSnapshotLine(item, now))
     .join("\n");
 
   const generalNoteLines = generalNotes
     .map((note) => {
       const content = note.content.replace(/\s+/g, " ").trim();
-      return `- title=${note.title} | author=${note.author.name} <${note.author.email}> | createdAt=${note.createdAt.toISOString()} | content=${content}`;
+      return `- visibility=${note.visibility} | title=${note.title} | author=${note.author.name} <${note.author.email}> | createdAt=${note.createdAt.toISOString()} | content=${content}`;
     })
     .join("\n");
+
+  const supplementText = await buildProjectAiSupplementText(projectId);
 
   const text = [
     "PROJECT_SNAPSHOT (authoritative app data):",
@@ -206,15 +287,22 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
     `- actionItemScope: ${selfTaskQuestion ? "CURRENT_USER_ONLY" : "PROJECT_OPEN_ITEMS"}`,
     selfTaskQuestion
       ? "- scopeRule: The user asked about their own tasks, so this snapshot includes only action items assigned to the requester."
-      : "- scopeRule: This snapshot includes open project action items across owners.",
+      : "- scopeRule: actionItems lists open project action items across owners.",
+    "- scopeRuleClosed: closedActionItems lists completed/cancelled tasks when the question references them or asks whether a task exists.",
     `- openActionItems: ${openCount}`,
+    `- closedActionItemsIncluded: ${closedActionItems.length}`,
     `- overdueActionItems: ${overdueCount}`,
     "- ownersSummary:",
     ownerLines || "- (none)",
-    "- actionItems:",
+    "- actionItems (open only):",
     itemLines || "- (none)",
-    "- publicGeneralNotes:",
-    generalNoteLines || "- (none)"
+    "- closedActionItems:",
+    closedItemLines || "- (none)",
+    "- generalNotes:",
+    generalNoteLines || "- (none)",
+    "",
+    "PROJECT_SUPPLEMENT (approved memory, meetings, risks, anonymized team pulse):",
+    supplementText || "- (none)"
   ].join("\n");
 
   return {
@@ -360,6 +448,10 @@ aiRouter.post("/playground/generate", async (req, res) => {
 
   try {
     const authUser = parseOptionalAuthUser(req);
+    if (parsed.data.projectId && !authUser) {
+      return res.status(401).json({ message: "Authentication required for project-scoped AI" });
+    }
+
     const projectContext = authUser && parsed.data.projectId
       ? await buildProjectContext(authUser, parsed.data.projectId, parsed.data.prompt)
       : null;
@@ -368,8 +460,12 @@ aiRouter.post("/playground/generate", async (req, res) => {
       "Grounding policy:",
       "- If PROJECT_SNAPSHOT is provided, treat it as source of truth for project task status.",
       "- Answer using the snapshot fields directly, especially overdue and owner-related counts.",
-      "- Public general notes in publicGeneralNotes are approved project context and may answer factual questions such as leave dates, team agreements, reminders, and shared project facts.",
-      "- Do not use private notes; only publicGeneralNotes are provided.",
+      "- actionItems contains open tasks only. closedActionItems contains completed/cancelled tasks relevant to the question.",
+      "- A task may appear only in closedActionItems if it is already done or cancelled.",
+      "- Manual tasks created outside meetings still appear in the snapshot when they belong to the project.",
+      "- PROJECT_SUPPLEMENT includes approved project memory, meeting catalog, minute risks/open questions, general notes, and anonymized team pulse aggregates.",
+      "- anonymizedTeamPulse and tenantCommunicationMood never include raw feeling-log text or author identity.",
+      "- generalNotes may include PUBLIC and PRIVATE visibility.",
       "- If actionItemScope is CURRENT_USER_ONLY, answer only about tasks assigned to the requester.",
       "- Never present another owner's task as the requester's own task.",
       "- If actionItemScope is CURRENT_USER_ONLY and actionItems is empty, say the requester currently has no open tasks in this project.",

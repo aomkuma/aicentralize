@@ -46,6 +46,32 @@
     "getStarted": "เริ่มต้นใช้งาน",
     "exploreFeatures": "ดูฟีเจอร์",
     "heroOriginLine": "ไม่ได้เกิดจากการอยากสร้าง AI แต่เกิดจากการอยากช่วยคนทำงานคนหนึ่ง",
+    "inAppBrowser": {
+      "title": "เปิดในเบราว์เซอร์",
+      "message": "คุณกำลังเปิด Kora ผ่าน {{appName}} เพื่อเข้าสู่ระบบ การแจ้งเตือน และประสบการณ์ที่ดีที่สุด กรุณาเปิดหน้านี้ใน {{browser}}",
+      "iosSteps": "แตะเมนู ··· หรือปุ่มแชร์ (ด้านล่างหรือด้านบน) แล้วเลือก เปิดใน {{browser}}",
+      "androidSteps": "แตะเมนู (⋮) มุมขวาบน แล้วเลือก เปิดในเบราว์เซอร์ หรือ {{browser}}",
+      "copyLink": "คัดลอกลิงก์",
+      "copied": "คัดลอกแล้ว",
+      "continue": "ใช้งานต่อที่นี่",
+      "close": "ปิด",
+      "browsers": {
+        "safari": "Safari",
+        "default": "เบราว์เซอร์เริ่มต้นของเครื่อง"
+      },
+      "apps": {
+        "line": "LINE",
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "messenger": "Messenger",
+        "twitter": "X (Twitter)",
+        "wechat": "WeChat",
+        "tiktok": "TikTok",
+        "linkedin": "LinkedIn",
+        "kakao": "KakaoTalk",
+        "generic": "เบราว์เซอร์ในแอป"
+      }
+    },
     "signIn": "เข้าสู่ระบบ",
     "signInToWorkspace": "เข้าสู่ระบบ workspace",
     "featuresTitle": "ออกแบบมาเพื่อการทำงานของทีมจริง",
@@ -700,6 +726,7 @@
     "noSummary": "ยังไม่มีสรุปความต่อเนื่องของโปรเจคนี้",
     "actionFiltersTitle": "รายการงาน",
     "actionFiltersCount": "แสดง {{shown}} จาก {{total}} งาน โดยเรียงงานสำคัญและใกล้ครบกำหนดไว้ก่อน",
+    "statusFilterActiveAll": "งานที่ยังต้องทำ (ทั้งหมด)",
     "showFilters": "แสดงตัวกรอง",
     "hideFilters": "ซ่อนตัวกรอง",
     "overdueOnly": "เฉพาะงานเกินกำหนด",

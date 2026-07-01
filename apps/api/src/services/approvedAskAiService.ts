@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { generateWithLocalModel } from "./aiService";
 import { logAiRun } from "./aiRunLogService";
 import { hybridRetrieveApprovedKnowledge } from "./retrieval/hybridRetrievalService";
+import { retrieveProjectAiSupplementEvidence } from "./projectAiContextService";
 
 type AskApprovedInput = {
   question: string;
@@ -167,6 +168,8 @@ function buildGroundedPrompt(question: string, evidence: UsedEvidence[]): string
     "If the user asks for a short answer, keep it short and avoid extra sections.",
     "Use bullets only for lists, action items, comparisons, or when the user asks for a summary.",
     "When answering about open actions, prioritize explicit action-item status from evidence over narrative text.",
+    "Evidence with sourceType ACTION_ITEM from live-action-item chunks reflects current app task records, including manual tasks and completed/cancelled items.",
+    "Evidence with sourceType TEAM_PULSE_AGGREGATE or COMMUNICATION_MOOD_AGGREGATE is anonymized team mood context only. Never quote raw feeling-log text or reveal who wrote a feeling log.",
     "Respond in Thai.",
     "Return ONLY JSON with this shape:",
     '{"answer":"string","confidence":"low|medium|high","uncertainties":["string"]}',
@@ -213,6 +216,92 @@ function scoreProjectMemory(text: string, query: string): number {
 
   const hits = tokens.filter((token) => normalizedText.includes(token)).length;
   return hits / tokens.length;
+}
+
+function normalizeForTaskMatch(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, "").trim();
+}
+
+function taskMatchesPrompt(task: string, prompt: string): boolean {
+  const taskNorm = normalizeForTaskMatch(task);
+  const promptNorm = normalizeForTaskMatch(prompt);
+
+  if (!taskNorm || taskNorm.length < 4) {
+    return false;
+  }
+
+  if (promptNorm.includes(taskNorm)) {
+    return true;
+  }
+
+  const quotedPhrases = [...prompt.matchAll(/["'「『]([^"'」』]{3,})["'」』]/g)]
+    .map((match) => normalizeForTaskMatch(match[1]));
+
+  return quotedPhrases.some((phrase) => phrase && (taskNorm.includes(phrase) || phrase.includes(taskNorm)));
+}
+
+async function retrieveLiveProjectActionItemEvidence(input: { projectId?: string; question: string; limit: number }): Promise<UsedEvidence[]> {
+  if (!input.projectId) {
+    return [];
+  }
+
+  const rows = await prisma.actionItem.findMany({
+    where: { projectId: input.projectId },
+    include: {
+      assignee: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 120
+  });
+
+  return rows
+    .map((item) => {
+      const text = [
+        item.task,
+        item.detail ?? "",
+        item.status,
+        item.source,
+        item.assignee.name,
+        item.assignee.email
+      ].filter(Boolean).join(" | ");
+      const lexical = scoreProjectMemory(text, input.question);
+      const directMatchBoost = taskMatchesPrompt(item.task, input.question) ? 0.42 : 0;
+      const statusBoost = item.status === "DONE" || item.status === "CANCELLED" ? 0.04 : 0.1;
+
+      return {
+        chunkId: `live-action-item:${item.id}`,
+        sourceType: "ACTION_ITEM",
+        sourceRowId: item.id,
+        projectId: item.projectId,
+        meetingId: item.meetingId ?? "",
+        meetingTitle: "",
+        meetingDate: item.updatedAt.toISOString(),
+        minuteVersionId: "",
+        minuteApprovedAt: "",
+        snippet: [
+          `[Action item] ${item.task}`,
+          `status: ${item.status}`,
+          `source: ${item.source}`,
+          `owner: ${item.assignee.name}`,
+          item.detail ? `detail: ${item.detail}` : "",
+          `due: ${item.dueDate.toISOString()}`
+        ].filter(Boolean).join(" | "),
+        vectorScore: 0,
+        lexicalScore: lexical,
+        sourceBoost: 0.14,
+        recencyBoost: 0.05,
+        hybridScore: lexical * 0.7 + directMatchBoost + statusBoost
+      };
+    })
+    .filter((item) => item.hybridScore > 0.12)
+    .sort((a, b) => b.hybridScore - a.hybridScore)
+    .slice(0, input.limit);
 }
 
 async function retrieveProjectMemoryEvidence(input: { projectId?: string; question: string; limit: number }): Promise<UsedEvidence[]> {
@@ -290,8 +379,7 @@ async function retrieveProjectGeneralNoteEvidence(input: { projectId?: string; q
 
   const rows = await prisma.projectGeneralNote.findMany({
     where: {
-      projectId: input.projectId,
-      visibility: "PUBLIC"
+      projectId: input.projectId
     },
     include: {
       author: {
@@ -328,7 +416,7 @@ async function retrieveProjectGeneralNoteEvidence(input: { projectId?: string; q
         minuteVersionId: "",
         minuteApprovedAt: "",
         snippet: [
-          `[General note] ${item.title}`,
+          `[General note:${item.visibility}] ${item.title}`,
           `author: ${item.author.name}`,
           item.content
         ].join(" | "),
@@ -381,7 +469,7 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
     limit: 12
   });
 
-  const [topEvidence, memoryEvidence, generalNoteEvidence] = await Promise.all([
+  const [topEvidence, memoryEvidence, generalNoteEvidence, liveActionEvidence, supplementEvidence] = await Promise.all([
     Promise.resolve(retrieval.evidence),
     retrieveProjectMemoryEvidence({
       projectId: input.projectId,
@@ -392,10 +480,22 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
       projectId: input.projectId,
       question: input.question,
       limit: 6
-    })
+    }),
+    retrieveLiveProjectActionItemEvidence({
+      projectId: input.projectId,
+      question: input.question,
+      limit: 8
+    }),
+    input.projectId
+      ? retrieveProjectAiSupplementEvidence({
+        projectId: input.projectId,
+        question: input.question,
+        limit: 14
+      })
+      : Promise.resolve([])
   ]);
 
-  if (!topEvidence.length && !memoryEvidence.length && !generalNoteEvidence.length) {
+  if (!topEvidence.length && !memoryEvidence.length && !generalNoteEvidence.length && !liveActionEvidence.length && !supplementEvidence.length) {
     const emptyResult = {
       answer: "ไม่พบหลักฐานจากข้อมูลที่อนุมัติแล้วซึ่งตรงกับคำถามนี้",
       confidence: "low" as const,
@@ -495,6 +595,8 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
   });
   usedEvidence.push(...memoryEvidence);
   usedEvidence.push(...generalNoteEvidence);
+  usedEvidence.push(...liveActionEvidence);
+  usedEvidence.push(...supplementEvidence);
   usedEvidence.sort((a, b) => b.hybridScore - a.hybridScore);
 
   const citations: Citation[] = usedEvidence.map((item) => ({

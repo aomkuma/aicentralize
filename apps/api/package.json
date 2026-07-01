@@ -18,6 +18,7 @@
     "db:clean:force": "ts-node scripts/clean-data.ts --force",
     "db:clear-meetings": "ts-node scripts/clear-meeting-data.ts",
     "db:clear-meetings:force": "ts-node scripts/clear-meeting-data.ts --force",
+    "knowledge:backfill": "ts-node scripts/backfill-knowledge-chunks.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

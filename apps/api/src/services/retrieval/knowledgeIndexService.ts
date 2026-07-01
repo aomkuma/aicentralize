@@ -20,16 +20,52 @@ function pushChunk(chunks: BuildChunk[], chunk: BuildChunk) {
   chunks.push(chunk);
 }
 
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function readOpenQuestionsFromSnapshot(snapshotJson: unknown): string[] {
+  if (!snapshotJson || typeof snapshotJson !== "object" || Array.isArray(snapshotJson)) {
+    return [];
+  }
+
+  return parseStringArray((snapshotJson as { openQuestions?: unknown }).openQuestions);
+}
+
+const TRANSCRIPT_CHUNK_SIZE = 1800;
+const MAX_TRANSCRIPT_CHUNKS = 12;
+
+function chunkTranscript(text: string | null | undefined): string[] {
+  const normalized = text?.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const chunks: string[] = [];
+  for (let index = 0; index < normalized.length; index += TRANSCRIPT_CHUNK_SIZE) {
+    chunks.push(normalized.slice(index, index + TRANSCRIPT_CHUNK_SIZE));
+  }
+
+  return chunks.slice(0, MAX_TRANSCRIPT_CHUNKS);
+}
+
 function buildChunksFromVersion(version: {
   id: string;
   meetingId: string;
   summary: string;
   keyPointsJson: unknown;
+  risksJson: unknown;
+  snapshotJson: unknown;
   meeting: {
     title: string;
     agenda: string | null;
     projectId: string;
     sessionAt: Date;
+    transcript: string | null;
   };
   decisions: Array<{
     id: string;
@@ -64,6 +100,9 @@ function buildChunksFromVersion(version: {
     ? version.keyPointsJson.filter((x) => typeof x === "string").map((x) => String(x))
     : [];
 
+  const risks = parseStringArray(version.risksJson);
+  const openQuestions = readOpenQuestionsFromSnapshot(version.snapshotJson);
+
   keyPoints.forEach((point, index) => {
     pushChunk(chunks, {
       chunkKey: `${version.id}:KEY_POINT:${index + 1}`,
@@ -73,6 +112,38 @@ function buildChunksFromVersion(version: {
       sourceType: KnowledgeChunkSourceType.KEY_POINT,
       textContent: point,
       metadataJson: {
+        index: index + 1,
+        meetingTitle: version.meeting.title
+      }
+    });
+  });
+
+  risks.forEach((risk, index) => {
+    pushChunk(chunks, {
+      chunkKey: `${version.id}:RISK:${index + 1}`,
+      projectId: version.meeting.projectId,
+      meetingId: version.meetingId,
+      minuteVersionId: version.id,
+      sourceType: KnowledgeChunkSourceType.KEY_POINT,
+      textContent: `[Risk] ${risk}`,
+      metadataJson: {
+        subtype: "risk",
+        index: index + 1,
+        meetingTitle: version.meeting.title
+      }
+    });
+  });
+
+  openQuestions.forEach((question, index) => {
+    pushChunk(chunks, {
+      chunkKey: `${version.id}:OPEN_QUESTION:${index + 1}`,
+      projectId: version.meeting.projectId,
+      meetingId: version.meetingId,
+      minuteVersionId: version.id,
+      sourceType: KnowledgeChunkSourceType.KEY_POINT,
+      textContent: `[Open question] ${question}`,
+      metadataJson: {
+        subtype: "open_question",
         index: index + 1,
         meetingTitle: version.meeting.title
       }
@@ -134,6 +205,22 @@ function buildChunksFromVersion(version: {
     });
   });
 
+  chunkTranscript(version.meeting.transcript).forEach((excerpt, index) => {
+    pushChunk(chunks, {
+      chunkKey: `${version.id}:TRANSCRIPT:${index + 1}`,
+      projectId: version.meeting.projectId,
+      meetingId: version.meetingId,
+      minuteVersionId: version.id,
+      sourceType: KnowledgeChunkSourceType.KEY_POINT,
+      textContent: `[Approved transcript] ${excerpt}`,
+      metadataJson: {
+        subtype: "transcript",
+        index: index + 1,
+        meetingTitle: version.meeting.title
+      }
+    });
+  });
+
   return chunks;
 }
 
@@ -146,7 +233,8 @@ export async function syncKnowledgeChunksForMinuteVersion(minuteVersionId: strin
           title: true,
           agenda: true,
           projectId: true,
-          sessionAt: true
+          sessionAt: true,
+          transcript: true
         }
       },
       decisions: {
@@ -173,12 +261,22 @@ export async function syncKnowledgeChunksForMinuteVersion(minuteVersionId: strin
     return { indexedCount: 0 };
   }
 
+  const latestVersion = await prisma.minuteVersion.findFirst({
+    where: { meetingId: version.meetingId },
+    orderBy: { versionNo: "desc" },
+    select: { id: true }
+  });
+
+  if (latestVersion?.id !== version.id) {
+    return { indexedCount: 0, skipped: true };
+  }
+
   const chunks = buildChunksFromVersion(version);
   const provider = getEmbeddingProvider();
 
   await prisma.$transaction(async (tx) => {
     await tx.meetingKnowledgeChunk.deleteMany({
-      where: { minuteVersionId }
+      where: { meetingId: version.meetingId }
     });
 
     for (const chunk of chunks) {
@@ -206,24 +304,42 @@ export async function syncKnowledgeChunksForMinuteVersion(minuteVersionId: strin
   };
 }
 
-export async function backfillKnowledgeChunks(limit = 200) {
-  const versions = await prisma.minuteVersion.findMany({
+export async function backfillKnowledgeChunks(limit = 500) {
+  const meetings = await prisma.meeting.findMany({
     select: { id: true },
-    orderBy: { approvedAt: "desc" },
+    orderBy: { updatedAt: "desc" },
     take: limit
   });
 
   let indexedVersions = 0;
   let indexedChunks = 0;
+  let skippedVersions = 0;
 
-  for (const version of versions) {
-    const result = await syncKnowledgeChunksForMinuteVersion(version.id);
+  for (const meeting of meetings) {
+    const latestVersion = await prisma.minuteVersion.findFirst({
+      where: { meetingId: meeting.id },
+      orderBy: { versionNo: "desc" },
+      select: { id: true }
+    });
+
+    if (!latestVersion) {
+      continue;
+    }
+
+    const result = await syncKnowledgeChunksForMinuteVersion(latestVersion.id);
+    if (result.skipped) {
+      skippedVersions += 1;
+      continue;
+    }
+
     indexedVersions += 1;
     indexedChunks += result.indexedCount;
   }
 
   return {
+    meetingsProcessed: meetings.length,
     indexedVersions,
+    skippedVersions,
     indexedChunks
   };
 }

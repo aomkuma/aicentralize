@@ -11,6 +11,7 @@ import cron from "node-cron";
 import { APP_DISPLAY_NAME } from "../config/brand";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
+import { startOfBriefingDay } from "../lib/briefingTimeZone";
 import { generateWithLocalModel } from "./aiService";
 import { logAiRun } from "./aiRunLogService";
 
@@ -45,8 +46,51 @@ type BriefingContent = {
   sections: Array<{ title: string; items: string[] }>;
 };
 
-function startOfLocalDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+async function expirePriorUnacknowledgedBriefings(input: {
+  tenantId: string;
+  userId: string;
+  briefingDate: Date;
+}) {
+  const staleBriefings = await prisma.morningBriefing.findMany({
+    where: {
+      tenantId: input.tenantId,
+      userId: input.userId,
+      briefingDate: { lt: input.briefingDate },
+      acknowledgements: {
+        none: { userId: input.userId }
+      }
+    },
+    select: { id: true }
+  });
+
+  if (!staleBriefings.length) {
+    return 0;
+  }
+
+  await prisma.$transaction(
+    staleBriefings.map((briefing) => prisma.morningBriefingAcknowledgement.upsert({
+      where: {
+        briefingId_userId: {
+          briefingId: briefing.id,
+          userId: input.userId
+        }
+      },
+      create: {
+        briefingId: briefing.id,
+        userId: input.userId,
+        mood: MorningBriefingAckMood.I_KNOW,
+        score: 0,
+        reviewAgain: false
+      },
+      update: {
+        mood: MorningBriefingAckMood.I_KNOW,
+        score: 0,
+        reviewAgain: false
+      }
+    }))
+  );
+
+  return staleBriefings.length;
 }
 
 function addDays(date: Date, days: number) {
@@ -274,6 +318,23 @@ type MorningBriefingWithAck = Prisma.MorningBriefingGetPayload<{
   };
 }>;
 
+function briefingHasActionableContent(briefing: MorningBriefingWithAck): boolean {
+  const actionItemIds = Array.isArray(briefing.actionItemIdsJson) ? briefing.actionItemIdsJson : [];
+  if (actionItemIds.length > 0) {
+    return true;
+  }
+
+  const sections = Array.isArray(briefing.sectionsJson) ? briefing.sectionsJson : [];
+  return sections.some((section) => {
+    if (!section || typeof section !== "object") {
+      return false;
+    }
+
+    const items = (section as { items?: unknown }).items;
+    return Array.isArray(items) && items.length > 0;
+  });
+}
+
 function serializeBriefing(briefing: MorningBriefingWithAck | null) {
   if (!briefing) return null;
   const acknowledgement = briefing.acknowledgements?.[0] ?? null;
@@ -312,14 +373,33 @@ export async function generateMorningBriefingForMembership(input: {
 }) {
   const runStartMs = Date.now();
   const now = input.now ?? new Date();
-  const briefingDate = startOfLocalDay(now);
+  const briefingDate = startOfBriefingDay(now);
   const roleScope = isManagerScope(input.tenantRole) ? `${input.tenantRole}_TEAM_SCOPE` : `${input.tenantRole}_OWN_SCOPE`;
+
+  await expirePriorUnacknowledgedBriefings({
+    tenantId: input.tenantId,
+    userId: input.userId,
+    briefingDate
+  });
+
   const items = await collectBriefingItems({
     tenantId: input.tenantId,
     userId: input.userId,
     tenantRole: input.tenantRole,
     now
   });
+
+  if (!items.length) {
+    await prisma.morningBriefing.deleteMany({
+      where: {
+        tenantId: input.tenantId,
+        userId: input.userId,
+        briefingDate
+      }
+    });
+    return null;
+  }
+
   const fallback = buildFallbackContent({ userName: input.userName, roleScope, items });
 
   let content = fallback;
@@ -441,6 +521,15 @@ export async function runMorningBriefingsForAllTenants(now = new Date()) {
         tenantRole: membership.role,
         now
       });
+      if (!briefing) {
+        results.push({
+          userId: membership.user.id,
+          tenantId: membership.tenantId,
+          status: "SKIPPED" as const,
+          reason: "NO_ACTIONABLE_ITEMS"
+        });
+        continue;
+      }
       results.push({ userId: membership.user.id, tenantId: membership.tenantId, briefingId: briefing.id, status: "SUCCESS" as const });
     } catch (error) {
       results.push({
@@ -476,9 +565,11 @@ export async function getLatestMorningBriefingForUser(input: {
   userId: string;
   tenantId?: string;
 }) {
+  const today = startOfBriefingDay(new Date());
   const briefing = await prisma.morningBriefing.findFirst({
     where: {
       userId: input.userId,
+      briefingDate: today,
       ...(input.tenantId ? { tenantId: input.tenantId } : {})
     },
     include: {
@@ -487,9 +578,12 @@ export async function getLatestMorningBriefingForUser(input: {
         orderBy: { createdAt: "desc" },
         take: 1
       }
-    },
-    orderBy: { generatedAt: "desc" }
+    }
   });
+
+  if (!briefing || !briefingHasActionableContent(briefing)) {
+    return null;
+  }
 
   return serializeBriefing(briefing);
 }

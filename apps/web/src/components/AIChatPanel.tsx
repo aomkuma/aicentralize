@@ -960,6 +960,40 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
 
     try {
       const accessToken = localStorage.getItem('accessToken')
+
+      if (projectId) {
+        if (!accessToken) {
+          throw new Error(t('aiChat.errors.requestFailed'))
+        }
+
+        const response = await fetch('/ask-ai', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            question: cleanPrompt,
+            projectId,
+            model: DEFAULT_MODEL,
+          }),
+        })
+
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.detail || data.message || t('aiChat.errors.requestFailed'))
+        }
+
+        const output = data.answer || t('aiChat.status.noOutput')
+        const links = normalizeAppLinks(data.appLinks)
+        setAnswerLinks(links)
+        typewrite(output, () => {
+          persistChatState(cleanPrompt, output, links)
+          stopStatusPulse(t('aiChat.status.done'))
+        })
+        return
+      }
+
       const response = await fetch('/ai/playground/generate', {
         method: 'POST',
         headers: {
@@ -969,8 +1003,7 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
         body: JSON.stringify({
           prompt: cleanPrompt,
           model: DEFAULT_MODEL,
-          ...(projectId ? { projectId } : {})
-        })
+        }),
       })
 
       const data = await response.json()

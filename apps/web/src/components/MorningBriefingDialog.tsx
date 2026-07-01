@@ -15,6 +15,14 @@ type AckResponse = {
   acknowledgement: NonNullable<MorningBriefing['acknowledgement']>
 }
 
+function hasBriefingWork(briefing: MorningBriefing): boolean {
+  if (briefing.actionItemIds.length > 0) {
+    return true
+  }
+
+  return briefing.sections.some((section) => section.items.length > 0)
+}
+
 const acknowledgeOptions: Array<{
   mood: MorningBriefingAckMood
   label: string
@@ -60,7 +68,11 @@ export default function MorningBriefingDialog({ tenantId }: MorningBriefingDialo
       const data = await get<LatestResponse>(`/morning-briefings/me/latest?${params.toString()}`)
       const nextBriefing = data?.briefing ?? null
       setBriefing(nextBriefing)
-      setIsVisible(Boolean(nextBriefing && !nextBriefing.acknowledgement))
+      setIsVisible(Boolean(
+        nextBriefing
+        && !nextBriefing.acknowledgement
+        && hasBriefingWork(nextBriefing)
+      ))
     }
 
     void loadBriefing()

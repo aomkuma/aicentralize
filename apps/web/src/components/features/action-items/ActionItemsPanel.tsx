@@ -320,6 +320,9 @@ export default function ActionItemsPanel({
         if (actionFilters.status && item.status !== actionFilters.status) {
           return false
         }
+        if (!actionFilters.status && isClosedActionStatus(item.status)) {
+          return false
+        }
         if (actionFilters.overdue === 'overdue' && !item.overdue) {
           return false
         }
@@ -364,6 +367,14 @@ export default function ActionItemsPanel({
         )
       })
   }, [actionFilters, actionItems, mode])
+
+  const listBaselineCount = useMemo(() => {
+    if (!actionFilters.status) {
+      return actionItems.filter((item) => !isClosedActionStatus(item.status)).length
+    }
+
+    return actionItems.length
+  }, [actionFilters.status, actionItems])
 
   const notifyItemsChanged = useCallback(() => {
     void fetchActionItems()
@@ -724,7 +735,7 @@ export default function ActionItemsPanel({
               {t('continuity.actionFiltersCount', {
                 defaultValue: '{{shown}} of {{total}} tasks. Default sorting puts high-priority and near-due work first.',
                 shown: visibleActionItems.length,
-                total: actionItems.length,
+                total: listBaselineCount,
               })}
             </p>
           </div>
@@ -817,7 +828,9 @@ export default function ActionItemsPanel({
                 }
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
               >
-                <option value="">{t('common.all', { defaultValue: 'All' })}</option>
+                <option value="">
+                  {t('continuity.statusFilterActiveAll', { defaultValue: 'Active (all open)' })}
+                </option>
                 {actionItemStatuses.map((status) => (
                   <option key={status} value={status}>
                     {t(`continuity.actionStatuses.${status}`, { defaultValue: status })}
