@@ -548,6 +548,38 @@
     "sourceCreated": "บันทึกข้อมูลแล้ว พร้อมให้สกัด baseline",
     "extracted": "สกัด draft baseline แล้ว",
     "approved": "อนุมัติเข้า project memory แล้ว",
+    "guide": {
+      "label": "คู่มือนำเข้าความรู้โปรเจค",
+      "steps": {
+        "step1": {
+          "title": "เพิ่มข้อมูลตั้งต้น",
+          "description": "อัปโหลด TOR, requirement, minutes เก่า หรือวางข้อความ แต่ละรายการจะเข้าคิวรอตรวจ"
+        },
+        "step2": {
+          "title": "สกัด draft baseline",
+          "description": "ให้ AI สกัดข้อมูลจากเอกสารดิบเป็นรายการ baseline ที่ PM ตรวจได้"
+        },
+        "step3": {
+          "title": "อนุมัติเข้า memory",
+          "description": "อนุมัติ baseline ที่ตรวจแล้ว เพื่อให้ Ask AI ใช้เป็นบริบทโปรเจคที่เชื่อถือได้"
+        }
+      }
+    },
+    "progress": {
+      "title": "สถานะการประมวลผลปัจจุบัน",
+      "subtitle": "อาจใช้เวลาสักครู่",
+      "failedHint": "มีขั้นตอนที่ล้มเหลว กรุณาดูข้อความด้านบนแล้วลองใหม่",
+      "fileCount": "กำลังประมวลผล {{count}} ไฟล์",
+      "steps": {
+        "validatingInput": "ตรวจชื่อ ประเภท และเนื้อหาเอกสาร",
+        "extractingDocumentText": "อ่านข้อความจากไฟล์ที่อัปโหลด",
+        "savingSource": "บันทึกข้อมูลเข้าคิว project knowledge",
+        "aiExtracting": "สกัด baseline ด้วย AI",
+        "reviewingExtraction": "ตรวจ draft baseline ที่สกัดได้",
+        "savingToMemory": "อนุมัติเข้า project memory",
+        "completed": "เสร็จสิ้น"
+      }
+    },
     "sources": "คิวข้อมูลตั้งต้น",
     "source": "แหล่งข้อมูล",
     "extract": "สกัด baseline",

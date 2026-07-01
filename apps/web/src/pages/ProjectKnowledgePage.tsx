@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
+import WorkflowProgressPanel from '../components/WorkflowProgressPanel'
 import { useApi } from '../hooks/useApi'
 import type {
   ProjectKnowledgeAuthorityLevel,
@@ -50,6 +51,24 @@ const sourceTypes: ProjectKnowledgeSourceType[] = [
 const authorityLevels: ProjectKnowledgeAuthorityLevel[] = ['AUTHORITATIVE', 'SUPPORTING', 'HISTORICAL']
 
 const HISTORY_PAGE_SIZE = 15
+
+type KnowledgeProgressMode = 'import' | 'save' | 'extract' | 'approve' | null
+type KnowledgeProgressKey =
+  | 'validatingInput'
+  | 'extractingDocumentText'
+  | 'savingSource'
+  | 'aiExtracting'
+  | 'reviewingExtraction'
+  | 'savingToMemory'
+  | 'completed'
+  | 'failed'
+
+const progressFlowByMode: Record<Exclude<KnowledgeProgressMode, null>, KnowledgeProgressKey[]> = {
+  import: ['validatingInput', 'extractingDocumentText', 'savingSource', 'aiExtracting', 'completed'],
+  save: ['validatingInput', 'savingSource', 'completed'],
+  extract: ['validatingInput', 'aiExtracting', 'completed'],
+  approve: ['reviewingExtraction', 'savingToMemory', 'completed'],
+}
 
 function paginateItems<T>(items: T[], page: number) {
   const total = items.length
@@ -395,6 +414,11 @@ export default function ProjectKnowledgePage() {
   const [memoryPage, setMemoryPage] = useState(1)
   const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(() => new Set())
   const [expandedMemoryIds, setExpandedMemoryIds] = useState<Set<string>>(() => new Set())
+  const [guidedStep, setGuidedStep] = useState(1)
+  const [hoveredGuideStep, setHoveredGuideStep] = useState<number | null>(null)
+  const [progressMode, setProgressMode] = useState<KnowledgeProgressMode>(null)
+  const [progressKey, setProgressKey] = useState<KnowledgeProgressKey>('validatingInput')
+  const [progressDetail, setProgressDetail] = useState('')
 
   const fetchKnowledge = useCallback(async () => {
     if (!projectId) {
@@ -455,6 +479,62 @@ export default function ProjectKnowledgePage() {
     }
   }, [memoryPage, memoryPagination.totalPages])
 
+  const guidedSteps = useMemo(
+    () => [
+      {
+        title: t('projectKnowledge.guide.steps.step1.title'),
+        description: t('projectKnowledge.guide.steps.step1.description'),
+      },
+      {
+        title: t('projectKnowledge.guide.steps.step2.title'),
+        description: t('projectKnowledge.guide.steps.step2.description'),
+      },
+      {
+        title: t('projectKnowledge.guide.steps.step3.title'),
+        description: t('projectKnowledge.guide.steps.step3.description'),
+      },
+    ],
+    [t],
+  )
+
+  const stepOneComplete = sources.length > 0 || contentText.trim().length >= 20 || selectedFiles.length > 0
+  const stepTwoComplete = sources.some(
+    (source) =>
+      (source.extractions?.length ?? 0) > 0 ||
+      source.status === 'EXTRACTED' ||
+      source.status === 'REVIEWED' ||
+      source.status === 'APPROVED',
+  )
+  const stepThreeComplete =
+    (baseline?.approvedMemoryCount ?? 0) > 0 ||
+    memoryItems.some((item) => item.status === 'APPROVED')
+
+  const activeGuideStep = hoveredGuideStep ?? guidedStep
+  const activeGuideStepData = guidedSteps[activeGuideStep - 1] ?? guidedSteps[0]
+
+  const progressSteps = useMemo(() => {
+    if (!progressMode) {
+      return []
+    }
+
+    return progressFlowByMode[progressMode].map((key) => ({
+      key,
+      label: t(`projectKnowledge.progress.steps.${key}`),
+    }))
+  }, [progressMode, t])
+
+  const updateProgress = (
+    mode: Exclude<KnowledgeProgressMode, null>,
+    key: KnowledgeProgressKey,
+    detail?: string,
+  ) => {
+    setProgressMode(mode)
+    setProgressKey(key)
+    if (detail !== undefined) {
+      setProgressDetail(detail)
+    }
+  }
+
   if (!projectId) {
     return <Navigate to="/projects" replace />
   }
@@ -463,10 +543,16 @@ export default function ProjectKnowledgePage() {
     const cleanTitle = title.trim()
     const cleanContent = contentText.trim()
 
+    updateProgress('save', 'validatingInput')
+
     if (cleanTitle.length < 2 || cleanContent.length < 20) {
       setNotice(t('projectKnowledge.validation'))
+      updateProgress('save', 'failed')
       return
     }
+
+    setNotice('')
+    updateProgress('save', 'savingSource', cleanTitle)
 
     const created = await post<ProjectKnowledgeSource>(`/projects/${projectId}/knowledge/sources`, {
       sourceType,
@@ -483,8 +569,13 @@ export default function ProjectKnowledgePage() {
       setVersionLabel('')
       setContentText('')
       setNotice(t('projectKnowledge.sourceCreated'))
+      setGuidedStep(2)
+      updateProgress('save', 'completed', cleanTitle)
       await fetchKnowledge()
+      return
     }
+
+    updateProgress('save', 'failed', cleanTitle)
   }
 
   const handleImportFiles = async () => {
@@ -495,6 +586,7 @@ export default function ProjectKnowledgePage() {
 
     setIsImporting(true)
     setNotice('')
+    updateProgress('import', 'validatingInput', t('projectKnowledge.progress.fileCount', { count: selectedFiles.length }))
 
     try {
       let importedCount = 0
@@ -502,15 +594,18 @@ export default function ProjectKnowledgePage() {
 
       for (const file of selectedFiles) {
         try {
+          updateProgress('import', 'extractingDocumentText', file.name)
           const extractedText = (await extractFileText(file)).trim()
           if (extractedText.length < 20) {
             failedFiles.push(formatFileErrorMessage(file.name, t('projectKnowledge.fileTooShort')))
             continue
           }
 
+          const derivedTitle = deriveTitleFromFileName(file.name).slice(0, 180)
+          updateProgress('import', 'savingSource', file.name)
           const source = await post<ProjectKnowledgeSource>(`/projects/${projectId}/knowledge/sources`, {
             sourceType,
-            title: deriveTitleFromFileName(file.name).slice(0, 180),
+            title: derivedTitle,
             contentText: extractedText,
             documentDate: file.lastModified ? new Date(file.lastModified).toISOString() : undefined,
             versionLabel: versionLabel.trim() || undefined,
@@ -522,6 +617,7 @@ export default function ProjectKnowledgePage() {
             continue
           }
 
+          updateProgress('import', 'aiExtracting', file.name)
           const extraction = await post(`/projects/${projectId}/knowledge/sources/${source.id}/extract`)
           if (!extraction) {
             failedFiles.push(formatFileErrorMessage(file.name, t('projectKnowledge.extractFailed')))
@@ -543,28 +639,57 @@ export default function ProjectKnowledgePage() {
       } else {
         setNotice(t('projectKnowledge.filesImported', { count: importedCount }))
       }
+
+      if (importedCount > 0) {
+        setGuidedStep(2)
+        updateProgress('import', 'completed')
+      } else {
+        updateProgress('import', 'failed')
+      }
+
       await fetchKnowledge()
     } catch (uploadError) {
       setNotice(uploadError instanceof Error ? uploadError.message : t('projectKnowledge.importFailed'))
+      updateProgress('import', 'failed')
     } finally {
       setIsImporting(false)
     }
   }
 
   const handleExtract = async (sourceId: string) => {
+    const source = sources.find((item) => item.id === sourceId)
+    updateProgress('extract', 'validatingInput', source?.title)
+    setNotice('')
+    updateProgress('extract', 'aiExtracting', source?.title)
+
     const result = await post(`/projects/${projectId}/knowledge/sources/${sourceId}/extract`)
     if (result) {
       setNotice(t('projectKnowledge.extracted'))
+      setGuidedStep(2)
+      updateProgress('extract', 'completed', source?.title)
       await fetchKnowledge()
+      return
     }
+
+    updateProgress('extract', 'failed', source?.title)
   }
 
   const handleApprove = async (sourceId: string) => {
+    const source = sources.find((item) => item.id === sourceId)
+    updateProgress('approve', 'reviewingExtraction', source?.title)
+    setNotice('')
+    updateProgress('approve', 'savingToMemory', source?.title)
+
     const result = await post(`/projects/${projectId}/knowledge/sources/${sourceId}/approve`)
     if (result) {
       setNotice(t('projectKnowledge.approved'))
+      setGuidedStep(3)
+      updateProgress('approve', 'completed', source?.title)
       await fetchKnowledge()
+      return
     }
+
+    updateProgress('approve', 'failed', source?.title)
   }
 
   const handleFileSelection = (files: File[]) => {
@@ -637,6 +762,81 @@ export default function ProjectKnowledgePage() {
               <p className="mt-2 text-3xl font-bold text-amber-600">{baseline.needsReviewCount}</p>
             </div>
           </section>
+        )}
+
+        <section className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 sm:p-5 shadow-sm dark:border-sky-900/60 dark:bg-sky-950/20">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700 dark:text-sky-300">
+              {t('projectKnowledge.guide.label')}
+            </p>
+            <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
+              {t('common.step', { current: guidedStep, total: 3 })}
+            </span>
+          </div>
+
+          <ol className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {guidedSteps.map((step, index) => {
+              const stepNumber = index + 1
+              const isActive = guidedStep === stepNumber
+              const isComplete = [stepOneComplete, stepTwoComplete, stepThreeComplete][index]
+
+              return (
+                <li key={step.title}>
+                  <button
+                    type="button"
+                    onClick={() => setGuidedStep(stepNumber)}
+                    onMouseEnter={() => setHoveredGuideStep(stepNumber)}
+                    onMouseLeave={() => setHoveredGuideStep(null)}
+                    onFocus={() => setHoveredGuideStep(stepNumber)}
+                    onBlur={() => setHoveredGuideStep(null)}
+                    className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${
+                      isActive
+                        ? 'border-sky-400 bg-white shadow-sm dark:border-sky-500 dark:bg-slate-900'
+                        : 'border-sky-100 bg-white/60 hover:bg-white dark:border-slate-700 dark:bg-slate-900/60 dark:hover:bg-slate-900'
+                    }`}
+                  >
+                    <span
+                      className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                        isComplete
+                          ? 'bg-emerald-500 text-white'
+                          : isActive
+                            ? 'bg-sky-600 text-white'
+                            : 'bg-sky-100 text-sky-700 dark:bg-slate-800 dark:text-sky-300'
+                      }`}
+                    >
+                      {isComplete ? '✓' : stepNumber}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        {t('common.step', { current: stepNumber, total: 3 })}
+                      </span>
+                      <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">
+                        {step.title}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ol>
+
+          <div className="mt-3 rounded-xl border border-sky-100 bg-white p-3 text-sm text-slate-700 shadow-sm dark:border-sky-900/50 dark:bg-slate-900 dark:text-slate-200">
+            <p className="font-semibold text-slate-900 dark:text-white">{activeGuideStepData.title}</p>
+            <p className="mt-1 text-slate-600 dark:text-slate-400">{activeGuideStepData.description}</p>
+          </div>
+        </section>
+
+        {progressMode && progressSteps.length > 0 && (
+          <div className="mb-5">
+            <WorkflowProgressPanel
+              title={t('projectKnowledge.progress.title')}
+              subtitle={t('projectKnowledge.progress.subtitle')}
+              detail={progressDetail || undefined}
+              steps={progressSteps}
+              activeKey={progressKey}
+              failedHint={progressKey === 'failed' ? t('projectKnowledge.progress.failedHint') : undefined}
+            />
+          </div>
         )}
 
         {(notice || error) && (

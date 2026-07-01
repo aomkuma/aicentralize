@@ -548,6 +548,38 @@
     "sourceCreated": "Source saved. Run extraction when ready.",
     "extracted": "Baseline draft extracted.",
     "approved": "Approved into project memory.",
+    "guide": {
+      "label": "Knowledge onboarding guide",
+      "steps": {
+        "step1": {
+          "title": "Add source material",
+          "description": "Upload TOR, requirements, old minutes, or paste text. Each source becomes a row in the review queue."
+        },
+        "step2": {
+          "title": "Extract baseline draft",
+          "description": "Run AI extraction to turn raw documents into structured baseline items for PM review."
+        },
+        "step3": {
+          "title": "Approve into memory",
+          "description": "Approve reviewed baseline items so Ask AI can use them as trusted project context."
+        }
+      }
+    },
+    "progress": {
+      "title": "Current processing status",
+      "subtitle": "This may take some time",
+      "failedHint": "A step failed. Review the message above and try again.",
+      "fileCount": "Processing {{count}} file(s)",
+      "steps": {
+        "validatingInput": "Validate title, type, and document content",
+        "extractingDocumentText": "Read text from uploaded file",
+        "savingSource": "Save source to project knowledge queue",
+        "aiExtracting": "Extract structured baseline with AI",
+        "reviewingExtraction": "Review extracted baseline draft",
+        "savingToMemory": "Approve items into project memory",
+        "completed": "Done"
+      }
+    },
     "sources": "Source queue",
     "source": "Source",
     "extract": "Extract baseline",
