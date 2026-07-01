@@ -1,10 +1,14 @@
 # Quick Reference - Common Commands
 
-## Session Update (2026-06-30, late session)
+## Session Update (2026-07-01)
 
-**`main` through `73c80a2`.** Full feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Handover + roadmap: `docs/next-day-handover-2026-06-28.md`.
+**`main` through `e82bc9d`.** Feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Status: [`docs/HANDOVER.md`](docs/HANDOVER.md). Doc index: [`docs/README.md`](docs/README.md).
 
 Recent product changes:
+- **Welcome:** origin story section; public pricing cards (`GET /packages`); package sort by price.
+- **Package admin:** discounts (% / baht); fix new-package form reset.
+- **Emails:** multi-line overdue/escalation templates.
+- **OG previews:** `VITE_APP_PUBLIC_URL` at web build time.
 - **Kora welcome:** `/` guest landing — hero copy, full-width banner, spotlight **Knowledge Hub** + **Feeling Log**.
 - **My Tasks:** `/my-tasks` — sidebar **รายการงานของฉัน**; tasks assigned to you across projects; create with required project.
 - **Action-item assignees:** `TENANT_ADMIN` / `MANAGER` can assign/reassign (uses `TenantMembership.role`, not only legacy `User.role`).
@@ -142,7 +146,7 @@ Manual run: `POST /morning-briefings/run-now`
 - The clickable stepper header tracks completion (✓) per step; Back/Next/Save live in a
   footer bar. `guidedStep` state drives which step renders. Step navigation is manual —
   no auto-advance — so editing a field never jumps the user to another step.
-- Full handover: `docs/next-day-handover-2026-06-28.md`
+- Status & handover: `docs/HANDOVER.md`
 
 ### Saved minutes history and continuity
 - Meeting Studio saves through `POST /meetings`; tenant admins/managers are allowed by tenant role.

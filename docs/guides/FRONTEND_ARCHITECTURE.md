@@ -1,4 +1,6 @@
-# Frontend Feature Modules Implementation Guide
+# Frontend architecture guide
+
+> **Product map:** [`FEATURES.md`](../FEATURES.md) · **Status:** [`HANDOVER.md`](../HANDOVER.md) · **PWA:** [`PWA.md`](./PWA.md)
 
 ## Overview
 

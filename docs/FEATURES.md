@@ -1,8 +1,8 @@
 # AICentralize — Feature Catalog
 
-**Last updated:** 2026-07-01 · **`main` through `73c80a2`**
+**Last updated:** 2026-07-01 · **`main` through `e82bc9d`**
 
-This document is the product feature map (main modules and sub-features). For day-to-day commands and access rules, see [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md). For chronological implementation notes, see [`next-day-handover-2026-06-28.md`](./next-day-handover-2026-06-28.md).
+This document is the product feature map (main modules and sub-features). For day-to-day commands and access rules, see [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md). For current status and open work, see [`HANDOVER.md`](./HANDOVER.md).
 
 ---
 
@@ -17,7 +17,10 @@ This document is the product feature map (main modules and sub-features). For da
 | **Full-width banner** | `/brand/kora-landing-banner.png` |
 | **Spotlight (`#spotlight`)** | Two selling-point cards: **Knowledge Hub** + **Feeling Log** (`landing.spotlight.*`) |
 | **Feature grid** | Six modules; Knowledge Hub and Feeling Log listed first |
-| **CTA** | Sign in → `/auth/login`; explore → `#spotlight` |
+| **CTA** | Sign in → `/auth/login`; explore → `#packages` |
+| **Pricing (`#packages`)** | Public `GET /packages` — active subscription cards sorted by price |
+| **Origin story (`#our-story`)** | Why we built Kora — narrative + quote (EN/TH) |
+| **In-app browser hint** | Popup when opened from LINE / Instagram / etc. (local; pending release) |
 | **Brand assets** | `apps/web/public/brand/` — see `brand/README.md`; ingest via `scripts/ingest-kora-pack.py` |
 
 **i18n:** `landing.*` in `en.json` / `th.json`. Product positioning emphasizes organizational knowledge and team atmosphere, not meetings alone.
@@ -270,7 +273,7 @@ This document is the product feature map (main modules and sub-features). For da
 
 ## Open / planned (not shipped)
 
-See **Open Items Tracker** and **Development Roadmap** in [`next-day-handover-2026-06-28.md`](./next-day-handover-2026-06-28.md):
+See **Open Items** and **roadmap** in [`HANDOVER.md`](./HANDOVER.md):
 
 - Continuity fully on `ActionItemsPanel` (duplicate UI remains)
 - Tenant admin edit others' tasks (patch/status) — `assertCanMutate` gap

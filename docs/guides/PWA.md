@@ -1,6 +1,8 @@
-# PWA & Responsive Implementation Guide
+# PWA & responsive guide
 
-## Progressive Web App (PWA) Features ✨
+> **Doc index:** [`../README.md`](../README.md) · **Handover:** [`../HANDOVER.md`](../HANDOVER.md)
+
+## Progressive Web App (PWA) features
 
 ### 1. **Service Worker**
 - **File**: `public/service-worker.js`
