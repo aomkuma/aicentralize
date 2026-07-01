@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BookOpen, ChevronLeft, Upload } from 'lucide-react'
+import { BookOpen, ChevronLeft, ChevronRight, FileText, Upload } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
@@ -10,6 +10,7 @@ import {
   deriveTitleFromFileName,
   groupDraftItemsByCategory,
   groupMemoryItemsByCategory,
+  groupMemoryItemsBySource,
   resolvePersonalKnowledgePersona,
 } from '../lib/personalKnowledge'
 import { useTenantStore } from '../stores/tenantStore'
@@ -29,6 +30,7 @@ export default function PersonalKnowledgePage() {
   const [title, setTitle] = useState('')
   const [notice, setNotice] = useState('')
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
+  const [selectedMemorySourceId, setSelectedMemorySourceId] = useState<string | null>(null)
 
   const persona = resolvePersonalKnowledgePersona(currentTenant)
   const personaKey = persona === 'student' ? 'student' : 'general'
@@ -72,10 +74,33 @@ export default function PersonalKnowledgePage() {
     [sources],
   )
 
-  const memoryGroups = useMemo(
-    () => groupMemoryItemsByCategory(memoryItems, t, persona),
-    [memoryItems, persona, t],
+  const memorySourceGroups = useMemo(
+    () => groupMemoryItemsBySource(memoryItems),
+    [memoryItems],
   )
+
+  const selectedMemorySource = useMemo(
+    () => memorySourceGroups.find((group) => group.sourceId === selectedMemorySourceId) ?? null,
+    [memorySourceGroups, selectedMemorySourceId],
+  )
+
+  const selectedMemoryGroups = useMemo(
+    () => (
+      selectedMemorySource
+        ? groupMemoryItemsByCategory(selectedMemorySource.items, t, persona)
+        : []
+    ),
+    [persona, selectedMemorySource, t],
+  )
+
+  useEffect(() => {
+    if (
+      selectedMemorySourceId &&
+      !memorySourceGroups.some((group) => group.sourceId === selectedMemorySourceId)
+    ) {
+      setSelectedMemorySourceId(null)
+    }
+  }, [memorySourceGroups, selectedMemorySourceId])
 
   const handleFileSelection = (files: FileList | null) => {
     if (!files?.length) {
@@ -351,33 +376,101 @@ export default function PersonalKnowledgePage() {
             <p className="rounded-xl border border-dashed border-slate-300 px-4 py-6 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
               {t('personalKnowledge.noMemory')}
             </p>
-          ) : (
+          ) : selectedMemorySource ? (
             <div className="space-y-4">
-              {memoryGroups.map((group) => (
-                <div
-                  key={group.key}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
-                >
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    {group.label}
-                    <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
-                      ({group.items.length})
-                    </span>
-                  </h3>
-                  <ul className="mt-3 space-y-3">
-                    {group.items.map((item) => (
-                      <li
-                        key={item.id}
-                        className="rounded-lg border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/40"
-                      >
-                        <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
-                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-line">
-                          {item.content}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
+              <button
+                type="button"
+                onClick={() => setSelectedMemorySourceId(null)}
+                className="inline-flex items-center gap-1 text-sm font-medium text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                {t('personalKnowledge.backToFiles')}
+              </button>
+
+              <div className="rounded-2xl border border-amber-200/70 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-amber-700 shadow-sm dark:bg-slate-900 dark:text-amber-200">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      {selectedMemorySource.title || t('personalKnowledge.uncategorizedSource')}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                      {t('personalKnowledge.itemsInFile', { count: selectedMemorySource.items.length })}
+                      {selectedMemorySource.documentDate && (
+                        <>
+                          {' · '}
+                          {new Date(selectedMemorySource.documentDate).toLocaleDateString()}
+                        </>
+                      )}
+                    </p>
+                  </div>
                 </div>
+              </div>
+
+              <div className="space-y-4">
+                {selectedMemoryGroups.map((group) => (
+                  <div
+                    key={group.key}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+                  >
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      {group.label}
+                      <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+                        ({group.items.length})
+                      </span>
+                    </h3>
+                    <ul className="mt-3 space-y-3">
+                      {group.items.map((item) => (
+                        <li
+                          key={item.id}
+                          className="rounded-lg border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/40"
+                        >
+                          <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
+                          <p className="mt-1 whitespace-pre-line text-sm text-slate-600 dark:text-slate-300">
+                            {item.content}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {t('personalKnowledge.groupByFileHint')}
+              </p>
+              {memorySourceGroups.map((group) => (
+                <button
+                  key={group.sourceId}
+                  type="button"
+                  onClick={() => setSelectedMemorySourceId(group.sourceId)}
+                  className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-300 hover:bg-amber-50/40 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-amber-800 dark:hover:bg-amber-950/20"
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-900 dark:text-white">
+                        {group.title || t('personalKnowledge.uncategorizedSource')}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                        {t('personalKnowledge.itemsInFile', { count: group.items.length })}
+                        {group.documentDate && (
+                          <>
+                            {' · '}
+                            {new Date(group.documentDate).toLocaleDateString()}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+                </button>
               ))}
             </div>
           )}

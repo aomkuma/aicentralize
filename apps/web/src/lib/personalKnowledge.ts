@@ -48,6 +48,55 @@ export type MemoryCategoryGroup = {
   items: ProjectMemoryItem[]
 }
 
+export type MemorySourceGroup = {
+  sourceId: string
+  title: string
+  documentDate?: string | null
+  items: ProjectMemoryItem[]
+}
+
+const UNCATEGORIZED_SOURCE_ID = '__uncategorized__'
+
+export function groupMemoryItemsBySource(items: ProjectMemoryItem[]): MemorySourceGroup[] {
+  const groups = new Map<string, MemorySourceGroup>()
+
+  for (const item of items) {
+    const sourceId = item.sourceId ?? item.source?.id ?? UNCATEGORIZED_SOURCE_ID
+    const title = item.source?.title ?? ''
+    const documentDate = item.source?.documentDate ?? null
+    const existing = groups.get(sourceId)
+
+    if (existing) {
+      existing.items.push(item)
+      continue
+    }
+
+    groups.set(sourceId, {
+      sourceId,
+      title,
+      documentDate,
+      items: [item],
+    })
+  }
+
+  return [...groups.values()].sort((left, right) => {
+    if (left.sourceId === UNCATEGORIZED_SOURCE_ID) {
+      return 1
+    }
+    if (right.sourceId === UNCATEGORIZED_SOURCE_ID) {
+      return -1
+    }
+
+    const leftDate = left.documentDate ? Date.parse(left.documentDate) : 0
+    const rightDate = right.documentDate ? Date.parse(right.documentDate) : 0
+    if (leftDate !== rightDate) {
+      return rightDate - leftDate
+    }
+
+    return left.title.localeCompare(right.title, undefined, { sensitivity: 'base' })
+  })
+}
+
 export function groupMemoryItemsByCategory(
   items: ProjectMemoryItem[],
   t: TFunction,
@@ -87,6 +136,28 @@ export function groupMemoryItemsByCategory(
     }
     return left.label.localeCompare(right.label)
   })
+}
+
+export function groupMemoryItemsByType(
+  items: ProjectMemoryItem[],
+  typeLabel: (type: ProjectMemoryItemType) => string,
+): MemoryCategoryGroup[] {
+  const groups = new Map<string, MemoryCategoryGroup>()
+
+  for (const item of items) {
+    const key = item.type
+    const label = typeLabel(item.type)
+    const existing = groups.get(key)
+
+    if (existing) {
+      existing.items.push(item)
+      continue
+    }
+
+    groups.set(key, { key, label, items: [item] })
+  }
+
+  return [...groups.values()].sort((left, right) => left.label.localeCompare(right.label))
 }
 
 function memoryTypeLabel(

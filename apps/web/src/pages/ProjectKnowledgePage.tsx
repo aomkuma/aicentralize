@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
@@ -14,6 +14,10 @@ import {
   type KnowledgeProgressKey,
 } from '../lib/knowledgeProgress'
 import { useApi } from '../hooks/useApi'
+import {
+  groupMemoryItemsBySource,
+  groupMemoryItemsByType,
+} from '../lib/personalKnowledge'
 import type {
   ProjectKnowledgeAuthorityLevel,
   ProjectKnowledgeBaseline,
@@ -235,9 +239,10 @@ export default function ProjectKnowledgePage() {
   const [notice, setNotice] = useState('')
   const [isImporting, setIsImporting] = useState(false)
   const [sourcesPage, setSourcesPage] = useState(1)
-  const [memoryPage, setMemoryPage] = useState(1)
   const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(() => new Set())
-  const [expandedMemoryIds, setExpandedMemoryIds] = useState<Set<string>>(() => new Set())
+  const [libraryTab, setLibraryTab] = useState<'sources' | 'memory'>('sources')
+  const [selectedMemorySourceId, setSelectedMemorySourceId] = useState<string | null>(null)
+  const [isAddSourceExpanded, setIsAddSourceExpanded] = useState(true)
   const [guidedStep, setGuidedStep] = useState(1)
   const [hoveredGuideStep, setHoveredGuideStep] = useState<number | null>(null)
   const [progressMode, setProgressMode] = useState<KnowledgeProgressMode>(null)
@@ -285,27 +290,63 @@ export default function ProjectKnowledgePage() {
     })
   }, [memoryItems, i18n.language])
 
-  const sourcesPagination = useMemo(
-    () => paginateItems(sources, sourcesPage),
-    [sources, sourcesPage],
+  const pendingSources = useMemo(
+    () => sources.filter((source) => source.status === 'EXTRACTED'),
+    [sources],
   )
 
-  const memoryPagination = useMemo(
-    () => paginateItems(sortedMemoryItems, memoryPage),
-    [sortedMemoryItems, memoryPage],
+  const librarySources = useMemo(
+    () => sources.filter((source) => source.status !== 'EXTRACTED'),
+    [sources],
+  )
+
+  const librarySourcesPagination = useMemo(
+    () => paginateItems(librarySources, sourcesPage),
+    [librarySources, sourcesPage],
+  )
+
+  const memorySourceGroups = useMemo(
+    () => groupMemoryItemsBySource(sortedMemoryItems),
+    [sortedMemoryItems],
+  )
+
+  const selectedMemorySource = useMemo(
+    () => memorySourceGroups.find((group) => group.sourceId === selectedMemorySourceId) ?? null,
+    [memorySourceGroups, selectedMemorySourceId],
+  )
+
+  const selectedMemoryTypeGroups = useMemo(
+    () => (
+      selectedMemorySource
+        ? groupMemoryItemsByType(
+            selectedMemorySource.items,
+            (type) => t(`projectKnowledge.memoryTypes.${type}`),
+          )
+        : []
+    ),
+    [selectedMemorySource, t],
   )
 
   useEffect(() => {
-    if (sourcesPage > sourcesPagination.totalPages) {
-      setSourcesPage(sourcesPagination.totalPages)
+    if (
+      selectedMemorySourceId &&
+      !memorySourceGroups.some((group) => group.sourceId === selectedMemorySourceId)
+    ) {
+      setSelectedMemorySourceId(null)
     }
-  }, [sourcesPage, sourcesPagination.totalPages])
+  }, [memorySourceGroups, selectedMemorySourceId])
 
   useEffect(() => {
-    if (memoryPage > memoryPagination.totalPages) {
-      setMemoryPage(memoryPagination.totalPages)
+    if (pendingSources.length > 0) {
+      setLibraryTab('sources')
     }
-  }, [memoryPage, memoryPagination.totalPages])
+  }, [pendingSources.length])
+
+  useEffect(() => {
+    if (sourcesPage > librarySourcesPagination.totalPages) {
+      setSourcesPage(librarySourcesPagination.totalPages)
+    }
+  }, [sourcesPage, librarySourcesPagination.totalPages])
 
   const guidedSteps = useMemo(
     () => [
@@ -336,6 +377,20 @@ export default function ProjectKnowledgePage() {
   const stepThreeComplete =
     (baseline?.approvedMemoryCount ?? 0) > 0 ||
     memoryItems.some((item) => item.status === 'APPROVED')
+
+  const baselineReady = baseline?.status === 'BASELINE_READY'
+
+  useEffect(() => {
+    if (baselineReady) {
+      setIsAddSourceExpanded(false)
+    }
+  }, [baselineReady])
+
+  useEffect(() => {
+    if (selectedFiles.length > 0 || isImporting || contentText.trim().length >= 20) {
+      setIsAddSourceExpanded(true)
+    }
+  }, [selectedFiles.length, isImporting, contentText])
 
   const activeGuideStep = hoveredGuideStep ?? guidedStep
   const activeGuideStepData = guidedSteps[activeGuideStep - 1] ?? guidedSteps[0]
@@ -817,12 +872,43 @@ export default function ProjectKnowledgePage() {
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
           <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              {t('projectKnowledge.addSource')}
-            </h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              {t('projectKnowledge.addSourceHelp')}
-            </p>
+            {baselineReady ? (
+              <button
+                type="button"
+                onClick={() => setIsAddSourceExpanded((current) => !current)}
+                className="flex w-full items-start justify-between gap-3 text-left"
+                aria-expanded={isAddSourceExpanded}
+              >
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                    {t('projectKnowledge.addSource')}
+                  </h2>
+                  <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
+                    {t('projectKnowledge.addSourceCollapsedHint')}
+                  </p>
+                </div>
+                <ChevronRight
+                  className={`mt-1 h-5 w-5 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${isAddSourceExpanded ? 'rotate-90' : ''}`}
+                />
+              </button>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {t('projectKnowledge.addSource')}
+                </h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  {t('projectKnowledge.addSourceHelp')}
+                </p>
+              </>
+            )}
+
+            {(!baselineReady || isAddSourceExpanded) && (
+              <>
+            {baselineReady && (
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+                {t('projectKnowledge.addSourceHelp')}
+              </p>
+            )}
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
@@ -929,182 +1015,306 @@ export default function ProjectKnowledgePage() {
             >
               {isLoading ? t('common.loading') : t('projectKnowledge.saveSource')}
             </button>
+              </>
+            )}
           </section>
 
-          <section className="space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('projectKnowledge.sources')}</h2>
-              <div className="mt-3 space-y-2">
-                {sourcesPagination.slice.map((source) => {
-                  const latestExtraction = source.extractions?.[0]
-                  const extractedCount = latestExtraction?.extractionJson.items?.length ?? 0
-                  const isExpanded = expandedSourceIds.has(source.id)
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                {t('projectKnowledge.libraryTitle')}
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLibraryTab('sources')
+                    setSelectedMemorySourceId(null)
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    libraryTab === 'sources'
+                      ? 'bg-sky-600 text-white'
+                      : 'border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {t('projectKnowledge.tabSources')}
+                  {pendingSources.length > 0 && (
+                    <span className="ml-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-amber-950">
+                      {pendingSources.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLibraryTab('memory')}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    libraryTab === 'memory'
+                      ? 'bg-emerald-600 text-white'
+                      : 'border border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {t('projectKnowledge.tabMemory')}
+                  {memoryItems.length > 0 && (
+                    <span className="ml-1.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold">
+                      {memoryItems.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
 
-                  return (
-                    <div key={source.id} className="rounded-md border border-slate-200 dark:border-slate-700">
-                      <button
-                        type="button"
-                        onClick={() => toggleExpandedId(setExpandedSourceIds, source.id)}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                        aria-expanded={isExpanded}
-                      >
-                        <ChevronRight
-                          className={`h-4 w-4 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${isExpanded ? 'rotate-90' : ''}`}
-                        />
-                        <span className="min-w-0 flex-1 truncate font-semibold text-slate-900 dark:text-white">
-                          {source.title}
-                        </span>
-                        <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                          {t(`projectKnowledge.sourceStatuses.${source.status}`)}
-                        </span>
-                      </button>
+            {libraryTab === 'sources' ? (
+              <div className="mt-4 space-y-4">
+                {pendingSources.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                      {t('projectKnowledge.pendingReviewQueue')}
+                    </p>
+                    {pendingSources.map((source) => {
+                      const latestExtraction = source.extractions?.[0]
+                      const extractedCount = latestExtraction?.extractionJson.items?.length ?? 0
 
-                      {isExpanded && (
-                        <div className="border-t border-slate-200 px-3 py-3 dark:border-slate-700">
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {buildSourceMeta([
-                              t(`projectKnowledge.sourceTypes.${source.sourceType}`),
-                              t(`projectKnowledge.authorityLevels.${source.authorityLevel}`),
-                              source.documentDate ? new Date(source.documentDate).toLocaleDateString(i18n.language) : null,
-                            ])}
-                          </p>
-                          {latestExtraction && (
-                            <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-800/80">
-                              <p className="font-semibold text-slate-900 dark:text-white">
-                                {t('projectKnowledge.draftPreview')}
-                              </p>
-                              <p className="mt-1 text-slate-600 dark:text-slate-300">
-                                {t('projectKnowledge.extractedItems', { count: extractedCount })}
-                              </p>
-                              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                {t('projectKnowledge.overview')}
+                      return (
+                        <article
+                          key={source.id}
+                          className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/50 dark:bg-amber-950/20"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className="font-semibold text-slate-900 dark:text-white">{source.title}</h3>
+                              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                                {buildSourceMeta([
+                                  t(`projectKnowledge.sourceTypes.${source.sourceType}`),
+                                  t(`projectKnowledge.authorityLevels.${source.authorityLevel}`),
+                                  source.documentDate ? new Date(source.documentDate).toLocaleDateString(i18n.language) : null,
+                                ])}
                               </p>
                               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                                {latestExtraction.extractionJson.overview}
+                                {t('projectKnowledge.extractedItems', { count: extractedCount })}
                               </p>
-                              {extractedCount > 0 ? (
-                                <div className="mt-3 space-y-2">
-                                  {latestExtraction.extractionJson.items?.slice(0, 6).map((item, index) => (
-                                    <div key={`${source.id}-${index}`} className="rounded border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                        {t(`projectKnowledge.memoryTypes.${item.type}`)}
-                                      </p>
-                                      <p className="mt-1 font-medium text-slate-900 dark:text-white">{item.title}</p>
-                                      <p className="mt-1 text-slate-600 dark:text-slate-300">{item.content}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                                  {t('projectKnowledge.emptyDraft')}
-                                </p>
-                              )}
                             </div>
-                          )}
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => void handleExtract(source.id)}
-                              disabled={isLoading || isImporting}
-                              className="rounded-md border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-950/30"
-                            >
-                              {t('projectKnowledge.extract')}
-                            </button>
                             <button
                               type="button"
                               onClick={() => void handleApprove(source.id)}
                               disabled={isLoading || isImporting || !latestExtraction}
-                              className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                              className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {t('projectKnowledge.approveBaseline')}
                             </button>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-                {!sources.length && (
-                  <p className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                    {t('projectKnowledge.noSources')}
-                  </p>
-                )}
-              </div>
-              <HistoryPagination
-                page={sourcesPagination.page}
-                totalPages={sourcesPagination.totalPages}
-                total={sourcesPagination.total}
-                onPrevious={() => setSourcesPage((current) => Math.max(1, current - 1))}
-                onNext={() => setSourcesPage((current) => Math.min(sourcesPagination.totalPages, current + 1))}
-                previousLabel={t('common.back')}
-                nextLabel={t('common.next')}
-                rangeLabel={t('projectKnowledge.paginationRange', {
-                  from: sourcesPagination.from,
-                  to: sourcesPagination.to,
-                  total: sourcesPagination.total,
-                })}
-              />
-            </div>
-
-            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('projectKnowledge.approvedMemoryTitle')}</h2>
-              <div className="mt-3 space-y-2">
-                {memoryPagination.slice.map((item) => {
-                  const isExpanded = expandedMemoryIds.has(item.id)
-
-                  return (
-                    <div key={item.id} className="rounded-md border border-slate-200 dark:border-slate-700">
-                      <button
-                        type="button"
-                        onClick={() => toggleExpandedId(setExpandedMemoryIds, item.id)}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                        aria-expanded={isExpanded}
-                      >
-                        <ChevronRight
-                          className={`h-4 w-4 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${isExpanded ? 'rotate-90' : ''}`}
-                        />
-                        <span className="min-w-0 flex-1 truncate font-semibold text-slate-900 dark:text-white">
-                          {item.title}
-                        </span>
-                        <span className="shrink-0 rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
-                          {t(`projectKnowledge.memoryTypes.${item.type}`)}
-                        </span>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="border-t border-slate-200 px-3 py-3 text-sm dark:border-slate-700">
-                          <p className="text-slate-600 dark:text-slate-300">{item.content}</p>
-                          {item.source && (
-                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                              {t('projectKnowledge.source')}: {item.source.title}
+                          {latestExtraction?.extractionJson.overview && (
+                            <p className="mt-3 rounded-lg bg-white/80 p-3 text-sm text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+                              {latestExtraction.extractionJson.overview}
                             </p>
                           )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-                {!memoryItems.length && (
-                  <p className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                    {t('projectKnowledge.noMemory')}
-                  </p>
+                        </article>
+                      )
+                    })}
+                  </div>
                 )}
+
+                <div>
+                  <p className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    {t('projectKnowledge.allSources')}
+                  </p>
+                  <div className="space-y-2">
+                    {librarySourcesPagination.slice.map((source) => {
+                      const latestExtraction = source.extractions?.[0]
+                      const extractedCount = latestExtraction?.extractionJson.items?.length ?? 0
+                      const isExpanded = expandedSourceIds.has(source.id)
+
+                      return (
+                        <div key={source.id} className="rounded-xl border border-slate-200 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandedId(setExpandedSourceIds, source.id)}
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                            aria-expanded={isExpanded}
+                          >
+                            <ChevronRight
+                              className={`h-4 w-4 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${isExpanded ? 'rotate-90' : ''}`}
+                            />
+                            <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                            <span className="min-w-0 flex-1 truncate font-semibold text-slate-900 dark:text-white">
+                              {source.title}
+                            </span>
+                            <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                              {t(`projectKnowledge.sourceStatuses.${source.status}`)}
+                            </span>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="border-t border-slate-200 px-3 py-3 dark:border-slate-700">
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {buildSourceMeta([
+                                  t(`projectKnowledge.sourceTypes.${source.sourceType}`),
+                                  t(`projectKnowledge.authorityLevels.${source.authorityLevel}`),
+                                  source.documentDate ? new Date(source.documentDate).toLocaleDateString(i18n.language) : null,
+                                ])}
+                              </p>
+                              {latestExtraction && (
+                                <div className="mt-2 rounded-md bg-slate-50 p-3 text-sm dark:bg-slate-800/80">
+                                  <p className="font-semibold text-slate-900 dark:text-white">
+                                    {t('projectKnowledge.draftPreview')}
+                                  </p>
+                                  <p className="mt-1 text-slate-600 dark:text-slate-300">
+                                    {t('projectKnowledge.extractedItems', { count: extractedCount })}
+                                  </p>
+                                  <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                    {t('projectKnowledge.overview')}
+                                  </p>
+                                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                                    {latestExtraction.extractionJson.overview}
+                                  </p>
+                                </div>
+                              )}
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleExtract(source.id)}
+                                  disabled={isLoading || isImporting}
+                                  className="rounded-md border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-950/30"
+                                >
+                                  {t('projectKnowledge.extract')}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleApprove(source.id)}
+                                  disabled={isLoading || isImporting || !latestExtraction}
+                                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {t('projectKnowledge.approveBaseline')}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {!sources.length && (
+                      <p className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                        {t('projectKnowledge.noSources')}
+                      </p>
+                    )}
+                  </div>
+                  <HistoryPagination
+                    page={librarySourcesPagination.page}
+                    totalPages={librarySourcesPagination.totalPages}
+                    total={librarySourcesPagination.total}
+                    onPrevious={() => setSourcesPage((current) => Math.max(1, current - 1))}
+                    onNext={() => setSourcesPage((current) => Math.min(librarySourcesPagination.totalPages, current + 1))}
+                    previousLabel={t('common.back')}
+                    nextLabel={t('common.next')}
+                    rangeLabel={t('projectKnowledge.paginationRange', {
+                      from: librarySourcesPagination.from,
+                      to: librarySourcesPagination.to,
+                      total: librarySourcesPagination.total,
+                    })}
+                  />
+                </div>
               </div>
-              <HistoryPagination
-                page={memoryPagination.page}
-                totalPages={memoryPagination.totalPages}
-                total={memoryPagination.total}
-                onPrevious={() => setMemoryPage((current) => Math.max(1, current - 1))}
-                onNext={() => setMemoryPage((current) => Math.min(memoryPagination.totalPages, current + 1))}
-                previousLabel={t('common.back')}
-                nextLabel={t('common.next')}
-                rangeLabel={t('projectKnowledge.paginationRange', {
-                  from: memoryPagination.from,
-                  to: memoryPagination.to,
-                  total: memoryPagination.total,
-                })}
-              />
-            </div>
+            ) : memoryItems.length === 0 ? (
+              <p className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-6 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
+                {t('projectKnowledge.noMemory')}
+              </p>
+            ) : selectedMemorySource ? (
+              <div className="mt-4 space-y-4">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMemorySourceId(null)}
+                  className="inline-flex items-center gap-1 text-sm font-medium text-sky-700 hover:text-sky-800 dark:text-sky-300"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  {t('projectKnowledge.backToFiles')}
+                </button>
+
+                <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-emerald-700 shadow-sm dark:bg-slate-900 dark:text-emerald-200">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        {selectedMemorySource.title || t('projectKnowledge.uncategorizedSource')}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                        {t('projectKnowledge.itemsInFile', { count: selectedMemorySource.items.length })}
+                        {selectedMemorySource.documentDate && (
+                          <>
+                            {' · '}
+                            {new Date(selectedMemorySource.documentDate).toLocaleDateString(i18n.language)}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {selectedMemoryTypeGroups.map((group) => (
+                    <div
+                      key={group.key}
+                      className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-950/40"
+                    >
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        {group.label}
+                        <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+                          ({group.items.length})
+                        </span>
+                      </h3>
+                      <ul className="mt-3 space-y-3">
+                        {group.items.map((item) => (
+                          <li
+                            key={item.id}
+                            className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"
+                          >
+                            <p className="font-medium text-slate-900 dark:text-white">{item.title}</p>
+                            <p className="mt-1 whitespace-pre-line text-sm text-slate-600 dark:text-slate-300">
+                              {item.content}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  {t('projectKnowledge.groupByFileHint')}
+                </p>
+                {memorySourceGroups.map((group) => (
+                  <button
+                    key={group.sourceId}
+                    type="button"
+                    onClick={() => setSelectedMemorySourceId(group.sourceId)}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-left transition hover:border-emerald-300 hover:bg-emerald-50/50 dark:border-slate-700 dark:bg-slate-950/40 dark:hover:border-emerald-800"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-900 dark:text-white">
+                          {group.title || t('projectKnowledge.uncategorizedSource')}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                          {t('projectKnowledge.itemsInFile', { count: group.items.length })}
+                          {group.documentDate && (
+                            <>
+                              {' · '}
+                              {new Date(group.documentDate).toLocaleDateString(i18n.language)}
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
         </div>
       </div>
