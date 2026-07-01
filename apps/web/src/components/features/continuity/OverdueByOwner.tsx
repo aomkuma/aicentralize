@@ -6,9 +6,10 @@ import OverdueItemsList from './OverdueItemsList'
 interface OverdueByOwnerProps {
   data: OverdueByOwner[]
   isLoading?: boolean
+  onItemClick?: (itemId: string) => void
 }
 
-export default function OverdueByOwner({ data, isLoading = false }: OverdueByOwnerProps) {
+export default function OverdueByOwner({ data, isLoading = false, onItemClick }: OverdueByOwnerProps) {
   const { t } = useTranslation()
   const [expandedOwnerId, setExpandedOwnerId] = useState<string | null>(null)
 
@@ -84,6 +85,7 @@ export default function OverdueByOwner({ data, isLoading = false }: OverdueByOwn
                 items={owner.items || []}
                 title={`${owner.ownerName}'s Overdue Items`}
                 maxHeight="max-h-64"
+                onItemClick={onItemClick}
               />
             </div>
           )}

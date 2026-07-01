@@ -5,6 +5,7 @@
 | Doc | Purpose |
 |-----|---------|
 | [`FEATURES.md`](./FEATURES.md) | Product feature catalog (routes, modules) |
+| [`next-day-handover-2026-06-30.md`](./next-day-handover-2026-06-30.md) | Meeting Studio raw text + Analyze; Continuity focus UX |
 | [`../QUICK_REFERENCE.md`](../QUICK_REFERENCE.md) | Commands, env, access rules, smoke tests |
 | [`CHANGELOG.md`](./CHANGELOG.md) | Commit history (summary) |
 | [`README.md`](./README.md) | Documentation index |

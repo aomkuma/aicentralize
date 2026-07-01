@@ -16,6 +16,7 @@ import type { MeetingStudioJobResult } from '../lib/meetingStudio/jobTypes'
 import { useTenantStore } from '../stores/tenantStore'
 import { buildDocumentAnalysisPrompt } from '../lib/meetingStudio/meetingAnalysisPrompt'
 import { isMeetingStudioJobResultEmpty } from '../lib/meetingStudio/pendingJobStorage'
+import { analyzeMeetingTranscriptFromText } from '../lib/meetingStudio/audioJob'
 import { useMeetingStudioJobStore } from '../stores/meetingStudioJobStore'
 import type { Project } from '../types'
 
@@ -485,6 +486,7 @@ export default function MeetingStudioPage() {
   const [recordingInfo, setRecordingInfo] = useState('')
   const [uploadedFileMeta, setUploadedFileMeta] = useState<UploadedFileMeta | null>(null)
   const [isTranscribing, setIsTranscribing] = useState(false)
+  const [isAnalyzingTranscript, setIsAnalyzingTranscript] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [progressMode, setProgressMode] = useState<ProgressMode>(null)
   const [progressKey, setProgressKey] = useState<ProgressKey>('validatingInput')
@@ -627,6 +629,51 @@ export default function MeetingStudioPage() {
     }
   }
 
+  const meetingJobMessages = useMemo(() => ({
+    uploadFailed: t('meetings.errors.uploadFailed'),
+    transcriptionFailed: t('meetings.errors.transcriptionFailed'),
+    transcriptionUnavailable: t('meetings.errors.transcriptionUnavailable'),
+    transcriptionGatewayTimeout: t('meetings.errors.transcriptionGatewayTimeout'),
+    emptyTranscript: t('meetings.errors.emptyTranscript'),
+    documentAnalysisFailed: t('meetings.errors.documentAnalysisFailed'),
+    transcribed: t('meetings.status.transcribed'),
+    recordingAnalyzed: t('meetings.status.recordingAnalyzed'),
+    uploadedOnly: t('meetings.status.uploadedOnly'),
+  }), [t])
+
+  const handleAnalyzeTranscript = async () => {
+    const cleanText = transcript.trim()
+    if (!cleanText) {
+      setError(t('meetings.errors.emptyTranscriptForAnalyze'))
+      return
+    }
+
+    setError('')
+    setIsAnalyzingTranscript(true)
+    setStatus(t('meetings.status.analyzingTranscript'))
+    updateProgress('audio', 'analyzingRecording')
+
+    try {
+      const result = await analyzeMeetingTranscriptFromText(
+        cleanText,
+        uploadedFileMeta?.fileName || meetingTitle || t('meetings.rawTranscriptSource'),
+        ownerOptions,
+        sessionAt,
+        meetingJobMessages,
+        (key) => updateProgress('audio', key as ProgressKey)
+      )
+      applyJobResult(result)
+    } catch (analyzeError) {
+      const message = analyzeError instanceof Error
+        ? analyzeError.message
+        : t('meetings.errors.documentAnalysisFailed')
+      setError(message)
+      updateProgress('audio', 'failed')
+    } finally {
+      setIsAnalyzingTranscript(false)
+    }
+  }
+
   const startBackgroundAudioJob = (file: File, preferredTranscript = '') => {
     if (!selectedProjectId) {
       setError(t('meetings.errors.selectProject'))
@@ -639,17 +686,7 @@ export default function MeetingStudioPage() {
       preferredTranscript,
       ownerOptions,
       sessionAt,
-      messages: {
-        uploadFailed: t('meetings.errors.uploadFailed'),
-        transcriptionFailed: t('meetings.errors.transcriptionFailed'),
-        transcriptionUnavailable: t('meetings.errors.transcriptionUnavailable'),
-        transcriptionGatewayTimeout: t('meetings.errors.transcriptionGatewayTimeout'),
-        emptyTranscript: t('meetings.errors.emptyTranscript'),
-        documentAnalysisFailed: t('meetings.errors.documentAnalysisFailed'),
-        transcribed: t('meetings.status.transcribed'),
-        recordingAnalyzed: t('meetings.status.recordingAnalyzed'),
-        uploadedOnly: t('meetings.status.uploadedOnly')
-      },
+      messages: meetingJobMessages,
       notificationTitle: t('meetings.backgroundJob.notificationTitle'),
       notificationBodySuccess: t('meetings.backgroundJob.notificationSuccess'),
       notificationBodyFailed: t('meetings.backgroundJob.notificationFailed')
@@ -1230,7 +1267,7 @@ export default function MeetingStudioPage() {
               <button
                 type="button"
                 onClick={() => void handleTranscribe()}
-                disabled={isTranscribing || !recordingFile}
+                disabled={isTranscribing || isAnalyzingTranscript || !recordingFile}
                 className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isTranscribing ? t('meetings.status.transcribing') : t('meetings.actions.transcribe')}
@@ -1238,9 +1275,18 @@ export default function MeetingStudioPage() {
               <button
                 type="button"
                 onClick={() => setTranscript('')}
-                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                disabled={isTranscribing || isAnalyzingTranscript || !transcript.trim()}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 {t('meetings.actions.clearTranscript')}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAnalyzeTranscript()}
+                disabled={isTranscribing || isAnalyzingTranscript || !transcript.trim()}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isAnalyzingTranscript ? t('meetings.status.analyzingTranscript') : t('meetings.actions.analyzeTranscript')}
               </button>
             </div>
 
@@ -1251,7 +1297,8 @@ export default function MeetingStudioPage() {
             )}
 
             <label className="block">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.transcript')}</span>
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('meetings.rawTranscript')}</span>
+              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{t('meetings.rawTranscriptHint')}</span>
               <textarea
                 value={transcript}
                 onChange={(event) => setTranscript(event.target.value)}

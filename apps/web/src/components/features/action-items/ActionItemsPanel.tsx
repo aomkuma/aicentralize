@@ -7,6 +7,7 @@ import { canAssignActionItemsToOthers, resolveTenantMembership } from '../../../
 import {
   actionItemStatuses,
   actionPriorities,
+  getActionItemCardSurfaceClass,
   isClosedActionStatus,
   priorityWeight,
   type ActionFilterDateType,
@@ -1012,11 +1013,7 @@ export default function ActionItemsPanel({
         return (
           <div
             key={item.id}
-            className={`rounded-lg border bg-white p-4 dark:bg-slate-800 ${
-              isHighlighted
-                ? 'border-blue-400 ring-2 ring-blue-200 dark:border-blue-500 dark:ring-blue-900/60'
-                : 'border-gray-200 dark:border-slate-700'
-            }`}
+            className={`rounded-lg border p-4 ${getActionItemCardSurfaceClass(item, isHighlighted)}`}
           >
             <div className="space-y-3">
               <div className="min-w-0">

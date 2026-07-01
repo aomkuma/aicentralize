@@ -24,7 +24,7 @@ type AudioJobInput = {
   onProgress: (key: MeetingStudioJobProgressKey) => void
 }
 
-async function analyzeTranscript(
+export async function analyzeMeetingTranscriptFromText(
   text: string,
   sourceName: string,
   ownerOptions: OwnerOption[],
@@ -102,7 +102,7 @@ export async function runMeetingAudioJob(input: AudioJobInput): Promise<MeetingS
   onProgress('validatingInput')
 
   if (preferredTranscript.trim()) {
-    const result = await analyzeTranscript(
+    const result = await analyzeMeetingTranscriptFromText(
       preferredTranscript,
       audioFile.name,
       ownerOptions,
@@ -183,7 +183,7 @@ export async function runMeetingAudioJob(input: AudioJobInput): Promise<MeetingS
   }
 
   if (data.transcript?.trim()) {
-    const result = await analyzeTranscript(
+    const result = await analyzeMeetingTranscriptFromText(
       data.transcript,
       uploadData.fileName || audioFile.name,
       ownerOptions,

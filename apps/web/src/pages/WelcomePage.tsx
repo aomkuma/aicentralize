@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from '../components/LanguageSwitcher'
+import InAppBrowserPrompt from '../components/InAppBrowserPrompt'
 import { useApi } from '../hooks/useApi'
 import {
   effectivePackagePriceCents,
@@ -94,6 +95,7 @@ export default function WelcomePage() {
 
   return (
     <div className="min-h-screen bg-[#030712] text-white">
+      <InAppBrowserPrompt />
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
         <div className="absolute -right-32 top-1/3 h-96 w-96 rounded-full bg-cyan-500/15 blur-3xl" />

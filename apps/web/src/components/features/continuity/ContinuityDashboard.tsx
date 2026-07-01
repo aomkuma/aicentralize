@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useTenantStore } from '../../../stores/tenantStore'
@@ -8,6 +8,7 @@ import { useApi } from '../../../hooks/useApi'
 import ContinuitySummaryCard from './ContinuitySummaryCard'
 import OverdueByOwner from './OverdueByOwner'
 import OverdueItemsList from './OverdueItemsList'
+import { getActionItemCardSurfaceClass } from '../action-items/actionItemTypes'
 
 interface ContinuityDashboardProps {
   projectId?: string
@@ -119,6 +120,18 @@ const priorityWeight: Record<ActionPriority, number> = {
   MEDIUM: 2,
   HIGH: 3,
   CRITICAL: 4,
+}
+
+const DEFAULT_ACTION_FILTERS = {
+  ownerUserId: '',
+  priority: '' as '' | ActionPriority,
+  overdue: 'all' as ActionOverdueFilter,
+  status: '' as '' | ActionItemStatus,
+  meetingQuery: '',
+  dateType: 'dueDate' as ActionFilterDateType,
+  dateFrom: '',
+  dateTo: '',
+  sort: 'focus' as ActionSortMode,
 }
 
 const normalizeAiEnum = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T => {
@@ -276,7 +289,7 @@ const buildWorkloadSuggestionPrompt = (
 
 export default function ContinuityDashboard({ projectId }: ContinuityDashboardProps) {
   const { t } = useTranslation()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
   const { get: getMeetings } = useApi()
@@ -340,7 +353,32 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
   const analyzedWorkloadSignatureRef = useRef<string | null>(null)
   const actionSaveInFlightRef = useRef<Set<string>>(new Set())
   const meetingFilterRef = useRef<HTMLDivElement | null>(null)
+  const actionItemCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const highlightedActionItemId = searchParams.get('actionItemId') ?? ''
+
+  const selectTab = useCallback((tab: typeof selectedTab) => {
+    setSelectedTab(tab)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('tab', tab)
+      if (tab !== 'actions') {
+        next.delete('actionItemId')
+      }
+      return next
+    })
+  }, [setSearchParams])
+
+  const focusActionItem = useCallback((actionItemId: string) => {
+    setActionFilters(DEFAULT_ACTION_FILTERS)
+    setIsActionFilterOpen(false)
+    setSelectedTab('actions')
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('tab', 'actions')
+      next.set('actionItemId', actionItemId)
+      return next
+    })
+  }, [setSearchParams])
 
   // Check feature access
   const canAccessFull = canAccessFeature('CONTINUITY_FULL')
@@ -483,7 +521,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
     const toTime = actionFilters.dateTo ? new Date(`${actionFilters.dateTo}T23:59:59`).getTime() : null
     const meetingQuery = actionFilters.meetingQuery.trim().toLowerCase()
 
-    return actionItems
+    const filtered = actionItems
       .filter((item) => {
         if (actionFilters.ownerUserId && item.ownerUserId !== actionFilters.ownerUserId) {
           return false
@@ -535,7 +573,16 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
           priorityWeight[b.priority] - priorityWeight[a.priority] ||
           new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
       })
-  }, [actionFilters, actionItems])
+
+    if (highlightedActionItemId && !filtered.some((item) => item.id === highlightedActionItemId)) {
+      const pinned = actionItems.find((item) => item.id === highlightedActionItemId)
+      if (pinned) {
+        return [pinned, ...filtered]
+      }
+    }
+
+    return filtered
+  }, [actionFilters, actionItems, highlightedActionItemId])
 
   const listBaselineCount = useMemo(() => {
     if (!actionFilters.status) {
@@ -685,6 +732,31 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
       setSelectedTab(tab)
     }
   }, [availableTabs, searchParams])
+
+  useEffect(() => {
+    if (!highlightedActionItemId || selectedTab !== 'actions') {
+      return
+    }
+
+    const item = actionItems.find((entry) => entry.id === highlightedActionItemId)
+    if (!item) {
+      return
+    }
+
+    setOpenActionControlsByItemId((current) => ({
+      ...current,
+      [highlightedActionItemId]: true,
+    }))
+
+    const timer = window.setTimeout(() => {
+      actionItemCardRefs.current[highlightedActionItemId]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }, 120)
+
+    return () => window.clearTimeout(timer)
+  }, [highlightedActionItemId, selectedTab, actionItems, visibleActionItems.length])
 
   if (!canAccessFeature('CONTINUITY_SUMMARY')) {
     return (
@@ -886,7 +958,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
       <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-slate-700">
         {availableTabs.includes('summary') && (
           <button
-            onClick={() => setSelectedTab('summary')}
+            onClick={() => selectTab('summary')}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${
               selectedTab === 'summary'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -898,7 +970,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
         )}
         {availableTabs.includes('byOwner') && (
           <button
-            onClick={() => setSelectedTab('byOwner')}
+            onClick={() => selectTab('byOwner')}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${
               selectedTab === 'byOwner'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -910,7 +982,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
         )}
         {availableTabs.includes('byProject') && (
           <button
-            onClick={() => setSelectedTab('byProject')}
+            onClick={() => selectTab('byProject')}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${
               selectedTab === 'byProject'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -922,7 +994,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
         )}
         {availableTabs.includes('actions') && (
           <button
-            onClick={() => setSelectedTab('actions')}
+            onClick={() => selectTab('actions')}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${
               selectedTab === 'actions'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -934,7 +1006,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
         )}
         {availableTabs.includes('missing') && (
           <button
-            onClick={() => setSelectedTab('missing')}
+            onClick={() => selectTab('missing')}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${
               selectedTab === 'missing'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -1031,7 +1103,11 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
         )}
 
         {selectedTab === 'byOwner' && (
-          <OverdueByOwner data={overdueByOwner} isLoading={isLoading} />
+          <OverdueByOwner
+            data={overdueByOwner}
+            isLoading={isLoading}
+            onItemClick={projectId ? focusActionItem : undefined}
+          />
         )}
 
         {selectedTab === 'byProject' && (
@@ -1047,6 +1123,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                 <OverdueItemsList
                   items={proj.items || []}
                   maxHeight="max-h-48"
+                  onItemClick={projectId ? focusActionItem : undefined}
                 />
               </div>
             ))}
@@ -1258,17 +1335,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                   <div className="flex items-end">
                     <button
                       type="button"
-                      onClick={() => setActionFilters({
-                        ownerUserId: '',
-                        priority: '',
-                        overdue: 'all',
-                        status: '',
-                        meetingQuery: '',
-                        dateType: 'dueDate',
-                        dateFrom: '',
-                        dateTo: '',
-                        sort: 'focus',
-                      })}
+                      onClick={() => setActionFilters(DEFAULT_ACTION_FILTERS)}
                       onMouseDown={() => setIsMeetingFilterOpen(false)}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
                     >
@@ -1291,11 +1358,14 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
               return (
                 <div
                   key={item.id}
-                  className={`rounded-lg border bg-white p-4 dark:bg-slate-800 ${
-                    isHighlighted
-                      ? 'border-blue-400 ring-2 ring-blue-200 dark:border-blue-500 dark:ring-blue-900/60'
-                      : 'border-gray-200 dark:border-slate-700'
-                  }`}
+                  ref={(node) => {
+                    if (node) {
+                      actionItemCardRefs.current[item.id] = node
+                    } else {
+                      delete actionItemCardRefs.current[item.id]
+                    }
+                  }}
+                  className={`rounded-lg border p-4 ${getActionItemCardSurfaceClass(item, isHighlighted)}`}
                 >
                   <div className="space-y-3">
                     <div className="min-w-0">
@@ -1554,54 +1624,76 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
         )}
 
         {selectedTab === 'missing' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
+              <h3 className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+                {t('continuity.missingInfoTitle')}
+              </h3>
+              <p className="mt-1 text-sm text-amber-900/90 dark:text-amber-100/80">
+                {t('continuity.missingInfoIntro')}
+              </p>
+              <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-amber-900/90 dark:text-amber-100/80">
+                <li>{t('continuity.missingInfoStep1')}</li>
+                <li>{t('continuity.missingInfoStep2')}</li>
+                <li>{t('continuity.missingInfoStep3')}</li>
+              </ol>
+            </div>
+
             {missingOwnerItems.map((item) => (
               <div
                 key={item.id}
-                className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg"
+                className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <h4 className="font-medium text-gray-900 dark:text-white">
-                      {item.title}
-                    </h4>
-                    <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                      {t('continuity.type')}: {item.type}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="font-medium text-gray-900 dark:text-white">
+                        {item.title}
+                      </h4>
+                      <span className="rounded bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-900 dark:bg-yellow-800 dark:text-yellow-100">
+                        {item.missingReason === 'owner'
+                          ? t('continuity.missingOwner')
+                          : t('continuity.missingDueDate')}
+                      </span>
+                    </div>
                     {(item.projectName || item.meetingTitle) && (
-                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                      <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
                         {item.projectName}
                         {item.meetingTitle ? ` · ${item.meetingTitle}` : ''}
                       </p>
                     )}
-                    <p className="text-xs text-yellow-800 dark:text-yellow-200 mt-2">
+                    <p className="mt-2 text-sm text-yellow-900 dark:text-yellow-100">
                       {item.missingReason === 'owner'
-                        ? t('continuity.missingOwnerHelp', { defaultValue: 'Next step: review this action and assign or confirm the owner label.' })
-                        : t('continuity.missingDueDateHelp', { defaultValue: 'Next step: review this action and set a due date.' })}
+                        ? t('continuity.missingOwnerHelp')
+                        : t('continuity.missingDueDateHelp')}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {item.type === 'ACTION_ITEM' && projectId && (
+                      <button
+                        type="button"
+                        onClick={() => focusActionItem(item.id)}
+                        className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                      >
+                        {t('continuity.openInActionItems')}
+                      </button>
+                    )}
                     {item.meetingId && (
                       <Link
                         to={`/meetings/history/${item.meetingId}`}
-                        className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                        className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-900"
                       >
-                        {t('continuity.openMinutes', { defaultValue: 'Open minutes' })}
+                        {t('continuity.openMinutes')}
                       </Link>
                     )}
-                    {item.projectId && (
+                    {item.projectId && item.projectId !== projectId && (
                       <Link
-                        to={`/continuity/${item.projectId}`}
+                        to={`/continuity/${item.projectId}?tab=missing`}
                         className="rounded-md border border-yellow-300 px-3 py-1.5 text-xs font-semibold text-yellow-800 hover:bg-yellow-100 dark:border-yellow-700 dark:text-yellow-100 dark:hover:bg-yellow-900/30"
                       >
-                        {t('continuity.openProject', { defaultValue: 'Open project' })}
+                        {t('continuity.openProject')}
                       </Link>
                     )}
-                    <span className="text-xs px-2 py-1 bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100 rounded whitespace-nowrap">
-                      {item.missingReason === 'owner'
-                        ? t('continuity.missingOwner', { defaultValue: 'Owner missing' })
-                        : t('continuity.missingDueDate', { defaultValue: 'Due date missing' })}
-                    </span>
                   </div>
                 </div>
               </div>
@@ -1707,7 +1799,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
             <button
               type="button"
               onClick={() => {
-                setSelectedTab('actions')
+                selectTab('actions')
                 dismissWorkloadSuggestion()
               }}
               className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
