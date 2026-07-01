@@ -23,6 +23,7 @@ export type OwnerOption = {
   id: string
   name: string
   email: string
+  nickname?: string
 }
 
 export type TranscriptSummary = {
@@ -116,7 +117,12 @@ const resolveOwnerUserId = (ownerName: string | undefined, owners: OwnerOption[]
     return ''
   }
 
-  const token = normalizeOwnerToken(ownerName)
+  const token = normalizeOwnerToken(ownerName.replace(/^@/, ''))
+  const exactNickname = owners.find((owner) => owner.nickname && normalizeOwnerToken(owner.nickname) === token)
+  if (exactNickname) {
+    return exactNickname.id
+  }
+
   const exactName = owners.find((owner) => normalizeOwnerToken(owner.name) === token)
   if (exactName) {
     return exactName.id

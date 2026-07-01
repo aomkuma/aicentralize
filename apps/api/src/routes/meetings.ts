@@ -11,6 +11,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { ensureMeetingScopeAccess, listMemberProjectIds } from "../services/accessScopeService";
+import { actionItemErrors, changeActionItemStatus } from "../services/actionItemService";
 import { buildEmbedding } from "../services/embeddingService";
 import { addMeetingArtifact, getMeetingDetail } from "../services/meetingIngestionService";
 import { extractMinuteDraft } from "../services/minuteExtractionService";
@@ -387,22 +388,22 @@ meetingRouter.patch("/action-items/:id/status", requireAuth, async (req, res) =>
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
   }
 
-  const item = await prisma.actionItem.findUnique({ where: { id: req.params.id } });
-  if (!item) {
-    return res.status(404).json({ message: "Action item not found" });
-  }
-
-  if (req.user!.role === UserRole.MEMBER && item.assigneeId !== req.user!.id) {
-    return res.status(403).json({ message: "Members can only update their own tasks" });
-  }
-
-  const updated = await prisma.actionItem.update({
-    where: { id: req.params.id },
-    data: {
-      status: parsed.data.status,
-      completedAt: parsed.data.status === ActionStatus.DONE ? new Date() : null
+  try {
+    const updated = await changeActionItemStatus(req.params.id, parsed.data, req.user!);
+    return res.json(updated);
+  } catch (error) {
+    if (error instanceof Error && error.message === actionItemErrors.ACTION_ITEM_NOT_FOUND_ERROR) {
+      return res.status(404).json({ message: "Action item not found" });
     }
-  });
 
-  res.json(updated);
+    if (error instanceof Error && error.message === actionItemErrors.MUTABLE_BY_MEMBER_ERROR) {
+      return res.status(403).json({ message: "Members can only update their own tasks" });
+    }
+
+    if (error instanceof Error && error.message === "INVALID_STATUS_TRANSITION") {
+      return res.status(400).json({ message: "Invalid status transition" });
+    }
+
+    return res.status(500).json({ message: "Unable to update action status" });
+  }
 });

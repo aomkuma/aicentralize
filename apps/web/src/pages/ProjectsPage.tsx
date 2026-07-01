@@ -5,6 +5,8 @@ import { useAuthStore } from '../stores/authStore'
 import { useTenantStore } from '../stores/tenantStore'
 import { useApi } from '../hooks/useApi'
 import Layout from '../components/Layout'
+import { memberNickname as getMemberNickname } from '../lib/memberDisplay'
+import ConfirmDialog from '../components/ConfirmDialog'
 import TeamSentimentBadge from '../components/TeamSentimentBadge'
 import type { CommunicationSentimentSnapshot, MemberOnboardRequest, MemberOnboardResponse, TenantMembership } from '../types'
 
@@ -54,6 +56,11 @@ export default function ProjectsPage() {
     post: runSentimentBatch,
     isLoading: isSentimentLoading,
   } = useApi()
+  const {
+    delete: removeTeamMember,
+    isLoading: isRemovingMember,
+    error: removeMemberError,
+  } = useApi()
 
   const [memberships, setMemberships] = useState<TenantMembership[]>([])
   const [projects, setProjects] = useState<DashboardProject[]>([])
@@ -65,6 +72,7 @@ export default function ProjectsPage() {
   const [teamMembers, setTeamMembers] = useState<TenantMembership[]>([])
   const [showCreateMember, setShowCreateMember] = useState(false)
   const [memberName, setMemberName] = useState('')
+  const [memberNickname, setMemberNickname] = useState('')
   const [memberEmail, setMemberEmail] = useState('')
   const [memberPhone, setMemberPhone] = useState('')
   const [memberJobTitle, setMemberJobTitle] = useState('')
@@ -75,11 +83,29 @@ export default function ProjectsPage() {
   const [memberTemporaryPassword, setMemberTemporaryPassword] = useState<string | null>(null)
   const [memberSentiments, setMemberSentiments] = useState<Record<string, CommunicationSentimentSnapshot>>({})
   const [sentimentNotice, setSentimentNotice] = useState<string | null>(null)
+  const [memberToRemove, setMemberToRemove] = useState<TenantMembership | null>(null)
 
   const activeMembership = memberships.find((membership) => membership.tenantId === currentTenant?.id) ?? memberships[0]
   const activeTenantId = activeMembership?.tenantId
   const activeTenantName = activeMembership?.tenant?.name ?? currentTenant?.name
   const canViewTeamSentiment = activeMembership?.role === 'TENANT_ADMIN' || activeMembership?.role === 'MANAGER'
+  const canManageTeam = canViewTeamSentiment
+
+  const canRemoveTeamMember = (member: TenantMembership) => {
+    if (!canManageTeam || !user?.id) {
+      return false
+    }
+
+    if (member.userId === user.id) {
+      return false
+    }
+
+    if (activeMembership?.role === 'MANAGER' && member.role === 'TENANT_ADMIN') {
+      return false
+    }
+
+    return true
+  }
 
   if (user?.systemRole === 'SUPER_ADMIN') {
     return <Navigate to="/dashboard" replace />
@@ -226,6 +252,7 @@ export default function ProjectsPage() {
 
     const payload: MemberOnboardRequest = {
       name: memberName.trim(),
+      nickname: memberNickname.trim() || undefined,
       email: memberEmail.trim().toLowerCase(),
       phone: memberPhone.trim(),
       tenantRole: memberRole,
@@ -244,6 +271,7 @@ export default function ProjectsPage() {
     const created = await onboardTeamMember<MemberOnboardResponse>(`/tenants/${activeTenantId}/members/create`, payload)
     if (created) {
       setMemberName('')
+      setMemberNickname('')
       setMemberEmail('')
       setMemberPhone('')
       setMemberJobTitle('')
@@ -253,6 +281,22 @@ export default function ProjectsPage() {
       setMemberTemporaryPassword(created.temporaryPassword || null)
       setMemberInviteUrl(created.inviteUrl || null)
       setMemberNotice(created.invitationEmailSent ? t('dashboard.memberInvited') : t('dashboard.memberCreated'))
+      await fetchTenantTeam()
+    }
+  }
+
+  const handleConfirmRemoveMember = async () => {
+    if (!activeTenantId || !memberToRemove) {
+      return
+    }
+
+    const result = await removeTeamMember<{ removed: boolean }>(
+      `/tenants/${activeTenantId}/members/${memberToRemove.userId}`,
+    )
+
+    if (result?.removed) {
+      setMemberNotice(t('dashboard.memberRemoved'))
+      setMemberToRemove(null)
       await fetchTenantTeam()
     }
   }
@@ -320,6 +364,15 @@ export default function ProjectsPage() {
                       value={memberName}
                       onChange={(e) => setMemberName(e.target.value)}
                       placeholder={t('dashboard.memberNamePlaceholder')}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-700 dark:text-slate-300">{t('dashboard.memberNickname')}</span>
+                    <input
+                      value={memberNickname}
+                      onChange={(e) => setMemberNickname(e.target.value)}
+                      placeholder={t('dashboard.memberNicknamePlaceholder')}
                       className="mt-1 w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                     />
                   </label>
@@ -428,6 +481,7 @@ export default function ProjectsPage() {
                   <thead>
                     <tr className="text-left border-b border-gray-200 dark:border-slate-700">
                       <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberName')}</th>
+                      <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberNickname')}</th>
                       <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberEmail')}</th>
                       <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberPhone')}</th>
                       <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberRole')}</th>
@@ -435,12 +489,16 @@ export default function ProjectsPage() {
                       {canViewTeamSentiment && (
                         <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('communicationSentiment.columnLabel')}</th>
                       )}
+                      {canManageTeam && (
+                        <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('common.actions', { defaultValue: 'Actions' })}</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {teamMembers.map((member) => (
                       <tr key={member.id} className="border-b border-gray-100 dark:border-slate-800">
                         <td className="py-2 pr-3 text-gray-800 dark:text-slate-200">{member.user?.name || '-'}</td>
+                        <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{getMemberNickname(member) || '-'}</td>
                         <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{member.user?.email || '-'}</td>
                         <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{member.user?.phone || '-'}</td>
                         <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{t(tenantRoleLabelKey[member.role])}</td>
@@ -450,6 +508,21 @@ export default function ProjectsPage() {
                             <TeamSentimentBadge snapshot={member.user?.id ? memberSentiments[member.user.id] : null} />
                           </td>
                         )}
+                        {canManageTeam && (
+                          <td className="py-2 pr-3">
+                            {canRemoveTeamMember(member) ? (
+                              <button
+                                type="button"
+                                onClick={() => setMemberToRemove(member)}
+                                className="rounded-md border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                              >
+                                {t('dashboard.memberRemove')}
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-slate-500">-</span>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -457,6 +530,25 @@ export default function ProjectsPage() {
               </div>
             )}
           </div>
+
+          <ConfirmDialog
+            open={Boolean(memberToRemove)}
+            title={t('dashboard.memberRemoveTitle')}
+            description={t('dashboard.memberRemoveDescription', {
+              name: memberToRemove?.user?.name || memberToRemove?.user?.email || '-',
+              organization: activeTenantName || t('dashboard.selectOrganizationFirst'),
+            })}
+            confirmLabel={t('dashboard.memberRemoveConfirm')}
+            cancelLabel={t('dashboard.cancel')}
+            tone="danger"
+            isLoading={isRemovingMember}
+            onCancel={() => setMemberToRemove(null)}
+            onConfirm={() => void handleConfirmRemoveMember()}
+          />
+
+          {removeMemberError && (
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{removeMemberError.message}</p>
+          )}
 
           <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">

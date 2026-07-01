@@ -255,6 +255,7 @@ model User {
   id            String       @id @default(cuid())
   email         String       @unique
   name          String
+  nickname      String?
   phone         String?
   passwordHash  String
   mustChangePassword Boolean @default(false)
@@ -368,6 +369,7 @@ model TenantMembership {
   tenantId   String
   userId     String
   role       TenantRole @default(MEMBER)
+  nickname   String?
   jobTitle   String?
   department String?
   isActive  Boolean    @default(true)
@@ -387,6 +389,7 @@ model UserInvitation {
   tenantId       String
   email          String
   name           String
+  nickname       String?
   phone          String?
   tenantRole     TenantRole @default(MEMBER)
   userRole       UserRole   @default(MEMBER)

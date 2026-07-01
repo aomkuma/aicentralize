@@ -106,3 +106,35 @@ User said **เอาแบบนี้ไปก่อน** — keep current beh
 1. **Deploy** — web changes above if not yet on Railway production.
 2. **Meeting Studio** — optional: transcribe-only mode (no auto-analyze on background job).
 3. **Continuity** — PM timeline tab (still on backlog from earlier handover).
+
+---
+
+## Member nickname (tenant-scoped) — 2026-07-02
+
+### Two requirements
+
+1. **Add nickname field** when onboarding/editing members (Dashboard, Tenant setup, Admin orgs, invitations).
+2. **Same email across orgs** must not leak nickname from org B into org A.
+
+### Root cause (before fix)
+
+- `User.email` is globally unique → one account per email.
+- `nickname` was stored on `User`, so any edit or re-onboard overwrote it for **all** tenants.
+
+### Fix
+
+- `TenantMembership.nickname` — nickname is **per organization**.
+- Migration: `20260702120000_tenant_membership_nickname` (backfill from legacy `User.nickname`).
+- API writes nickname on membership, not `User`, when managing tenant members.
+- UI reads `member.nickname` (fallback `member.user?.nickname` for legacy).
+- AI owner mapping (Meeting Studio) matches `ownerName` against membership **nickname** as well as legal name/email.
+
+### Key files
+
+| Layer | Files |
+|-------|--------|
+| Schema | `apps/api/prisma/schema.prisma` |
+| API | `tenants.ts`, `admin.ts`, `auth.ts` |
+| Web | `lib/memberDisplay.ts`, `ProjectsPage`, `AdminOrganizationsPage` |
+| AI map | `meetingStudio/shared.ts`, `MeetingStudioPage.tsx` |
+

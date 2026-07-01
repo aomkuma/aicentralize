@@ -113,12 +113,13 @@ This document is the product feature map (main modules and sub-features). For da
 | Role | Can assign to others? |
 |------|------------------------|
 | `UserRole` ADMIN / PM | Yes |
-| `TenantRole` TENANT_ADMIN / MANAGER | Yes (for project's tenant) |
+| `TenantRole` TENANT_ADMIN | Yes (highest authority in that tenant) |
+| `TenantRole` MANAGER | Yes (operational management within delegated scope) |
 | `MEMBER` / `VIEWER` | No — self only |
 
 **Schema:** `ActionItem.projectId` required; `meetingId` optional — migration `20260630210000_action_item_project_scope`.
 
-**Known gap:** `assertCanMutate` still blocks legacy `MEMBER` users from editing tasks assigned to others; tenant admins may need broader edit rights for status/patch (tracked in handover).
+**Role intent:** `TENANT_ADMIN` is the highest authority inside its own tenant, similar to an owner/CEO role. `MANAGER` is a strong operational role, but should not outrank `TENANT_ADMIN`.
 
 ---
 
@@ -177,7 +178,7 @@ This document is the product feature map (main modules and sub-features). For da
 **Role model**
 
 - **Platform:** `SystemRole` — `SUPER_ADMIN`, `MODERATOR`, `USER`
-- **Tenant workflow:** `TenantRole` — `TENANT_ADMIN`, `MANAGER`, `MEMBER`, `VIEWER`
+- **Tenant workflow:** `TenantRole` — `TENANT_ADMIN` (highest in tenant), `MANAGER`, `MEMBER`, `VIEWER`
 - **Legacy workflow:** `UserRole` — `ADMIN`, `PM`, `MEMBER` (do not use `UserRole.ADMIN` for platform checks)
 
 ---

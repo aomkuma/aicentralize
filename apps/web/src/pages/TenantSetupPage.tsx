@@ -25,6 +25,7 @@ export default function TenantSetupPage() {
   })
   const [memberForm, setMemberForm] = useState({
     name: '',
+    nickname: '',
     email: '',
     phone: '',
     jobTitle: '',
@@ -168,6 +169,7 @@ export default function TenantSetupPage() {
 
     const payload: MemberOnboardRequest = {
       name: memberForm.name.trim(),
+      nickname: memberForm.nickname.trim() || undefined,
       email: memberForm.email.trim().toLowerCase(),
       phone: memberForm.phone.trim(),
       jobTitle: memberForm.jobTitle.trim(),
@@ -472,6 +474,16 @@ export default function TenantSetupPage() {
                       value={memberForm.name}
                       onChange={handleMemberInputChange}
                       placeholder={t('dashboard.memberNamePlaceholder')}
+                      className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberNickname')}</span>
+                    <input
+                      name="nickname"
+                      value={memberForm.nickname}
+                      onChange={handleMemberInputChange}
+                      placeholder={t('dashboard.memberNicknamePlaceholder')}
                       className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                     />
                   </label>

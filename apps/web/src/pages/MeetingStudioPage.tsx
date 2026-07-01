@@ -12,6 +12,7 @@ import {
   isDocumentFile,
   MEETING_STUDIO_FILE_ACCEPT
 } from '../lib/documentText'
+import { buildOwnerOptionFromMembership, memberNickname } from '../lib/memberDisplay'
 import type { MeetingStudioJobResult } from '../lib/meetingStudio/jobTypes'
 import { useTenantStore } from '../stores/tenantStore'
 import { buildDocumentAnalysisPrompt } from '../lib/meetingStudio/meetingAnalysisPrompt'
@@ -91,6 +92,7 @@ type OwnerOption = {
   id: string
   name: string
   email: string
+  nickname?: string
 }
 
 const defaultTemplate = (): MinuteTemplate => ({
@@ -194,9 +196,14 @@ const resolveOwnerUserId = (ownerName: string | undefined, owners: OwnerOption[]
     return ''
   }
 
-  const token = normalizeOwnerToken(ownerName)
+  const token = normalizeOwnerToken(ownerName.replace(/^@/, ''))
   if (!token) {
     return ''
+  }
+
+  const exactNickname = owners.find((owner) => owner.nickname && normalizeOwnerToken(owner.nickname) === token)
+  if (exactNickname) {
+    return exactNickname.id
   }
 
   const exactName = owners.find((owner) => normalizeOwnerToken(owner.name) === token)
@@ -540,16 +547,15 @@ export default function MeetingStudioPage() {
     }
 
     const fetchOwnerOptions = async () => {
-      const members = await get<Array<{ user?: { id: string; name: string; email: string } }>>(`/tenants/${tenantId}/members`)
+      const members = await get<Array<{ nickname?: string | null; user?: { id: string; name: string; email: string; nickname?: string | null } }>>(`/tenants/${tenantId}/members`)
       if (!Array.isArray(members)) {
         setOwnerOptions([])
         return
       }
 
       const owners = members
-        .map((item) => item.user)
-        .filter((user): user is { id: string; name: string; email: string } => Boolean(user?.id && user?.name && user?.email))
-        .map((user) => ({ id: user.id, name: user.name, email: user.email }))
+        .map((item) => buildOwnerOptionFromMembership(item))
+        .filter((owner): owner is OwnerOption => Boolean(owner))
 
       setOwnerOptions(owners)
     }

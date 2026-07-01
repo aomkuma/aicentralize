@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi } from '../hooks/useApi'
 import { useTheme } from '../contexts/ThemeContext'
@@ -18,6 +18,27 @@ export default function LoginPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
+  const mapLoginErrorMessage = (message?: string | null) => {
+    if (message === 'Account suspended') {
+      return t('auth.accountSuspended')
+    }
+
+    if (message === 'Invalid credentials') {
+      return t('auth.invalidCredentials')
+    }
+
+    return message || t('auth.loginFailed')
+  }
+
+  useEffect(() => {
+    if (!error) {
+      return
+    }
+
+    setSubmitError(mapLoginErrorMessage(error.message))
+    setIsLoading(false)
+  }, [error, t])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitError(null)
@@ -32,7 +53,6 @@ export default function LoginPage() {
       setAuth(response)
       // App.tsx will auto-navigate to /setup
     } else {
-      setSubmitError(error?.message || t('auth.loginFailed'))
       setIsLoading(false)
     }
   }
@@ -91,10 +111,11 @@ export default function LoginPage() {
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">
+                <label htmlFor="login-email" className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">
                   {t('auth.email')}
                 </label>
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -105,10 +126,11 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">
+                <label htmlFor="login-password" className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">
                   {t('auth.password')}
                 </label>
                 <input
+                  id="login-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

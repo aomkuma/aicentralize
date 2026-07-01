@@ -48,6 +48,12 @@ export type OwnerOption = {
   id: string
   name: string
   email: string
+  nickname?: string
+}
+
+export function formatOwnerLabel(owner: Pick<OwnerOption, 'name' | 'nickname'>): string {
+  const nickname = owner.nickname?.trim()
+  return nickname ? `${owner.name} (@${nickname})` : owner.name
 }
 
 export type ProjectOption = {

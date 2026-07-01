@@ -7,7 +7,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { env } from "../config/env";
 import { sendInvitationEmail } from "../services/emailService";
-import { ensureTenantMembership, ensureTenantRole, isPlatformAdmin, isSuperAdmin, type TenantAuthUser } from "../services/tenantAccessService";
+import { ensureTenantMembership, ensureTenantRole, getTenantMembership, isPlatformAdmin, isSuperAdmin, type TenantAuthUser } from "../services/tenantAccessService";
 
 export const tenantRouter = Router();
 
@@ -26,12 +26,14 @@ const addMemberSchema = z.object({
 
 const updateMemberRoleSchema = z.object({
   role: z.nativeEnum(TenantRole),
+  nickname: z.string().trim().min(1).max(80).optional().nullable(),
   jobTitle: z.string().min(1).max(120).optional(),
   department: z.string().min(1).max(120).optional()
 });
 
 const onboardMemberSchema = z.object({
   name: z.string().min(2).max(120),
+  nickname: z.string().trim().min(1).max(80).optional(),
   email: z.string().email(),
   phone: z.string().min(7).max(30),
   tenantRole: z.nativeEnum(TenantRole).default(TenantRole.MEMBER),
@@ -170,6 +172,7 @@ tenantRouter.get("/:tenantId/members", requireAuth, async (req, res) => {
           id: true,
           email: true,
           name: true,
+          nickname: true,
           phone: true,
           role: true,
           systemRole: true,
@@ -189,25 +192,34 @@ tenantRouter.get("/:tenantId/users", requireAuth, async (req, res) => {
     return res.status(403).json({ message: "Forbidden" });
   }
 
-  const users = await prisma.user.findMany({
+  const users = await prisma.tenantMembership.findMany({
     where: {
-      tenantMemberships: {
-        some: {
-          tenantId: req.params.tenantId
+      tenantId: req.params.tenantId,
+      isActive: true
+    },
+    select: {
+      nickname: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true
         }
       }
     },
-    select: {
-      id: true,
-      name: true,
-      email: true
-    },
     orderBy: {
-      name: "asc"
+      user: {
+        name: "asc"
+      }
     }
   });
 
-  res.json(users);
+  res.json(users.map((membership) => ({
+    id: membership.user.id,
+    name: membership.user.name,
+    email: membership.user.email,
+    nickname: membership.nickname
+  })));
 });
 
 tenantRouter.post("/:tenantId/members", requireAuth, async (req, res) => {
@@ -263,6 +275,7 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
 
   const email = parsed.data.email.trim().toLowerCase();
   const name = parsed.data.name.trim();
+  const nickname = parsed.data.nickname?.trim() || null;
   const phone = parsed.data.phone.trim();
   const department = parsed.data.department?.trim();
   const isTenantManagerRole = parsed.data.tenantRole === TenantRole.TENANT_ADMIN ||
@@ -301,6 +314,7 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
         id: true,
         email: true,
         name: true,
+        nickname: true,
         phone: true,
         role: true,
         systemRole: true
@@ -310,6 +324,7 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
       data: {
         email,
         name,
+        nickname,
         phone,
         role: workflowRole,
         passwordHash,
@@ -320,6 +335,7 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
         id: true,
         email: true,
         name: true,
+        nickname: true,
         phone: true,
         role: true,
         systemRole: true
@@ -337,11 +353,13 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
       tenantId: req.params.tenantId,
       userId: user.id,
       role: parsed.data.tenantRole,
+      nickname,
       jobTitle: parsed.data.jobTitle,
       department
     },
     update: {
       role: parsed.data.tenantRole,
+      nickname,
       jobTitle: parsed.data.jobTitle,
       department
     },
@@ -351,6 +369,7 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
           id: true,
           email: true,
           name: true,
+          nickname: true,
           phone: true,
           role: true,
           systemRole: true
@@ -370,6 +389,7 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
         tenantId: req.params.tenantId,
         email,
         name,
+        nickname,
         phone,
         tenantRole: parsed.data.tenantRole,
         userRole: workflowRole,
@@ -465,9 +485,92 @@ tenantRouter.patch("/:tenantId/members/:userId", requireAuth, async (req, res) =
     data: {
       role: parsed.data.role,
       jobTitle: parsed.data.jobTitle,
-      department: parsed.data.department
+      department: parsed.data.department,
+      ...(parsed.data.nickname !== undefined
+        ? { nickname: parsed.data.nickname?.trim() || null }
+        : {}),
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          nickname: true,
+          phone: true,
+          role: true,
+          systemRole: true,
+          mustChangePassword: true
+        }
+      }
     }
   });
 
   res.json(updated);
+});
+
+tenantRouter.delete("/:tenantId/members/:userId", requireAuth, async (req, res) => {
+  const tenantId = req.params.tenantId;
+  const targetUserId = req.params.userId;
+
+  const canManage = await ensureTenantRole(req.user!, tenantId, [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]);
+  if (!canManage) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  if (targetUserId === req.user!.id) {
+    return res.status(400).json({ message: "Cannot remove yourself from the team" });
+  }
+
+  const membership = await prisma.tenantMembership.findUnique({
+    where: {
+      tenantId_userId: {
+        tenantId,
+        userId: targetUserId
+      }
+    },
+    select: {
+      id: true,
+      role: true
+    }
+  });
+
+  if (!membership) {
+    return res.status(404).json({ message: "Membership not found" });
+  }
+
+  if (!isPlatformAdmin(req.user!)) {
+    const actorMembership = await getTenantMembership(req.user!.id, tenantId);
+    if (actorMembership?.role === TenantRole.MANAGER && membership.role === TenantRole.TENANT_ADMIN) {
+      return res.status(403).json({ message: "Managers cannot remove tenant admins" });
+    }
+  }
+
+  if (membership.role === TenantRole.TENANT_ADMIN) {
+    const remainingAdmins = await prisma.tenantMembership.count({
+      where: {
+        tenantId,
+        role: TenantRole.TENANT_ADMIN,
+        isActive: true,
+        userId: {
+          not: targetUserId
+        }
+      }
+    });
+
+    if (remainingAdmins === 0) {
+      return res.status(400).json({ message: "Cannot remove the last tenant admin" });
+    }
+  }
+
+  await prisma.tenantMembership.delete({
+    where: {
+      tenantId_userId: {
+        tenantId,
+        userId: targetUserId
+      }
+    }
+  });
+
+  res.json({ removed: true });
 });

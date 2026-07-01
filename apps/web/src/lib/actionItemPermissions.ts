@@ -22,7 +22,7 @@ export function resolveTenantMembership(
   return null
 }
 
-/** Platform ADMIN/PM or tenant TENANT_ADMIN/MANAGER may assign action items to others. */
+/** Platform ADMIN/PM always may assign; tenant roles are handled by the current tenant workflow policy. */
 export function canAssignActionItemsToOthers(
   user: User | null | undefined,
   membership: TenantMembership | null | undefined,

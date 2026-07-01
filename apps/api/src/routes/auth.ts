@@ -21,6 +21,7 @@ const refreshSchema = z.object({
 
 const profileSchema = z.object({
   name: z.string().trim().min(2).max(120),
+  nickname: z.string().trim().min(1).max(80).optional().nullable(),
   phone: z.string().trim().max(30).optional().nullable()
 });
 
@@ -316,6 +317,7 @@ authRouter.post("/login", async (req, res) => {
       id: user.id,
       email: user.email,
       name: user.name,
+      nickname: user.nickname,
       phone: user.phone,
       role: user.role as UserRole,
       systemRole: user.systemRole as SystemRole,
@@ -331,6 +333,7 @@ authRouter.get("/me", requireAuth, async (req, res) => {
       id: true,
       email: true,
       name: true,
+      nickname: true,
       phone: true,
       role: true,
       systemRole: true,
@@ -357,12 +360,14 @@ authRouter.patch("/me", requireAuth, async (req, res) => {
     where: { id: req.user!.id },
     data: {
       name: parsed.data.name,
+      nickname: parsed.data.nickname?.trim() || null,
       phone: parsed.data.phone?.trim() || null
     },
     select: {
       id: true,
       email: true,
       name: true,
+      nickname: true,
       phone: true,
       role: true,
       systemRole: true,
@@ -435,6 +440,7 @@ authRouter.get("/invitations/:token", async (req, res) => {
   return res.json({
     email: invitation.email,
     name: invitation.name,
+    nickname: invitation.nickname,
     tenantName: invitation.tenant.name,
     expiresAt: invitation.expiresAt
   });
@@ -494,6 +500,7 @@ authRouter.post("/invitations/:token/accept", async (req, res) => {
       data: {
         email,
         name: invitation.name,
+        nickname: invitation.nickname,
         phone: invitation.phone,
         passwordHash,
         mustChangePassword: false,
@@ -513,12 +520,14 @@ authRouter.post("/invitations/:token/accept", async (req, res) => {
       tenantId: invitation.tenantId,
       userId: user.id,
       role: invitation.tenantRole,
+      nickname: invitation.nickname,
       jobTitle: invitation.jobTitle,
       department: invitation.department,
       isActive: true
     },
     update: {
       role: invitation.tenantRole,
+      nickname: invitation.nickname,
       jobTitle: invitation.jobTitle,
       department: invitation.department,
       isActive: true
@@ -551,6 +560,7 @@ authRouter.post("/invitations/:token/accept", async (req, res) => {
       id: user.id,
       email: user.email,
       name: user.name,
+      nickname: user.nickname,
       phone: user.phone,
       role: user.role as UserRole,
       systemRole: user.systemRole as SystemRole,

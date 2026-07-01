@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
+import { memberNickname } from '../lib/memberDisplay'
 import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/authStore'
 import type { AdminTenant, SubscriptionPackage, TenantMembership, UserInvitation } from '../types'
@@ -216,7 +217,7 @@ export default function AdminOrganizationsPage() {
 
   const onSaveMemberField = async (
     member: TenantMembership,
-    field: 'jobTitle' | 'department',
+    field: 'nickname' | 'jobTitle' | 'department',
     value: string,
   ) => {
     if (!selectedTenantId) {
@@ -224,7 +225,11 @@ export default function AdminOrganizationsPage() {
     }
 
     const trimmed = value.trim()
-    if (trimmed === (member[field] ?? '')) {
+    const currentValue = field === 'nickname'
+      ? (member.nickname ?? member.user?.nickname ?? '')
+      : (member[field] ?? '')
+
+    if (trimmed === currentValue) {
       return
     }
 
@@ -424,6 +429,9 @@ export default function AdminOrganizationsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-gray-900 dark:text-white">{member.user?.name ?? '-'}</p>
+                      <p className="truncate text-xs text-gray-500 dark:text-slate-400">
+                        {memberNickname(member) ? `@${memberNickname(member)}` : '-'}
+                      </p>
                       <p className="truncate text-xs text-gray-500 dark:text-slate-400">{member.user?.email ?? '-'}</p>
                     </div>
                     <input
@@ -454,6 +462,12 @@ export default function AdminOrganizationsPage() {
                     </span>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
+                    <input
+                      defaultValue={memberNickname(member)}
+                      onBlur={(event) => onSaveMemberField(member, 'nickname', event.target.value)}
+                      placeholder={t('dashboard.memberNickname')}
+                      className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+                    />
                     <input
                       defaultValue={member.jobTitle ?? ''}
                       onBlur={(event) => onSaveMemberField(member, 'jobTitle', event.target.value)}

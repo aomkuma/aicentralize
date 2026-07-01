@@ -67,7 +67,7 @@ cd apps/api && npx prisma migrate deploy
 | Item | Status | Notes |
 |------|--------|-------|
 | Continuity → full `ActionItemsPanel` reuse | **Open** | Panel exists; Continuity still has duplicate logic |
-| Tenant admin edit others' tasks (patch/status) | **Open** | `assertCanMutate` assignee-only |
+| Tenant admin authority model | **In progress** | Align code/docs so `TENANT_ADMIN` is highest authority inside its own tenant |
 | Feeling log batch panel in AI Trace | **Open** | API exists; no web panel like morning briefing |
 | In-app browser prompt (LINE/IG) | **Local** | Implemented on welcome; not yet on `main` |
 | Push e2e on real iPhone PWA | **Open** | Wizard shipped; field verify VAPID + Home Screen |

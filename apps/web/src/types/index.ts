@@ -2,6 +2,7 @@ export interface User {
   id: string
   email: string
   name: string
+  nickname?: string | null
   phone?: string
   role?: 'ADMIN' | 'PM' | 'MEMBER'
   systemRole: 'SUPER_ADMIN' | 'MODERATOR' | 'USER'
@@ -48,6 +49,7 @@ export interface TenantMembership {
   tenantId: string
   userId: string
   role: 'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'
+  nickname?: string | null
   jobTitle?: string
   department?: string
   isActive?: boolean
@@ -255,6 +257,7 @@ export interface MemberAddRequest {
 
 export interface MemberOnboardRequest {
   name: string
+  nickname?: string
   email: string
   phone: string
   tenantRole: 'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'

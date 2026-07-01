@@ -4,9 +4,11 @@ import { useApi } from '../../../hooks/useApi'
 import { useAuthStore } from '../../../stores/authStore'
 import { useTenantStore } from '../../../stores/tenantStore'
 import { canAssignActionItemsToOthers, resolveTenantMembership } from '../../../lib/actionItemPermissions'
+import { buildOwnerOptionFromMembership } from '../../../lib/memberDisplay'
 import {
   actionItemStatuses,
   actionPriorities,
+  formatOwnerLabel,
   getActionItemCardSurfaceClass,
   isClosedActionStatus,
   priorityWeight,
@@ -139,7 +141,7 @@ export default function ActionItemsPanel({
 
     async function fetchOwnerOptions() {
       const members = await getActionData<
-        Array<{ isActive?: boolean; user?: { id: string; name: string; email: string } }>
+        Array<{ isActive?: boolean; nickname?: string | null; user?: { id: string; name: string; email: string; nickname?: string | null } }>
       >(`/tenants/${tenantId}/members`)
       if (!mounted) {
         return
@@ -148,9 +150,8 @@ export default function ActionItemsPanel({
       if (Array.isArray(members) && members.length > 0) {
         const fromMembers = members
           .filter((item) => item.isActive !== false)
-          .map((item) => item.user)
-          .filter((member): member is OwnerOption => Boolean(member?.id && member?.name && member?.email))
-          .map((member) => ({ id: member.id, name: member.name, email: member.email }))
+          .map((item) => buildOwnerOptionFromMembership(item))
+          .filter((member): member is OwnerOption => Boolean(member))
 
         if (fromMembers.length > 0) {
           setOwnerOptions(fromMembers)
@@ -158,7 +159,7 @@ export default function ActionItemsPanel({
         }
       }
 
-      const users = await getActionData<Array<{ id: string; name: string; email: string }>>(
+      const users = await getActionData<Array<{ id: string; name: string; email: string; nickname?: string | null }>>(
         `/tenants/${tenantId}/users`,
       )
       if (!mounted) {
@@ -173,7 +174,12 @@ export default function ActionItemsPanel({
       setOwnerOptions(
         users
           .filter((member) => Boolean(member.id && member.name && member.email))
-          .map((member) => ({ id: member.id, name: member.name, email: member.email })),
+          .map((member) => ({
+            id: member.id,
+            name: member.name,
+            email: member.email,
+            nickname: member.nickname?.trim() || undefined,
+          })),
       )
     }
 
@@ -703,7 +709,7 @@ export default function ActionItemsPanel({
                 {canAssignOthers ? (
                   ownerOptions.map((owner) => (
                     <option key={owner.id} value={owner.id}>
-                      {owner.name} — {owner.email}
+                      {formatOwnerLabel(owner)} — {owner.email}
                     </option>
                   ))
                 ) : (
@@ -787,7 +793,7 @@ export default function ActionItemsPanel({
                   <option value="">{t('common.all', { defaultValue: 'All' })}</option>
                   {ownerOptions.map((owner) => (
                     <option key={owner.id} value={owner.id}>
-                      {owner.name}
+                      {formatOwnerLabel(owner)}
                     </option>
                   ))}
                 </select>
@@ -1161,7 +1167,7 @@ export default function ActionItemsPanel({
                             </option>
                             {ownerOptions.map((owner) => (
                               <option key={owner.id} value={owner.id}>
-                                {owner.name} - {owner.email}
+                                {formatOwnerLabel(owner)} - {owner.email}
                               </option>
                             ))}
                           </select>

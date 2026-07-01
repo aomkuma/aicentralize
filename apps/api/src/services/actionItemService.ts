@@ -64,13 +64,25 @@ function isAllowedTransition(from: ActionStatus, to: ActionStatus): boolean {
   return allowed.get(from)?.includes(to) ?? false;
 }
 
-async function assertCanMutate(actionItemId: string, user: { id: string; role: UserRole }) {
+async function assertCanMutate(actionItemId: string, user: TenantAuthUser) {
   const item = await prisma.actionItem.findUnique({ where: { id: actionItemId } });
   if (!item) {
     throw new Error(ACTION_ITEM_NOT_FOUND_ERROR);
   }
 
   if (user.role === UserRole.MEMBER && item.assigneeId !== user.id) {
+    const project = await prisma.project.findUnique({
+      where: { id: item.projectId },
+      select: { tenantId: true }
+    });
+
+    if (project?.tenantId) {
+      const isTenantAdmin = await ensureTenantRole(user, project.tenantId, [TenantRole.TENANT_ADMIN]);
+      if (isTenantAdmin) {
+        return item;
+      }
+    }
+
     throw new Error(MUTABLE_BY_MEMBER_ERROR);
   }
 
@@ -430,7 +442,7 @@ export async function getActionItemDetail(id: string) {
 export async function updateActionItem(
   id: string,
   payload: UpdateActionItemInput,
-  user: { id: string; role: UserRole }
+  user: TenantAuthUser
 ) {
   const current = await assertCanMutate(id, user);
 
@@ -496,7 +508,7 @@ export async function updateActionItem(
 export async function reassignActionItem(
   id: string,
   payload: { ownerUserId: string; note?: string },
-  user: { id: string; role: UserRole }
+  user: TenantAuthUser
 ) {
   const current = await assertCanMutate(id, user);
 
@@ -550,7 +562,7 @@ export async function reassignActionItem(
 export async function changeActionItemStatus(
   id: string,
   payload: { status: ActionStatus; note?: string },
-  user: { id: string; role: UserRole }
+  user: TenantAuthUser
 ) {
   const current = await assertCanMutate(id, user);
 

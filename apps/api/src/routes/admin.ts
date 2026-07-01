@@ -70,6 +70,7 @@ const updatePackageSchema = packageBaseSchema.partial().superRefine(refinePackag
 
 const updateMemberSchema = z.object({
   role: z.nativeEnum(TenantRole).optional(),
+  nickname: z.string().trim().min(1).max(80).optional().nullable(),
   jobTitle: z.string().trim().min(1).max(120).optional().nullable(),
   department: z.string().trim().min(1).max(120).optional().nullable(),
   isActive: z.boolean().optional()
@@ -295,6 +296,7 @@ adminRouter.get("/tenants/:tenantId/members", async (req, res) => {
           id: true,
           email: true,
           name: true,
+          nickname: true,
           phone: true,
           role: true,
           systemRole: true,
@@ -472,7 +474,10 @@ adminRouter.patch("/tenants/:tenantId/members/:userId", async (req, res) => {
       role: parsed.data.role,
       jobTitle: parsed.data.jobTitle,
       department: parsed.data.department,
-      isActive: parsed.data.isActive
+      isActive: parsed.data.isActive,
+      ...(parsed.data.nickname !== undefined
+        ? { nickname: parsed.data.nickname?.trim() || null }
+        : {}),
     },
     include: {
       user: {
@@ -480,6 +485,7 @@ adminRouter.patch("/tenants/:tenantId/members/:userId", async (req, res) => {
           id: true,
           email: true,
           name: true,
+          nickname: true,
           phone: true,
           role: true,
           systemRole: true,
@@ -499,6 +505,7 @@ adminRouter.get("/platform-users", requireSystemRole([SystemRole.SUPER_ADMIN]), 
       id: true,
       email: true,
       name: true,
+      nickname: true,
       phone: true,
       role: true,
       systemRole: true,
@@ -554,6 +561,7 @@ adminRouter.patch("/platform-users/:userId", requireSystemRole([SystemRole.SUPER
       id: true,
       email: true,
       name: true,
+      nickname: true,
       phone: true,
       role: true,
       systemRole: true,
@@ -611,6 +619,7 @@ adminRouter.patch("/users/:userId", async (req, res) => {
       id: true,
       email: true,
       name: true,
+      nickname: true,
       role: true,
       systemRole: true,
       isActive: true

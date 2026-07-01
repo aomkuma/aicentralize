@@ -9,6 +9,8 @@ import ContinuitySummaryCard from './ContinuitySummaryCard'
 import OverdueByOwner from './OverdueByOwner'
 import OverdueItemsList from './OverdueItemsList'
 import { getActionItemCardSurfaceClass } from '../action-items/actionItemTypes'
+import { formatOwnerLabel } from '../action-items/actionItemTypes'
+import { buildOwnerOptionFromMembership } from '../../../lib/memberDisplay'
 
 interface ContinuityDashboardProps {
   projectId?: string
@@ -78,6 +80,7 @@ type OwnerOption = {
   id: string
   name: string
   email: string
+  nickname?: string
 }
 
 type WorkloadRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
@@ -444,7 +447,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
     let mounted = true
 
     async function fetchOwnerOptions() {
-      const members = await getActionData<Array<{ user?: { id: string; name: string; email: string } }>>(
+      const members = await getActionData<Array<{ nickname?: string | null; user?: { id: string; name: string; email: string; nickname?: string | null } }>>(
         `/tenants/${tenantId}/members`
       )
       if (!mounted) {
@@ -458,9 +461,8 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
 
       setOwnerOptions(
         members
-          .map((item) => item.user)
-          .filter((user): user is OwnerOption => Boolean(user?.id && user?.name && user?.email))
-          .map((user) => ({ id: user.id, name: user.name, email: user.email }))
+          .map((item) => buildOwnerOptionFromMembership(item))
+          .filter((user): user is OwnerOption => Boolean(user))
       )
     }
 
@@ -1182,7 +1184,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                       <option value="">{t('common.all', { defaultValue: 'All' })}</option>
                       {ownerOptions.map((owner) => (
                         <option key={owner.id} value={owner.id}>
-                          {owner.name}
+                          {formatOwnerLabel(owner)}
                         </option>
                       ))}
                     </select>
@@ -1514,7 +1516,7 @@ export default function ContinuityDashboard({ projectId }: ContinuityDashboardPr
                                 <option value="">{t('continuity.reassignSelectOwner', { defaultValue: 'Select new owner' })}</option>
                                 {ownerOptions.map((owner) => (
                                   <option key={owner.id} value={owner.id}>
-                                    {owner.name} - {owner.email}
+                                    {formatOwnerLabel(owner)} - {owner.email}
                                   </option>
                                 ))}
                               </select>
