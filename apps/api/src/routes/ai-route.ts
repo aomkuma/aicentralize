@@ -1,4 +1,4 @@
-import { SystemRole, UserRole } from "@prisma/client";
+import { ActionItemPriority, ActionStatus, Prisma, SystemRole, UserRole } from "@prisma/client";
 import { Request, Router } from "express";
 import fs from "node:fs";
 import path from "node:path";
@@ -130,11 +130,41 @@ function isActionItemExistenceQuestion(prompt: string): boolean {
   ].some((pattern) => pattern.test(normalized));
 }
 
+function extractRequestedPriority(prompt: string): ActionItemPriority | null {
+  const normalized = prompt.toLowerCase();
+  if (/\bcritical\b|วิกฤต|ด่วนมาก|เร่งด่วนมาก/.test(normalized)) {
+    return ActionItemPriority.CRITICAL;
+  }
+  if (/\bhigh\b|ความสำคัญสูง|ด่วน|เร่งด่วน/.test(normalized)) {
+    return ActionItemPriority.HIGH;
+  }
+  if (/\bmedium\b|ความสำคัญกลาง|ปานกลาง/.test(normalized)) {
+    return ActionItemPriority.MEDIUM;
+  }
+  if (/\blow\b|ความสำคัญต่ำ|ไม่ด่วน/.test(normalized)) {
+    return ActionItemPriority.LOW;
+  }
+  return null;
+}
+
+function isDueTodayQuestion(prompt: string): boolean {
+  return /\btoday\b|วันนี้/.test(prompt.toLowerCase());
+}
+
+function getLocalTodayRange(): { gte: Date; lt: Date } {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { gte: start, lt: end };
+}
+
 const actionItemSnapshotSelect = {
   id: true,
   task: true,
   detail: true,
   status: true,
+  priority: true,
   dueDate: true,
   createdAt: true,
   updatedAt: true,
@@ -153,6 +183,7 @@ function formatActionItemSnapshotLine(
     task: string;
     detail: string | null;
     status: string;
+    priority: string;
     dueDate: Date;
     source: string;
     assignee: { name: string; email: string };
@@ -161,7 +192,7 @@ function formatActionItemSnapshotLine(
 ): string {
   const overdueFlag = item.dueDate.getTime() < now.getTime() ? "OVERDUE" : "NOT_OVERDUE";
   const detail = item.detail?.trim() ? ` | detail=${item.detail.trim()}` : "";
-  return `- id=${item.id} | owner=${item.assignee.name} <${item.assignee.email}> | due=${formatDateOnly(item.dueDate)} | status=${item.status} | source=${item.source} | overdue=${overdueFlag} | task=${item.task}${detail}`;
+  return `- id=${item.id} | owner=${item.assignee.name} <${item.assignee.email}> | due=${formatDateOnly(item.dueDate)} | status=${item.status} | priority=${item.priority} | source=${item.source} | overdue=${overdueFlag} | task=${item.task}${detail}`;
 }
 
 async function buildProjectContext(user: OptionalAuthUser, projectId: string, prompt: string): Promise<{ text: string; appLinks: AppLink[] } | null> {
@@ -187,21 +218,29 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
   }
 
   const selfTaskQuestion = isSelfTaskQuestion(prompt);
-  const actionItemScopeFilter = selfTaskQuestion ? { assigneeId: user.id } : {};
+  const requestedPriority = extractRequestedPriority(prompt);
+  const dueDateFilter = isDueTodayQuestion(prompt) ? getLocalTodayRange() : undefined;
+  const actionItemScopeFilter: Prisma.ActionItemWhereInput = selfTaskQuestion ? { assigneeId: user.id } : {};
+  const openActionItemWhere: Prisma.ActionItemWhereInput = {
+    status: { notIn: [ActionStatus.DONE, ActionStatus.CANCELLED] },
+    ...actionItemScopeFilter,
+    ...(requestedPriority ? { priority: requestedPriority } : {}),
+    ...(dueDateFilter ? { dueDate: dueDateFilter } : {}),
+    projectId
+  };
 
-  const [actionItems, closedCandidates] = await Promise.all([
+  const [actionItems, openMatchingCount, closedCandidates] = await Promise.all([
     prisma.actionItem.findMany({
-      where: {
-        status: { notIn: ["DONE", "CANCELLED"] },
-        ...actionItemScopeFilter,
-        projectId
-      },
+      where: openActionItemWhere,
       select: actionItemSnapshotSelect,
       orderBy: [
         { dueDate: "asc" },
         { createdAt: "desc" }
       ],
-      take: 40
+      take: requestedPriority || dueDateFilter ? 120 : 40
+    }),
+    prisma.actionItem.count({
+      where: openActionItemWhere
     }),
     prisma.actionItem.findMany({
       where: {
@@ -242,7 +281,6 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
   });
 
   const now = new Date();
-  const openCount = actionItems.length;
   const overdueItems = actionItems.filter((item) => item.dueDate.getTime() < now.getTime());
   const overdueCount = overdueItems.length;
 
@@ -281,6 +319,16 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
 
   const supplementText = await buildProjectAiSupplementText(projectId);
 
+  const priorityCounts = actionItems.reduce<Record<string, number>>((acc, item) => {
+    acc[item.priority] = (acc[item.priority] ?? 0) + 1;
+    return acc;
+  }, {});
+  const activeFilterParts = [
+    requestedPriority ? `priority=${requestedPriority}` : "",
+    dueDateFilter ? `due=today` : "",
+    selfTaskQuestion ? "assignee=requester" : ""
+  ].filter(Boolean);
+
   const text = [
     "PROJECT_SNAPSHOT (authoritative app data):",
     `- projectId: ${project.id}`,
@@ -289,13 +337,15 @@ async function buildProjectContext(user: OptionalAuthUser, projectId: string, pr
     `- requesterUserId: ${user.id}`,
     `- requesterEmail: ${user.email}`,
     `- actionItemScope: ${selfTaskQuestion ? "CURRENT_USER_ONLY" : "PROJECT_OPEN_ITEMS"}`,
+    `- actionItemFilter: ${activeFilterParts.join(", ") || "open project items"}`,
     selfTaskQuestion
       ? "- scopeRule: The user asked about their own tasks, so this snapshot includes only action items assigned to the requester."
       : "- scopeRule: actionItems lists open project action items across owners.",
     "- scopeRuleClosed: closedActionItems lists completed/cancelled tasks when the question references them or asks whether a task exists.",
-    `- openActionItems: ${openCount}`,
+    `- openActionItems: ${openMatchingCount}`,
     `- closedActionItemsIncluded: ${closedActionItems.length}`,
     `- overdueActionItems: ${overdueCount}`,
+    `- priorityCountsInListedActionItems: CRITICAL=${priorityCounts.CRITICAL ?? 0}, HIGH=${priorityCounts.HIGH ?? 0}, MEDIUM=${priorityCounts.MEDIUM ?? 0}, LOW=${priorityCounts.LOW ?? 0}`,
     "- ownersSummary:",
     ownerLines || "- (none)",
     "- actionItems (open only):",
@@ -390,15 +440,26 @@ function buildLanguagePolicy(prompt: string): string {
     "Response policy:",
     `- Detected user language: ${preferredLanguage}`,
     `- Respond primarily in ${preferredLanguage}.`,
-    "- Persona: you are Rubjob in English and รับจบ in Thai, a cheerful nerdy female AI teammate.",
+    "- Persona: you are Rubjob in English and รับจบ in Thai, a cheerful nerdy female AI assistant for loose ends, project status, overdue work, and things the team needs to follow through.",
+    "- Your core job is to help users understand pending work, project state, decisions, risks, owners, deadlines, and next steps from project context.",
     "- Use a warm, upbeat, slightly nerdy tone without being silly or verbose.",
+    "- Sound helpful and calm, never annoyed, scolding, sarcastic, or dismissive.",
+    "- Short answers should still feel kind: in Thai, add a natural polite particle such as 'ค่ะ' when appropriate.",
     "- For Thai responses, use a natural female assistant voice with polite endings such as 'ค่ะ' when appropriate.",
     "- Keep tone friendly and practical for project managers in Meeting Intelligence workflow.",
     "- Avoid overly formal openings (for example: avoid 'เรียนคุณลูกค้า').",
     "- Answer the user's exact question first; do not force a generic meeting-summary structure.",
     "- If the user asks a narrow or factual question, answer narrowly in 1-3 short sentences when possible.",
     "- If the user asks for a short answer, keep it short even when project context is available.",
+    "- Concise does not mean context-free: when answering with a number, status, yes/no, date, owner, or short conclusion, include the key evidence or examples that make the answer understandable.",
+    "- For factual answers, give the direct answer first, then add a brief basis such as the relevant items, source note, meeting, date, owner, or caveat.",
+    "- Do not make the user ask a second question just to know what your number, status, or conclusion refers to.",
+    "- If information is missing, briefly say what is missing and suggest a helpful next step instead of giving a blunt refusal.",
     "- Use bullets only when the user asks for a list, summary, comparison, tasks, issues, or recommendations.",
+    "- For action-item count questions, do not answer with only a number; state the scope/filter and list the counted items briefly.",
+    "- If you give a count of action items, the number must match the listed items exactly.",
+    "- For priority questions such as critical/high/medium/low, use the explicit priority field from project context.",
+    "- If the user asks for today's action items, use explicit due dates from project context.",
     "- If details are needed, keep them short and directly tied to the question.",
     "- Do not use markdown emphasis syntax such as '**' or '###' in output text.",
     "- Use simple Thai that non-technical users can understand quickly.",
@@ -474,6 +535,11 @@ aiRouter.post("/playground/generate", async (req, res) => {
       "- Never present another owner's task as the requester's own task.",
       "- If actionItemScope is CURRENT_USER_ONLY and actionItems is empty, say the requester currently has no open tasks in this project.",
       "- If a requested fact is not in snapshot, say it is unavailable instead of inventing.",
+      "- Concise answers still need enough context to be useful: for numbers, status, yes/no, dates, owners, or conclusions, include the brief basis from the snapshot.",
+      "- Do not answer with a bare number, bare status, or bare conclusion when the snapshot contains the details behind it.",
+      "- For action-item count questions, do not answer with only a number. State the scope/filter and list the counted tasks briefly.",
+      "- Any action-item count you give must exactly match the tasks you list in the response.",
+      "- For critical/high/medium/low questions, use the explicit priority field only.",
       "- Match the output format to the question. Do not use a fixed section order unless the user asks for an overview or report.",
       "- For narrow questions, answer only the requested fact plus one caveat if needed.",
       "- For overview/report questions, use concise bullets with short PM follow-up points.",

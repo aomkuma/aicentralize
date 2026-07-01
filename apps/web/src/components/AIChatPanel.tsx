@@ -1192,11 +1192,11 @@ export default function AIChatPanel({
         <textarea
           id="dashboard-ai-prompt"
           aria-label={t('aiChat.labels.prompt')}
-          rows={5}
+          rows={1}
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
           placeholder={t('aiChat.placeholders.askAnything')}
-          className="min-h-[148px] w-full resize-y rounded-xl border-0 bg-transparent px-4 pb-10 pt-4 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
+          className="min-h-[46px] max-h-[120px] w-full resize-y rounded-xl border-0 bg-transparent px-4 py-3 pr-32 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
           onKeyDown={(event) => {
             if (event.key !== 'Enter' || event.shiftKey) return
             if (event.nativeEvent.isComposing || isBusy) return
@@ -1204,7 +1204,7 @@ export default function AIChatPanel({
             void generate()
           }}
         />
-        <div className="pointer-events-none absolute bottom-3 right-4 flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+        <div className="pointer-events-none absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
           <img src="/brand/logo/kora-mark.png" alt="" className="h-4 w-4 opacity-80" />
           <span>{t('aiChat.assistedBadge')}</span>
         </div>

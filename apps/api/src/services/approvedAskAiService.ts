@@ -1,4 +1,4 @@
-import { Prisma, UserRole } from "@prisma/client";
+import { ActionItemPriority, Prisma, UserRole } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { generateWithLocalModel } from "./aiService";
@@ -76,11 +76,50 @@ function normalizeMatchText(text: string): string {
 
 function isOpenWorkQuestion(question: string): boolean {
   const q = question.toLowerCase();
-  return /งานค้าง|งานที่ค้าง|มีงาน|รายการงาน|งานเปิด|งานที่ต้องทำ|ต้องทำอะไร|ติดอะไร|open task|pending task|overdue|เลยกำหนด|todo|to-do|action item/.test(q);
+  return /งานค้าง|งานที่ค้าง|มีงาน|รายการงาน|งานเปิด|งานที่ต้องทำ|ต้องทำอะไร|ติดอะไร|open task|pending task|overdue|เลยกำหนด|todo|to-do|action item|critical|priority|high priority/.test(q);
 }
 
 function isSelfTaskQuestion(question: string): boolean {
   return /งานของฉัน|งานผม|งานฉัน|my task|assigned to me/i.test(question);
+}
+
+function extractRequestedPriority(question: string): ActionItemPriority | null {
+  const q = question.toLowerCase();
+  if (/\bcritical\b|วิกฤต|ด่วนมาก|เร่งด่วนมาก/.test(q)) {
+    return ActionItemPriority.CRITICAL;
+  }
+  if (/\bhigh\b|ความสำคัญสูง|ด่วน|เร่งด่วน/.test(q)) {
+    return ActionItemPriority.HIGH;
+  }
+  if (/\bmedium\b|ความสำคัญกลาง|ปานกลาง/.test(q)) {
+    return ActionItemPriority.MEDIUM;
+  }
+  if (/\blow\b|ความสำคัญต่ำ|ไม่ด่วน/.test(q)) {
+    return ActionItemPriority.LOW;
+  }
+  return null;
+}
+
+function isDueTodayQuestion(question: string): boolean {
+  return /\btoday\b|วันนี้/.test(question.toLowerCase());
+}
+
+function getLocalTodayRange(): { gte: Date; lt: Date } {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { gte: start, lt: end };
+}
+
+function isActionItemCountQuestion(question: string): boolean {
+  return /กี่ข้อ|กี่งาน|จำนวน|count|how many/.test(question.toLowerCase());
+}
+
+function getLiveActionEvidenceLimit(question: string): number {
+  return isOpenWorkQuestion(question) || isSelfTaskQuestion(question) || extractRequestedPriority(question) || isActionItemCountQuestion(question)
+    ? 120
+    : 8;
 }
 
 function citationReferencedInAnswer(citation: Citation, answer: string): boolean {
@@ -117,10 +156,11 @@ function resolveRelatedChunkIds(
   const ids = new Set(aiRelatedChunkIds);
   const openWork = isOpenWorkQuestion(question);
   const selfTask = isSelfTaskQuestion(question);
+  const priorityQuestion = Boolean(extractRequestedPriority(question));
 
   for (const citation of citations) {
     if (citation.sourceType === "ACTION_ITEM" && citation.sourceRowId) {
-      if (openWork || selfTask || citationReferencedInAnswer(citation, answer)) {
+      if (openWork || selfTask || priorityQuestion || citationReferencedInAnswer(citation, answer)) {
         ids.add(citation.chunkId);
       }
       continue;
@@ -276,8 +316,11 @@ function buildGroundedPrompt(question: string, evidence: UsedEvidence[]): string
     .join("\n\n");
 
   return [
-    "You are Rubjob in English and รับจบ in Thai, a cheerful nerdy female enterprise meeting memory assistant.",
-    "Use a warm, upbeat, slightly nerdy tone, but stay concise and evidence-grounded.",
+    "You are Rubjob in English and รับจบ in Thai: a cheerful nerdy female AI assistant for loose ends, project status, overdue work, and things the team needs to follow through.",
+    "Your core job is to help users understand pending work, project state, decisions, risks, owners, deadlines, and next steps from approved evidence.",
+    "Use a warm, upbeat, slightly nerdy tone, but stay concise, useful, and evidence-grounded.",
+    "Sound helpful and calm, never annoyed, scolding, sarcastic, or dismissive.",
+    "Short answers should still feel kind: add a soft Thai particle such as 'ค่ะ' when natural, but do not overdo it.",
     "You MUST answer only from the provided evidence set.",
     "Evidence with sourceType PROJECT_GENERAL_NOTE is public project context and can answer factual questions such as leave dates, team agreements, reminders, and shared project facts.",
     "Do not require meeting-minute evidence when PROJECT_GENERAL_NOTE evidence directly answers the question.",
@@ -287,9 +330,18 @@ function buildGroundedPrompt(question: string, evidence: UsedEvidence[]): string
     "Answer the exact question first. Do not turn every answer into a broad meeting summary.",
     "For narrow questions, keep the answer to 1-3 short sentences unless the user asks for more detail.",
     "If the user asks for a short answer, keep it short and avoid extra sections.",
+    "Concise does not mean context-free: when answering with a number, status, yes/no, date, owner, or short conclusion, include the key evidence or examples that make the answer understandable.",
+    "For factual answers, give the direct answer first, then add a brief basis such as the relevant items, source note, meeting, date, owner, or caveat.",
+    "Do not make the user ask a second question just to know what your number, status, or conclusion refers to.",
+    "If evidence is incomplete, say what you can confirm first, then briefly mention what is missing in a helpful way.",
+    "Avoid bare negative answers such as 'ไม่มีข้อมูล' or 'ไม่พบหลักฐาน' by themselves; include a short next step or clarification suggestion.",
     "Use bullets only for lists, action items, comparisons, or when the user asks for a summary.",
     "When answering about open actions, prioritize explicit action-item status from evidence over narrative text.",
     "Evidence with sourceType ACTION_ITEM from live-action-item chunks reflects current app task records, including manual tasks and completed/cancelled items.",
+    "For action-item count questions, never answer with only a number. State the scope/filter, then list the counted items briefly.",
+    "If you give a count of action items, the number must exactly equal the listed action items in your answer and the ACTION_ITEM evidence you include in relatedChunkIds.",
+    "For priority questions such as critical/high/medium/low, use only the explicit priority field in ACTION_ITEM evidence.",
+    "If the user asks for today's action items, use the explicit due date in ACTION_ITEM evidence.",
     "Evidence with sourceType TEAM_PULSE_AGGREGATE or COMMUNICATION_MOOD_AGGREGATE is anonymized team mood context only. Never quote raw feeling-log text or reveal who wrote a feeling log.",
     "relatedChunkIds must list chunkId values from the evidence set that directly support your answer.",
     "For greetings or small talk with no project facts, return relatedChunkIds as an empty array.",
@@ -373,10 +425,14 @@ async function retrieveLiveProjectActionItemEvidence(input: { projectId?: string
   }
 
   const openWorkQuestion = isOpenWorkQuestion(input.question) || isSelfTaskQuestion(input.question);
+  const requestedPriority = extractRequestedPriority(input.question);
+  const dueDateFilter = isDueTodayQuestion(input.question) ? getLocalTodayRange() : undefined;
 
   const rows = await prisma.actionItem.findMany({
     where: {
       projectId: input.projectId,
+      ...(requestedPriority ? { priority: requestedPriority } : {}),
+      ...(dueDateFilter ? { dueDate: dueDateFilter } : {}),
       ...(openWorkQuestion ? { status: { notIn: ["DONE", "CANCELLED"] } } : {})
     },
     include: {
@@ -391,7 +447,7 @@ async function retrieveLiveProjectActionItemEvidence(input: { projectId?: string
     orderBy: openWorkQuestion
       ? [{ dueDate: "asc" }, { updatedAt: "desc" }]
       : [{ updatedAt: "desc" }],
-    take: openWorkQuestion ? Math.max(input.limit, 20) : 120
+    take: openWorkQuestion || requestedPriority || dueDateFilter ? Math.max(input.limit, 120) : 120
   });
 
   return rows
@@ -400,6 +456,7 @@ async function retrieveLiveProjectActionItemEvidence(input: { projectId?: string
         item.task,
         item.detail ?? "",
         item.status,
+        item.priority,
         item.source,
         item.assignee.name,
         item.assignee.email
@@ -422,6 +479,7 @@ async function retrieveLiveProjectActionItemEvidence(input: { projectId?: string
         snippet: [
           `[Action item] ${item.task}`,
           `status: ${item.status}`,
+          `priority: ${item.priority}`,
           `source: ${item.source}`,
           `owner: ${item.assignee.name}`,
           item.detail ? `detail: ${item.detail}` : "",
@@ -434,7 +492,7 @@ async function retrieveLiveProjectActionItemEvidence(input: { projectId?: string
         hybridScore: lexical * 0.7 + directMatchBoost + statusBoost + openWorkBoost
       };
     })
-    .filter((item) => openWorkQuestion || item.hybridScore > 0.12)
+    .filter((item) => openWorkQuestion || requestedPriority || dueDateFilter || item.hybridScore > 0.12)
     .sort((a, b) => b.hybridScore - a.hybridScore)
     .slice(0, input.limit);
 }
@@ -619,7 +677,7 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
     retrieveLiveProjectActionItemEvidence({
       projectId: input.projectId,
       question: input.question,
-      limit: isOpenWorkQuestion(input.question) || isSelfTaskQuestion(input.question) ? 20 : 8
+      limit: getLiveActionEvidenceLimit(input.question)
     }),
     input.projectId
       ? retrieveProjectAiSupplementEvidence({
@@ -632,7 +690,7 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
 
   if (!topEvidence.length && !memoryEvidence.length && !generalNoteEvidence.length && !liveActionEvidence.length && !supplementEvidence.length) {
     const emptyResult = {
-      answer: "ไม่พบหลักฐานจากข้อมูลที่อนุมัติแล้วซึ่งตรงกับคำถามนี้",
+      answer: "ตอนนี้ยังไม่พบข้อมูลที่อนุมัติแล้วซึ่งตอบคำถามนี้ได้ชัดเจนค่ะ ลองเพิ่มเอกสาร/โน้ตที่เกี่ยวข้อง หรือถามเจาะจงชื่อโปรเจกต์ งาน หรือเอกสารอีกนิดได้เลย",
       confidence: "low" as const,
       citations: [] as Citation[],
       appLinks: [] as AppLink[],
