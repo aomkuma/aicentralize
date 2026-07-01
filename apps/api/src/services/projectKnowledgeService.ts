@@ -42,6 +42,9 @@ type ExtractionJson = {
 const readTenantRoles = [TenantRole.TENANT_ADMIN, TenantRole.MANAGER, TenantRole.MEMBER, TenantRole.VIEWER];
 const writeTenantRoles = [TenantRole.TENANT_ADMIN, TenantRole.MANAGER];
 const AI_EXTRACTION_CHAR_LIMIT = 12000;
+const AI_EXTRACTION_CHUNK_OVERLAP = 800;
+const MAX_AI_EXTRACTION_CHUNKS = 20;
+const HEURISTIC_LINE_LIMIT = 2000;
 
 export async function assertProjectKnowledgeAccess(
   projectId: string,
@@ -102,12 +105,60 @@ const normalizeLine = (line: string) =>
     .trim();
 
 const uniquePush = (items: ExtractedMemoryItem[], next: ExtractedMemoryItem) => {
-  const key = `${next.type}:${next.title.toLowerCase()}:${next.content.toLowerCase()}`;
-  const exists = items.some((item) => `${item.type}:${item.title.toLowerCase()}:${item.content.toLowerCase()}` === key);
+  const key = memoryItemKey(next);
+  const exists = items.some((item) => memoryItemKey(item) === key);
   if (!exists && next.title && next.content) {
     items.push(next);
   }
 };
+
+const normalizeMemoryText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .trim();
+
+const memoryItemKey = (item: Pick<ExtractedMemoryItem, "type" | "title" | "content">) =>
+  `${item.type}:${normalizeMemoryText(item.title)}:${normalizeMemoryText(item.content)}`;
+
+function buildTextChunks(text: string) {
+  if (text.length <= AI_EXTRACTION_CHAR_LIMIT) {
+    return [text];
+  }
+
+  const chunks: string[] = [];
+  let start = 0;
+
+  while (start < text.length && chunks.length < MAX_AI_EXTRACTION_CHUNKS) {
+    const hardEnd = Math.min(start + AI_EXTRACTION_CHAR_LIMIT, text.length);
+    let end = hardEnd;
+
+    if (hardEnd < text.length) {
+      const paragraphBreak = text.lastIndexOf("\n\n", hardEnd);
+      const lineBreak = text.lastIndexOf("\n", hardEnd);
+      const sentenceBreak = text.lastIndexOf(". ", hardEnd);
+      const softEnd = Math.max(paragraphBreak, lineBreak, sentenceBreak);
+
+      if (softEnd > start + Math.floor(AI_EXTRACTION_CHAR_LIMIT * 0.6)) {
+        end = softEnd + (softEnd === sentenceBreak ? 1 : 0);
+      }
+    }
+
+    const chunk = text.slice(start, end).trim();
+    if (chunk) {
+      chunks.push(chunk);
+    }
+
+    if (end >= text.length) {
+      break;
+    }
+
+    start = Math.max(0, end - AI_EXTRACTION_CHUNK_OVERLAP);
+  }
+
+  return chunks;
+}
 
 function extractJsonCandidate(raw: string) {
   const trimmed = raw.trim();
@@ -213,6 +264,8 @@ function buildProjectKnowledgeExtractionPrompt(source: {
   sourceType: ProjectKnowledgeSourceType;
   title: string;
   contentText: string;
+  chunkIndex?: number;
+  chunkCount?: number;
 }) {
   return [
     "You are an expert project knowledge onboarding analyst.",
@@ -235,13 +288,18 @@ function buildProjectKnowledgeExtractionPrompt(source: {
     "- Keep project-specific names, dates, owners, requirements, risks, and decisions.",
     "- Prefer concise factual statements over interpretation.",
     "- If information is historical or ambiguous, preserve that nuance in content.",
-    "- Include 3 to 20 useful memory items when possible.",
+    "- Extract all useful project memory items in this chunk, up to 25 items.",
+    "- Avoid generic document metadata unless it is project-critical.",
+    "- When page markers like [Page 12] are present, keep the page reference in content when it helps verification.",
     "- Use Thai when the source is Thai, otherwise preserve the source language.",
     "",
     `Source type: ${source.sourceType}`,
     `Source title: ${source.title}`,
+    source.chunkCount && source.chunkCount > 1
+      ? `Document chunk: ${source.chunkIndex ?? 1} of ${source.chunkCount}`
+      : "Document chunk: full document",
     "Document text:",
-    source.contentText.slice(0, AI_EXTRACTION_CHAR_LIMIT)
+    source.contentText
   ].join("\n");
 }
 
@@ -310,7 +368,7 @@ export function extractProjectKnowledge(source: {
     confidence: "MEDIUM"
   });
 
-  for (const line of lines.slice(0, 220)) {
+  for (const line of lines.slice(0, HEURISTIC_LINE_LIMIT)) {
     const classified = classifyLine(line, source.sourceType);
     if (classified) {
       uniquePush(items, classified);
@@ -333,25 +391,58 @@ async function extractProjectKnowledgeWithAi(source: {
   title: string;
   contentText: string;
 }) {
-  const result = await generateWithLocalModel({
-    prompt: buildProjectKnowledgeExtractionPrompt(source)
-  });
-  const extraction = parseAiExtractionJson(result.output, source.sourceType);
+  const chunks = buildTextChunks(source.contentText);
+  const mergedItems: ExtractedMemoryItem[] = [];
+  const overviews: string[] = [];
+  const models = new Set<string>();
+  let successCount = 0;
 
-  if (!extraction) {
+  for (const [index, chunk] of chunks.entries()) {
+    try {
+      const result = await generateWithLocalModel({
+        prompt: buildProjectKnowledgeExtractionPrompt({
+          ...source,
+          contentText: chunk,
+          chunkIndex: index + 1,
+          chunkCount: chunks.length
+        })
+      });
+      const extraction = parseAiExtractionJson(result.output, source.sourceType);
+
+      if (!extraction) {
+        throw new Error("AI_EXTRACTION_PARSE_FAILED");
+      }
+
+      if (extraction.overview) {
+        overviews.push(extraction.overview);
+      }
+      for (const item of extraction.items) {
+        uniquePush(mergedItems, item);
+      }
+      models.add(`${result.provider}:${result.model}`);
+      successCount += 1;
+    } catch (error) {
+      console.warn(`[ProjectKnowledge] AI extraction failed for chunk ${index + 1}/${chunks.length}:`, error);
+    }
+  }
+
+  if (successCount === 0) {
     throw new Error("AI_EXTRACTION_PARSE_FAILED");
   }
 
-  if (!extraction.overview) {
-    extraction.overview = source.title;
-  }
-  extraction.signals.lineCount = source.contentText.split(/\r?\n/).length;
-  extraction.signals.extractedAt = new Date().toISOString();
-
   return {
-    extraction,
-    provider: result.provider,
-    model: result.model
+    extraction: {
+      overview: overviews[0] || source.title,
+      items: mergedItems.slice(0, 160),
+      signals: {
+        sourceType: source.sourceType,
+        lineCount: source.contentText.split(/\r?\n/).length,
+        extractedAt: new Date().toISOString(),
+        chunkCount: chunks.length,
+        successfulChunkCount: successCount
+      }
+    },
+    model: Array.from(models).join(", ") || "ai-extraction"
   };
 }
 
@@ -468,8 +559,8 @@ export async function extractProjectKnowledgeSource(sourceId: string, user: Tena
       contentText: source.contentText
     });
     extraction = aiResult.extraction;
-    model = `${aiResult.provider}:${aiResult.model}`;
-    promptVersion = "project-knowledge-onboarding-v2-ai";
+    model = aiResult.model;
+    promptVersion = "project-knowledge-onboarding-v3-ai-chunked";
   } catch (error) {
     console.warn("[ProjectKnowledge] Falling back to heuristic extraction:", error);
   }

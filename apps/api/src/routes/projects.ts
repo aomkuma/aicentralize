@@ -58,7 +58,7 @@ const createProjectMeetingSchema = z.object({
 const createKnowledgeSourceSchema = z.object({
   sourceType: z.nativeEnum(ProjectKnowledgeSourceType),
   title: z.string().min(2).max(180),
-  contentText: z.string().min(20).max(120000),
+  contentText: z.string().min(20).max(240000),
   documentDate: z.string().datetime().optional(),
   versionLabel: z.string().max(80).optional(),
   authorityLevel: z.nativeEnum(ProjectKnowledgeAuthorityLevel).optional()

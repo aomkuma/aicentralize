@@ -2,9 +2,18 @@ import mammoth from "mammoth";
 import * as XLSX from "xlsx";
 
 // pdf-parse v1 exposes a callable default export under CommonJS.
-const pdfParse = require("pdf-parse") as (buffer: Buffer) => Promise<{ text: string }>;
+const pdfParse = require("pdf-parse") as (
+  buffer: Buffer,
+  options?: {
+    pagerender?: (pageData: {
+      getTextContent: (options?: { normalizeWhitespace?: boolean; disableCombineTextItems?: boolean }) => Promise<{
+        items: Array<{ str?: string }>;
+      }>;
+    }) => Promise<string>;
+  }
+) => Promise<{ text: string }>;
 
-const KNOWLEDGE_TEXT_MAX_CHARS = 120_000;
+const KNOWLEDGE_TEXT_MAX_CHARS = 240_000;
 
 const SUPPORTED_EXTENSIONS = new Set([
   ".txt",
@@ -54,7 +63,23 @@ function clipKnowledgeText(text: string) {
 
 async function extractPdfText(buffer: Buffer) {
   try {
-    const parsed = await pdfParse(buffer);
+    let pageNumber = 0;
+    const parsed = await pdfParse(buffer, {
+      async pagerender(pageData) {
+        pageNumber += 1;
+        const content = await pageData.getTextContent({
+          normalizeWhitespace: false,
+          disableCombineTextItems: false
+        });
+        const pageText = normalizeExtractedText(
+          content.items
+            .map((item) => item.str ?? "")
+            .join(" ")
+        );
+
+        return pageText ? `[Page ${pageNumber}]\n${pageText}` : `[Page ${pageNumber}]\n[No extractable text]`;
+      }
+    });
     const text = normalizeExtractedText(parsed.text ?? "");
     if (!text) {
       throw new DocumentReadError(
