@@ -560,6 +560,7 @@
     "noSources": "No project knowledge sources have been added yet.",
     "approvedMemoryTitle": "Approved project memory",
     "noMemory": "No approved project memory yet.",
+    "paginationRange": "{{from}}–{{to}} of {{total}}",
     "sourceTypes": {
       "TOR": "TOR",
       "PROPOSAL": "Proposal",

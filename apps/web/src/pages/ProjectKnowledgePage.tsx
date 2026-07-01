@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
@@ -47,6 +48,92 @@ const sourceTypes: ProjectKnowledgeSourceType[] = [
 ]
 
 const authorityLevels: ProjectKnowledgeAuthorityLevel[] = ['AUTHORITATIVE', 'SUPPORTING', 'HISTORICAL']
+
+const HISTORY_PAGE_SIZE = 15
+
+function paginateItems<T>(items: T[], page: number) {
+  const total = items.length
+  const totalPages = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const start = (safePage - 1) * HISTORY_PAGE_SIZE
+
+  return {
+    slice: items.slice(start, start + HISTORY_PAGE_SIZE),
+    page: safePage,
+    totalPages,
+    total,
+    from: total ? start + 1 : 0,
+    to: Math.min(start + HISTORY_PAGE_SIZE, total),
+  }
+}
+
+function toggleExpandedId(
+  setter: Dispatch<SetStateAction<Set<string>>>,
+  id: string,
+) {
+  setter((previous) => {
+    const next = new Set(previous)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    return next
+  })
+}
+
+type HistoryPaginationProps = {
+  page: number
+  totalPages: number
+  total: number
+  onPrevious: () => void
+  onNext: () => void
+  previousLabel: string
+  nextLabel: string
+  rangeLabel: string
+}
+
+function HistoryPagination({
+  page,
+  totalPages,
+  total,
+  onPrevious,
+  onNext,
+  previousLabel,
+  nextLabel,
+  rangeLabel,
+}: HistoryPaginationProps) {
+  if (total <= HISTORY_PAGE_SIZE) {
+    return null
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+      <p className="text-xs text-slate-500 dark:text-slate-400">{rangeLabel}</p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={page <= 1}
+          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          {previousLabel}
+        </button>
+        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+          {page} / {totalPages}
+        </span>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={page >= totalPages}
+          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          {nextLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function buildSourceMeta(parts: Array<string | null | undefined>) {
   return parts.filter(Boolean).join(' · ')
@@ -304,6 +391,10 @@ export default function ProjectKnowledgePage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [notice, setNotice] = useState('')
   const [isImporting, setIsImporting] = useState(false)
+  const [sourcesPage, setSourcesPage] = useState(1)
+  const [memoryPage, setMemoryPage] = useState(1)
+  const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(() => new Set())
+  const [expandedMemoryIds, setExpandedMemoryIds] = useState<Set<string>>(() => new Set())
 
   const fetchKnowledge = useCallback(async () => {
     if (!projectId) {
@@ -331,13 +422,38 @@ export default function ProjectKnowledgePage() {
     void fetchKnowledge()
   }, [fetchKnowledge])
 
-  const groupedMemory = useMemo(() => {
-    return memoryItems.reduce<Record<ProjectMemoryItemType, ProjectMemoryItem[]>>((acc, item) => {
-      acc[item.type] = acc[item.type] ?? []
-      acc[item.type].push(item)
-      return acc
-    }, {} as Record<ProjectMemoryItemType, ProjectMemoryItem[]>)
-  }, [memoryItems])
+  const sortedMemoryItems = useMemo(() => {
+    return [...memoryItems].sort((left, right) => {
+      const leftTime = left.approvedAt ?? ''
+      const rightTime = right.approvedAt ?? ''
+      if (leftTime !== rightTime) {
+        return rightTime.localeCompare(leftTime)
+      }
+      return left.title.localeCompare(right.title, i18n.language)
+    })
+  }, [memoryItems, i18n.language])
+
+  const sourcesPagination = useMemo(
+    () => paginateItems(sources, sourcesPage),
+    [sources, sourcesPage],
+  )
+
+  const memoryPagination = useMemo(
+    () => paginateItems(sortedMemoryItems, memoryPage),
+    [sortedMemoryItems, memoryPage],
+  )
+
+  useEffect(() => {
+    if (sourcesPage > sourcesPagination.totalPages) {
+      setSourcesPage(sourcesPagination.totalPages)
+    }
+  }, [sourcesPage, sourcesPagination.totalPages])
+
+  useEffect(() => {
+    if (memoryPage > memoryPagination.totalPages) {
+      setMemoryPage(memoryPagination.totalPages)
+    }
+  }, [memoryPage, memoryPagination.totalPages])
 
   if (!projectId) {
     return <Navigate to="/projects" replace />
@@ -652,22 +768,34 @@ export default function ProjectKnowledgePage() {
           <section className="space-y-4">
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('projectKnowledge.sources')}</h2>
-              <div className="mt-3 space-y-3">
-                {sources.map((source) => {
+              <div className="mt-3 space-y-2">
+                {sourcesPagination.slice.map((source) => {
                   const latestExtraction = source.extractions?.[0]
                   const extractedCount = latestExtraction?.extractionJson.items?.length ?? 0
+                  const isExpanded = expandedSourceIds.has(source.id)
 
                   return (
-                    <div key={source.id} className="rounded-md border border-slate-200 p-3 dark:border-slate-700">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-semibold text-slate-900 dark:text-white">{source.title}</h3>
-                            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                              {t(`projectKnowledge.sourceStatuses.${source.status}`)}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <div key={source.id} className="rounded-md border border-slate-200 dark:border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandedId(setExpandedSourceIds, source.id)}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                        aria-expanded={isExpanded}
+                      >
+                        <ChevronRight
+                          className={`h-4 w-4 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${isExpanded ? 'rotate-90' : ''}`}
+                        />
+                        <span className="min-w-0 flex-1 truncate font-semibold text-slate-900 dark:text-white">
+                          {source.title}
+                        </span>
+                        <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                          {t(`projectKnowledge.sourceStatuses.${source.status}`)}
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="border-t border-slate-200 px-3 py-3 dark:border-slate-700">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             {buildSourceMeta([
                               t(`projectKnowledge.sourceTypes.${source.sourceType}`),
                               t(`projectKnowledge.authorityLevels.${source.authorityLevel}`),
@@ -707,26 +835,26 @@ export default function ProjectKnowledgePage() {
                               )}
                             </div>
                           )}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleExtract(source.id)}
+                              disabled={isLoading || isImporting}
+                              className="rounded-md border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-950/30"
+                            >
+                              {t('projectKnowledge.extract')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleApprove(source.id)}
+                              disabled={isLoading || isImporting || !latestExtraction}
+                              className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {t('projectKnowledge.approveBaseline')}
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void handleExtract(source.id)}
-                            disabled={isLoading || isImporting}
-                            className="rounded-md border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-60 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-950/30"
-                          >
-                            {t('projectKnowledge.extract')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleApprove(source.id)}
-                            disabled={isLoading || isImporting || !latestExtraction}
-                            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {t('projectKnowledge.approveBaseline')}
-                          </button>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )
                 })}
@@ -736,37 +864,80 @@ export default function ProjectKnowledgePage() {
                   </p>
                 )}
               </div>
+              <HistoryPagination
+                page={sourcesPagination.page}
+                totalPages={sourcesPagination.totalPages}
+                total={sourcesPagination.total}
+                onPrevious={() => setSourcesPage((current) => Math.max(1, current - 1))}
+                onNext={() => setSourcesPage((current) => Math.min(sourcesPagination.totalPages, current + 1))}
+                previousLabel={t('common.back')}
+                nextLabel={t('common.next')}
+                rangeLabel={t('projectKnowledge.paginationRange', {
+                  from: sourcesPagination.from,
+                  to: sourcesPagination.to,
+                  total: sourcesPagination.total,
+                })}
+              />
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('projectKnowledge.approvedMemoryTitle')}</h2>
-              <div className="mt-3 space-y-4">
-                {Object.entries(groupedMemory).map(([type, items]) => (
-                  <div key={type}>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      {t(`projectKnowledge.memoryTypes.${type}`)}
-                    </p>
-                    <div className="mt-2 space-y-2">
-                      {items.slice(0, 5).map((item) => (
-                        <div key={item.id} className="rounded-md bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">
-                          <p className="font-semibold text-slate-900 dark:text-white">{item.title}</p>
-                          <p className="mt-1 text-slate-600 dark:text-slate-300">{item.content}</p>
+              <div className="mt-3 space-y-2">
+                {memoryPagination.slice.map((item) => {
+                  const isExpanded = expandedMemoryIds.has(item.id)
+
+                  return (
+                    <div key={item.id} className="rounded-md border border-slate-200 dark:border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandedId(setExpandedMemoryIds, item.id)}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                        aria-expanded={isExpanded}
+                      >
+                        <ChevronRight
+                          className={`h-4 w-4 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${isExpanded ? 'rotate-90' : ''}`}
+                        />
+                        <span className="min-w-0 flex-1 truncate font-semibold text-slate-900 dark:text-white">
+                          {item.title}
+                        </span>
+                        <span className="shrink-0 rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
+                          {t(`projectKnowledge.memoryTypes.${item.type}`)}
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="border-t border-slate-200 px-3 py-3 text-sm dark:border-slate-700">
+                          <p className="text-slate-600 dark:text-slate-300">{item.content}</p>
                           {item.source && (
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                               {t('projectKnowledge.source')}: {item.source.title}
                             </p>
                           )}
                         </div>
-                      ))}
+                      )}
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
                 {!memoryItems.length && (
                   <p className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                     {t('projectKnowledge.noMemory')}
                   </p>
                 )}
               </div>
+              <HistoryPagination
+                page={memoryPagination.page}
+                totalPages={memoryPagination.totalPages}
+                total={memoryPagination.total}
+                onPrevious={() => setMemoryPage((current) => Math.max(1, current - 1))}
+                onNext={() => setMemoryPage((current) => Math.min(memoryPagination.totalPages, current + 1))}
+                previousLabel={t('common.back')}
+                nextLabel={t('common.next')}
+                rangeLabel={t('projectKnowledge.paginationRange', {
+                  from: memoryPagination.from,
+                  to: memoryPagination.to,
+                  total: memoryPagination.total,
+                })}
+              />
             </div>
           </section>
         </div>

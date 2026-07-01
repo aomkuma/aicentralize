@@ -560,6 +560,7 @@
     "noSources": "ยังไม่มีข้อมูลตั้งต้นของโปรเจค",
     "approvedMemoryTitle": "Project memory ที่อนุมัติแล้ว",
     "noMemory": "ยังไม่มี project memory ที่อนุมัติแล้ว",
+    "paginationRange": "{{from}}–{{to}} จาก {{total}}",
     "sourceTypes": {
       "TOR": "TOR",
       "PROPOSAL": "ข้อเสนอ",

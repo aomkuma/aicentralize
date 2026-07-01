@@ -1,6 +1,5 @@
 import { SystemRole, TenantRole, UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma";
-import { isPlatformAdmin } from "./tenantAccessService";
 
 type AskAiScopeInput = {
   userId: string;
@@ -28,7 +27,11 @@ type AuthScopeUser = {
 };
 
 function canBypassScope(user: AuthScopeUser): boolean {
-  return isPlatformAdmin(user) || user.role === UserRole.ADMIN;
+  return (
+    user.systemRole === SystemRole.SUPER_ADMIN ||
+    user.systemRole === SystemRole.MODERATOR ||
+    user.role === UserRole.ADMIN
+  );
 }
 
 function canManageTenant(role: TenantRole): boolean {
