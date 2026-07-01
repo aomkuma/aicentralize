@@ -8,6 +8,7 @@ import {
   readPlaygroundJson
 } from '../lib/playgroundApi'
 import { resolveApiBaseUrl } from '../lib/pwaUtils'
+import { useFeatureFlagStore } from '../stores/featureFlagStore'
 
 type SpeakerLabel = 'A' | 'B' | 'C'
 
@@ -209,6 +210,8 @@ type AIChatPanelProps = {
 
 export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPanelProps) {
   const { t } = useTranslation()
+  const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
+  const canAccessAdvanced = canAccessFeature('AI_CHAT_ADVANCED')
   const chatStateKey = `${CHAT_STATE_KEY_PREFIX}:${projectId || 'dashboard'}`
   const [activeTab, setActiveTab] = useState<'prompt' | 'record'>('prompt')
   const [prompt, setPrompt] = useState('')
@@ -1106,7 +1109,7 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{t('aiChat.title')}</h2>
           <p className="text-sm text-gray-600 dark:text-slate-400">{t('aiChat.description')}</p>
         </div>
-        {showModeTabs && (
+        {showModeTabs && canAccessAdvanced && (
           <div className="flex flex-wrap gap-2">
             <button
               type="button"

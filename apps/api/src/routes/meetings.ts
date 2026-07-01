@@ -16,6 +16,7 @@ import { buildEmbedding } from "../services/embeddingService";
 import { addMeetingArtifact, getMeetingDetail } from "../services/meetingIngestionService";
 import { extractMinuteDraft } from "../services/minuteExtractionService";
 import { ensureTenantRole, isPlatformAdmin } from "../services/tenantAccessService";
+import { ensureUserPackageFeature } from "../services/packageAccessService";
 
 export const meetingRouter = Router();
 
@@ -232,6 +233,13 @@ meetingRouter.post("/:meetingId/minute-drafts/extract", requireAuth, async (req,
     return res.status(403).json({ message: "Forbidden scope" });
   }
 
+  const featureCheck = await ensureUserPackageFeature(req.user!, "AI_CHAT_ADVANCED", {
+    projectId: scope.projectId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
+  }
+
   const parsed = extractMinuteDraftSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
@@ -288,6 +296,13 @@ meetingRouter.post("/", requireAuth, async (req, res) => {
 
   if (!canCreate) {
     return res.status(403).json({ message: "Forbidden project scope" });
+  }
+
+  const featureCheck = await ensureUserPackageFeature(req.user!, "AI_CHAT_ADVANCED", {
+    projectId: parsed.data.projectId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
   }
 
   const meeting = await prisma.meeting.create({

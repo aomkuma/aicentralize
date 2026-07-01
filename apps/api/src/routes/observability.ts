@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { listTenantIdsForUser } from "../services/tenantAccessService";
+import { ensureUserPackageFeature, userHasAnyPackageFeature } from "../services/packageAccessService";
 
 export const observabilityRouter = Router();
 
@@ -29,6 +30,13 @@ observabilityRouter.get("/ai-runs", requireAuth, requireRole([UserRole.ADMIN, Us
   const parsed = aiRunLogsQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
+  }
+
+  const featureCheck = await userHasAnyPackageFeature(req.user!, ["OBSERVABILITY_BASIC", "OBSERVABILITY_FULL"], {
+    projectId: parsed.data.projectId
+  });
+  if (!featureCheck) {
+    return res.status(403).json({ message: "Feature not available on current subscription package" });
   }
 
   const tenantIds = await listTenantIdsForUser(req.user!);
@@ -80,6 +88,13 @@ observabilityRouter.get("/ai-runs/:id", requireAuth, requireRole([UserRole.ADMIN
     return res.status(404).json({ message: "AI run log not found" });
   }
 
+  const featureCheck = await userHasAnyPackageFeature(req.user!, ["OBSERVABILITY_BASIC", "OBSERVABILITY_FULL"], {
+    projectId: item.projectId ?? undefined
+  });
+  if (!featureCheck) {
+    return res.status(403).json({ message: "Feature not available on current subscription package" });
+  }
+
   return res.json(item);
 });
 
@@ -87,6 +102,13 @@ observabilityRouter.get("/ask-ai-queries", requireAuth, requireRole([UserRole.AD
   const parsed = askAiQueriesQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
+  }
+
+  const featureCheck = await ensureUserPackageFeature(req.user!, "OBSERVABILITY_FULL", {
+    projectId: parsed.data.projectId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
   }
 
   const tenantIds = await listTenantIdsForUser(req.user!);
@@ -134,6 +156,13 @@ observabilityRouter.get("/ask-ai-queries/:id", requireAuth, requireRole([UserRol
 
   if (!item || (tenantIds && !(item.project && tenantIds.includes(item.project.tenantId ?? "")))) {
     return res.status(404).json({ message: "Ask-AI query log not found" });
+  }
+
+  const featureCheck = await ensureUserPackageFeature(req.user!, "OBSERVABILITY_FULL", {
+    projectId: item.projectId ?? undefined
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
   }
 
   return res.json(item);

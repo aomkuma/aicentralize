@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useTenantStore } from '../stores/tenantStore'
+import { useFeatureFlagStore } from '../stores/featureFlagStore'
 import { useApi } from '../hooks/useApi'
 import Layout from '../components/Layout'
 import { memberNickname as getMemberNickname } from '../lib/memberDisplay'
@@ -28,6 +29,7 @@ type DashboardProject = {
 export default function ProjectsPage() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.user)
+  const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const setCurrentTenant = useTenantStore((state) => state.setCurrentTenant)
   const clearCurrentTenant = useTenantStore((state) => state.clearCurrentTenant)
@@ -793,18 +795,22 @@ export default function ProjectsPage() {
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-2">
+                    {canAccessFeature('CONTINUITY_SUMMARY') && (
                     <Link
                       to={`/continuity/${project.id}`}
                       className="text-xs px-2.5 py-1.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30"
                     >
                       {t('continuity.title')}
                     </Link>
+                    )}
+                    {canAccessFeature('REMINDERS_BASIC') && (
                     <Link
                       to={`/reminders/${project.id}`}
                       className="text-xs px-2.5 py-1.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30"
                     >
                       {t('reminders.title')}
                     </Link>
+                    )}
                     <Link
                       to={`/projects/${project.id}/knowledge`}
                       className="text-xs px-2.5 py-1.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"

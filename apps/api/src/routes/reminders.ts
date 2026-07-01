@@ -6,6 +6,7 @@ import { requireAuth, requireSystemRole } from "../middleware/auth";
 import { getReminderDigestDetail, listReminderDigests } from "../services/reminderDigestService";
 import { runReminderNow } from "../services/reminderService";
 import { isPlatformAdmin } from "../services/tenantAccessService";
+import { ensureUserPackageFeature } from "../services/packageAccessService";
 
 export const reminderRouter = Router();
 
@@ -64,6 +65,13 @@ reminderRouter.get("/digests", requireAuth, async (req, res) => {
     return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
   }
 
+  const featureCheck = await ensureUserPackageFeature(req.user!, "REMINDERS_ESCALATION", {
+    projectId: parsed.data.projectId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
+  }
+
   const tenantIds = await listManagedTenantIdsForUser(req.user!);
   if (tenantIds?.length === 0) {
     return res.json({ items: [], total: 0, page: parsed.data.page, pageSize: parsed.data.pageSize });
@@ -81,6 +89,11 @@ reminderRouter.get("/digests", requireAuth, async (req, res) => {
 });
 
 reminderRouter.get("/digests/:digestId", requireAuth, async (req, res) => {
+  const featureCheck = await ensureUserPackageFeature(req.user!, "REMINDERS_ESCALATION");
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
+  }
+
   const tenantIds = await listManagedTenantIdsForUser(req.user!);
   if (tenantIds?.length === 0) {
     return res.status(404).json({ message: "Reminder digest not found" });
@@ -102,6 +115,13 @@ reminderRouter.get("/logs", requireAuth, async (req, res) => {
   const parsed = listReminderLogsQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
+  }
+
+  const featureCheck = await ensureUserPackageFeature(req.user!, "REMINDERS_BASIC", {
+    projectId: parsed.data.projectId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
   }
 
   const tenantIds = await listManagedTenantIdsForUser(req.user!);

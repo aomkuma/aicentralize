@@ -13,6 +13,7 @@ import {
   getProjectMemorySnapshot,
   getRecentApprovedMeetingsWithActionCounts
 } from "../services/continuityService";
+import { ensureUserPackageFeature } from "../services/packageAccessService";
 
 export const continuityRouter = Router();
 
@@ -98,6 +99,14 @@ continuityRouter.get("/summary", requireAuth, async (req, res) => {
     return res.status(403).json({ message: "Forbidden tenant scope" });
   }
 
+  const featureCheck = await ensureUserPackageFeature(req.user!, "CONTINUITY_SUMMARY", {
+    projectId: parsed.data.projectId,
+    tenantId: parsed.data.tenantId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
+  }
+
   const result = await getProjectContinuitySummaries({
     ...parsed.data,
     tenantIds: tenantScope.tenantIds
@@ -126,6 +135,14 @@ continuityRouter.get("/overdue/by-owner", requireAuth, async (req, res) => {
     return res.status(403).json({ message: "Forbidden tenant scope" });
   }
 
+  const featureCheck = await ensureUserPackageFeature(req.user!, "CONTINUITY_FULL", {
+    projectId: parsed.data.projectId,
+    tenantId: parsed.data.tenantId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
+  }
+
   const result = await getOverdueByOwner({
     ...parsed.data,
     tenantIds: tenantScope.tenantIds
@@ -142,6 +159,13 @@ continuityRouter.get("/overdue/by-project", requireAuth, async (req, res) => {
   const tenantScope = await resolveTenantScope(req.user!, parsed.data.tenantId);
   if (!tenantScope.allowed) {
     return res.status(403).json({ message: "Forbidden tenant scope" });
+  }
+
+  const featureCheck = await ensureUserPackageFeature(req.user!, "CONTINUITY_FULL", {
+    tenantId: parsed.data.tenantId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
   }
 
   const result = await getOverdueByProject({
@@ -172,6 +196,14 @@ continuityRouter.get("/action-items/missing-owner-or-due-date", requireAuth, asy
     return res.status(403).json({ message: "Forbidden tenant scope" });
   }
 
+  const featureCheck = await ensureUserPackageFeature(req.user!, "CONTINUITY_FULL", {
+    projectId: parsed.data.projectId,
+    tenantId: parsed.data.tenantId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
+  }
+
   const result = await getItemsWithMissingOwnerOrDueDate({
     ...parsed.data,
     tenantIds: tenantScope.tenantIds
@@ -200,6 +232,14 @@ continuityRouter.get("/meetings/recent-approved", requireAuth, async (req, res) 
     return res.status(403).json({ message: "Forbidden tenant scope" });
   }
 
+  const featureCheck = await ensureUserPackageFeature(req.user!, "CONTINUITY_FULL", {
+    projectId: parsed.data.projectId,
+    tenantId: parsed.data.tenantId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
+  }
+
   const result = await getRecentApprovedMeetingsWithActionCounts({
     ...parsed.data,
     tenantIds: tenantScope.tenantIds
@@ -219,6 +259,11 @@ continuityRouter.get("/projects/:projectId/memory-snapshot", requireAuth, async 
       return res.status(404).json({ message: "Project not found" });
     }
     return res.status(403).json({ message: "Forbidden scope" });
+  }
+
+  const featureCheck = await ensureUserPackageFeature(req.user!, "CONTINUITY_FULL", { projectId });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
   }
 
   const snapshot = await getProjectMemorySnapshot(projectId);

@@ -2,6 +2,7 @@ import { TenantRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
+import { isFeelingLogsEnabledForTenant } from "../services/packageAccessService";
 import { ensureTenantMembership, ensureTenantRole, isPlatformAdmin } from "../services/tenantAccessService";
 import { createFeelingLog, getFeelingLogInbox, listMyFeelingLogs } from "../services/feelingLogService";
 
@@ -50,6 +51,10 @@ feelingLogRouter.get("/me", requireAuth, async (req, res) => {
     return res.status(400).json({ message: "tenantId is required" });
   }
 
+  if (!(await isFeelingLogsEnabledForTenant(tenantId))) {
+    return res.status(403).json({ message: "Feeling logs are not included in this subscription package" });
+  }
+
   const hasAccess = await ensureTenantMembership(req.user!, tenantId);
   if (!hasAccess) {
     return res.status(403).json({ message: "Forbidden tenant scope" });
@@ -76,6 +81,10 @@ feelingLogRouter.get("/inbox", requireAuth, async (req, res) => {
     return res.status(400).json({ message: "tenantId is required" });
   }
 
+  if (!(await isFeelingLogsEnabledForTenant(tenantId))) {
+    return res.status(403).json({ message: "Feeling logs are not included in this subscription package" });
+  }
+
   const hasAccess = isPlatformAdmin(req.user!)
     ? true
     : await ensureTenantRole(req.user!, tenantId, [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]);
@@ -100,6 +109,10 @@ feelingLogRouter.post("/", requireAuth, async (req, res) => {
   const tenantId = req.params.tenantId;
   if (!tenantId) {
     return res.status(400).json({ message: "tenantId is required" });
+  }
+
+  if (!(await isFeelingLogsEnabledForTenant(tenantId))) {
+    return res.status(403).json({ message: "Feeling logs are not included in this subscription package" });
   }
 
   const hasAccess = await ensureTenantMembership(req.user!, tenantId);

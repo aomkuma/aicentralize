@@ -32,18 +32,16 @@ export default function ReminderOperations({ projectId }: ReminderOperationsProp
   })
   const [detailError, setDetailError] = useState('')
 
-  // Check feature access
-  const canAccessReminders = canAccessFeature('REMINDERS_ESCALATION')
+  const canAccessBasic = canAccessFeature('REMINDERS_BASIC')
+  const canAccessEscalation = canAccessFeature('REMINDERS_ESCALATION')
 
-  // Fetch digests on mount or when projectId changes
   useEffect(() => {
-    if (!canAccessReminders) return
+    if (!canAccessEscalation) return
     fetchDigests(projectId, undefined, dateRange)
-  }, [projectId, canAccessReminders])
+  }, [projectId, canAccessEscalation])
 
-  // Fetch digest detail when selected
   useEffect(() => {
-    if (selectedDigestId && canAccessReminders) {
+    if (selectedDigestId && canAccessEscalation) {
       setDetailError('')
       fetchDigestDetail(selectedDigestId).then((data) => {
         if (!data) {
@@ -51,7 +49,7 @@ export default function ReminderOperations({ projectId }: ReminderOperationsProp
         }
       })
     }
-  }, [selectedDigestId, canAccessReminders, fetchDigestDetail, t])
+  }, [selectedDigestId, canAccessEscalation, fetchDigestDetail, t])
 
   const handleApplyDateRange = async () => {
     setSelectedDigestId(null)
@@ -59,11 +57,26 @@ export default function ReminderOperations({ projectId }: ReminderOperationsProp
     await fetchDigests(projectId, undefined, dateRange)
   }
 
-  if (!canAccessReminders) {
+  if (!canAccessBasic) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500 dark:text-slate-400">
           {t('features.notAvailable')}
+        </p>
+      </div>
+    )
+  }
+
+  if (!canAccessEscalation) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-12">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+          {t('reminders.title')}
+        </h2>
+        <p className="text-gray-600 dark:text-slate-400 text-sm">
+          {t('reminders.basicOnlyDescription', {
+            defaultValue: 'Basic reminders are active for your organization. Upgrade your package to inspect escalation digests and delivery history.',
+          })}
         </p>
       </div>
     )

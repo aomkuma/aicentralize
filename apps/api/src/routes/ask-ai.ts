@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/auth";
 import { ensureAskAiScopeAccess } from "../services/accessScopeService";
 import { logAiRun } from "../services/aiRunLogService";
 import { askFromApprovedMinutes } from "../services/approvedAskAiService";
+import { ensureUserPackageFeature } from "../services/packageAccessService";
 
 export const askAiRouter = Router();
 
@@ -33,6 +34,13 @@ askAiRouter.post("/", requireAuth, async (req, res) => {
   }
 
   try {
+    const featureCheck = await ensureUserPackageFeature(req.user!, "AI_CHAT_BASIC", {
+      projectId: parsed.data.projectId
+    });
+    if (!featureCheck.allowed) {
+      return res.status(403).json({ message: featureCheck.message });
+    }
+
     const scopeCheck = await ensureAskAiScopeAccess({
       userId: req.user!.id,
       role: req.user!.role,

@@ -4,6 +4,9 @@ import { useAuthStore } from '../stores/authStore'
 import { useTheme } from '../contexts/ThemeContext'
 import LanguageSwitcher from './LanguageSwitcher'
 import { PRIMARY_NAVIGATION, type NavigationIcon } from '../config/navigation'
+import { useFeatureFlagStore } from '../stores/featureFlagStore'
+import { canAccessFeelingLogs } from '../lib/packageAccess'
+import { isNavItemAccessible } from '../lib/featureAccess'
 
 interface SidebarProps {
   currentTenantName?: string
@@ -172,6 +175,8 @@ export default function Sidebar({
   const { theme, toggleTheme } = useTheme()
   const user = useAuthStore((state) => state.user)
   const clearAuth = useAuthStore((state) => state.clearAuth)
+  const packageCode = useFeatureFlagStore((state) => state.packageCode)
+  const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
 
   const isCollapsed = isDesktopCollapsed
   const isPlatformAdmin = user?.systemRole === 'SUPER_ADMIN' || user?.systemRole === 'MODERATOR'
@@ -191,6 +196,14 @@ export default function Sidebar({
 
     if (item.id === 'settings' || item.id === 'setup') {
       return user?.systemRole === 'SUPER_ADMIN'
+    }
+
+    if (item.id === 'feeling-logs' && !canAccessFeelingLogs(packageCode)) {
+      return false
+    }
+
+    if (!isNavItemAccessible(item.id, canAccessFeature)) {
+      return false
     }
 
     return true

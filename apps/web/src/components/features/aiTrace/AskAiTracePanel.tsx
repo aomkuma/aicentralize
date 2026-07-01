@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFeatureFlagStore } from '../../../stores/featureFlagStore'
+import { canAccessObservabilityBasic, canAccessObservabilityFull } from '../../../lib/featureAccess'
 import { useAuthStore } from '../../../stores/authStore'
 import { useAiRunLogs } from '../../../hooks/useAiRunLogs'
 import { useAskAiQueryLogs } from '../../../hooks/useAskAiQueryLogs'
@@ -64,8 +65,16 @@ export default function AskAiTracePanel({
   const copyNoticeTimerRef = useRef<number | null>(null)
 
   // Check feature access
-  const canAccess = canAccessFeature('AI_TRACE_PANEL')
+  const canAccessTrace = canAccessFeature('AI_TRACE_PANEL')
+  const canAccessRunLogs = canAccessObservabilityBasic(canAccessFeature)
+  const canAccessConversations = canAccessObservabilityFull(canAccessFeature)
   const isSuperAdmin = user?.systemRole === 'SUPER_ADMIN'
+
+  useEffect(() => {
+    if (!canAccessRunLogs && activeTab === 'runs') {
+      setActiveTab(canAccessConversations ? 'conversations' : 'runs')
+    }
+  }, [canAccessRunLogs, canAccessConversations, activeTab])
 
   const fetchSchedulerStatus = async () => {
     if (!isSuperAdmin) return null
@@ -98,7 +107,7 @@ export default function AskAiTracePanel({
 
   // Fetch logs on mount or when filters change
   useEffect(() => {
-    if (!canAccess) return
+    if (!canAccessTrace || !canAccessRunLogs) return
 
     if (activeTab !== 'runs') return
 
@@ -109,10 +118,10 @@ export default function AskAiTracePanel({
       meetingId,
       pageSize: limit,
     })
-  }, [activeTab, filterOperation, filterStatus, projectId, meetingId, limit, canAccess])
+  }, [activeTab, filterOperation, filterStatus, projectId, meetingId, limit, canAccessTrace, canAccessRunLogs])
 
   useEffect(() => {
-    if (!canAccess) return
+    if (!canAccessTrace || !canAccessConversations) return
 
     if (activeTab !== 'conversations') return
 
@@ -121,25 +130,25 @@ export default function AskAiTracePanel({
       meetingId,
       pageSize: limit,
     })
-  }, [activeTab, projectId, meetingId, limit, canAccess])
+  }, [activeTab, projectId, meetingId, limit, canAccessTrace, canAccessConversations])
 
   useEffect(() => {
-    if (!canAccess || !isSuperAdmin) return
+    if (!canAccessTrace || !canAccessObservabilityFull(canAccessFeature) || !isSuperAdmin) return
     void fetchSchedulerStatus()
-  }, [canAccess, isSuperAdmin])
+  }, [canAccessTrace, canAccessFeature, isSuperAdmin])
 
   // Fetch log detail when selected
   useEffect(() => {
-    if (activeTab === 'runs' && selectedLogId && canAccess) {
+    if (activeTab === 'runs' && selectedLogId && canAccessTrace && canAccessRunLogs) {
       fetchLogDetail(selectedLogId)
     }
-  }, [activeTab, selectedLogId, canAccess])
+  }, [activeTab, selectedLogId, canAccessTrace, canAccessRunLogs])
 
   useEffect(() => {
-    if (activeTab === 'conversations' && selectedQueryId && canAccess) {
+    if (activeTab === 'conversations' && selectedQueryId && canAccessTrace && canAccessConversations) {
       fetchQueryDetail(selectedQueryId)
     }
-  }, [activeTab, selectedQueryId, canAccess])
+  }, [activeTab, selectedQueryId, canAccessTrace, canAccessConversations])
 
   useEffect(() => {
     setCopyNotice('')
@@ -206,7 +215,17 @@ export default function AskAiTracePanel({
     })
   }, [logs, filterOperation, filterStatus])
 
-  if (!canAccess) {
+  if (!canAccessTrace) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-500 dark:text-slate-400">
+          {t('features.notAvailable')}
+        </p>
+      </div>
+    )
+  }
+
+  if (!canAccessRunLogs && !canAccessConversations) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500 dark:text-slate-400">
@@ -228,6 +247,7 @@ export default function AskAiTracePanel({
             {t('aiTrace.description')}
           </p>
           <div className="mt-3 flex gap-2">
+            {canAccessRunLogs && (
             <button
               type="button"
               onClick={() => setActiveTab('runs')}
@@ -239,6 +259,8 @@ export default function AskAiTracePanel({
             >
               {t('aiTrace.tabs.runLogs')}
             </button>
+            )}
+            {canAccessConversations && (
             <button
               type="button"
               onClick={() => setActiveTab('conversations')}
@@ -250,6 +272,7 @@ export default function AskAiTracePanel({
             >
               {t('aiTrace.tabs.conversations')}
             </button>
+            )}
           </div>
         </div>
 
@@ -319,7 +342,7 @@ export default function AskAiTracePanel({
           </div>
         </div>
 
-        {isSuperAdmin && activeTab === 'runs' && (
+        {isSuperAdmin && canAccessObservabilityFull(canAccessFeature) && activeTab === 'runs' && (
           <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
