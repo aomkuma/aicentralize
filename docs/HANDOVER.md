@@ -1,6 +1,6 @@
 # Handover — Kora
 
-**Last updated:** 2026-07-01 · **pending push to `main`**
+**Last updated:** 2026-07-01 · **`main` through `b78cbfa`**
 
 | Doc | Purpose |
 |-----|---------|

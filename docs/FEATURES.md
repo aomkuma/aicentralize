@@ -1,6 +1,6 @@
 # AICentralize — Feature Catalog
 
-**Last updated:** 2026-07-01 · **pending push to `main`**
+**Last updated:** 2026-07-01 · **`main` through `b78cbfa`**
 
 This document is the product feature map (main modules and sub-features). For day-to-day commands and access rules, see [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md). For current status and open work, see [`HANDOVER.md`](./HANDOVER.md).
 

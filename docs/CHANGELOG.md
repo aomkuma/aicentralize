@@ -4,8 +4,8 @@ Product-facing history for **Kora** (`main`). For current status and open work, 
 
 | Date | Commit | Summary |
 |------|--------|---------|
-| 2026-07-01 | (pending) | INDIVIDUAL AI chat history + self-scoped `/ask-ai/conversations`; dashboard chat persistence; knowledge import jobs in DB; tenant AI persona; IBM Plex Sans; billing phase 2 |
-| 2026-07-03 | (pending) | Tenant billing: `billingStartDate` on first login; `maxUsers` enforcement; admin billing columns |
+| 2026-07-01 | `b78cbfa` | INDIVIDUAL AI chat history + self-scoped `/ask-ai/conversations`; dashboard chat persistence; knowledge import jobs in DB; tenant AI persona; IBM Plex Sans; billing phase 2 |
+| 2026-07-03 | `b78cbfa` | Tenant billing: `billingStartDate` on first login; `maxUsers` enforcement; admin billing columns |
 | 2026-07-03 | `37f36a5` | Sync `pnpm-lock.yaml` after API document parsing deps (Railway deploy fix) |
 | 2026-07-03 | `0366d1e` | Server-side Project Knowledge file import (`documentTextService`: pdf-parse, mammoth, xlsx) |
 | 2026-07-03 | `99b14fe` | Project Knowledge guided steps + live progress panel |

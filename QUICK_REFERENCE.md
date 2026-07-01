@@ -2,7 +2,7 @@
 
 ## Session Update (2026-07-01)
 
-**Pending push to `main`.** Feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Status: [`docs/HANDOVER.md`](docs/HANDOVER.md).
+**`main` through `b78cbfa`.** Feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Status: [`docs/HANDOVER.md`](docs/HANDOVER.md).
 
 Recent product changes:
 - **Knowledge import jobs (DB):** `POST .../knowledge/sources/import-jobs` + poll `GET .../import-jobs/:id`; state in `ProjectKnowledgeImportJob` (fixes 404 on API reload).
