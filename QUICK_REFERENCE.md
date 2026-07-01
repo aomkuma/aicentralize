@@ -2,6 +2,68 @@
 
 ## Session Update (2026-07-01)
 
+**Pending push to `main`.** Feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Status: [`docs/HANDOVER.md`](docs/HANDOVER.md).
+
+Recent product changes:
+- **Knowledge import jobs (DB):** `POST .../knowledge/sources/import-jobs` + poll `GET .../import-jobs/:id`; state in `ProjectKnowledgeImportJob` (fixes 404 on API reload).
+- **INDIVIDUAL AI history:** `GET /ask-ai/conversations` (self-scoped); sidebar **ประวัติการแชทกับ AI**; `/ai-trace` conversations tab via `AI_CHAT_BASIC`.
+- **Dashboard chat persist:** `sessionStorage` + `persistKey="dashboard"`; mount chat after projects load.
+- **Tenant AI persona:** signup category shapes server-side prompts (`tenantPersonaPromptService`).
+- **Typography:** IBM Plex Sans (+ Thai) — `fonts.css`, `brandFonts.ts`.
+- **Package `maxProjects`:** enforced from admin package config (not hardcoded per tier).
+- **Tenant billing:** admin billing UI + migrations — [`docs/guides/BILLING.md`](docs/guides/BILLING.md).
+
+### Project Knowledge import quick test
+
+1. Open `/projects/:id/knowledge`.
+2. Upload `.pdf` / `.docx` / `.xlsx` with extractable text.
+3. Network: `POST .../knowledge/sources/import-jobs` → 202; poll `GET .../import-jobs/:id` until `completed`.
+4. Progress panel advances; review queue populates (no 404 at 100%).
+
+### INDIVIDUAL AI quick test
+
+1. Dashboard — ask AI a question.
+2. Sidebar → **ประวัติการแชทกับ AI** — conversation appears.
+3. Return to dashboard — prompt/answer still in chat panel.
+
+## Session Update (2026-07-03)
+
+**`main` through `37f36a5`.** Feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Status: [`docs/HANDOVER.md`](docs/HANDOVER.md). Doc index: [`docs/README.md`](docs/README.md).
+
+Recent product changes:
+- **Package feature gating:** checkbox features on `/admin/packages` enforced in sidebar, `FeatureRoute`, and API (`9755b97`).
+- **Feeling log (INDIVIDUAL):** hidden when tenant package code is `INDIVIDUAL` — not a checkbox feature.
+- **Project Knowledge:** guided 3-step UX + `WorkflowProgressPanel`; **server-side** file import (`POST .../knowledge/sources/import`).
+- **Document parsing (API):** `documentTextService.ts` — pdf-parse v1.1.1, mammoth, xlsx; max 120k chars.
+- **Deploy:** after API dep changes, run `pnpm install` at repo root (Railway needs synced `pnpm-lock.yaml`).
+- **Tenant nicknames:** per-org `TenantMembership.nickname` (`b249758`).
+- **Permissions / uploads:** tenant-scoped team edit; 500 MB upload limit (`9ba381d`).
+
+### Project Knowledge import quick test
+
+1. Open `/projects/:id/knowledge`.
+2. Upload `.pdf` / `.docx` / `.xlsx` with extractable text.
+3. Confirm Network: `POST /api/projects/:id/knowledge/sources/import` (not client-side hang).
+4. Progress: uploading → processing on server → AI extract → review queue.
+
+### Package gating quick test
+
+| Package | Expect |
+|---------|--------|
+| INDIVIDUAL | No `/feeling-logs`; basic chat only per checkbox set |
+| STANDARD+ | Features per admin checkbox config |
+| Missing `AI_TRACE_PANEL` | `/ai-trace` blocked; API 403 on observability |
+
+### API deps workflow
+
+```bash
+# After editing apps/api/package.json
+pnpm install          # at monorepo root — updates pnpm-lock.yaml
+pnpm --filter api type-check
+```
+
+## Session Update (2026-07-01)
+
 **`main` through `e82bc9d`.** Feature map: [`docs/FEATURES.md`](docs/FEATURES.md). Status: [`docs/HANDOVER.md`](docs/HANDOVER.md). Doc index: [`docs/README.md`](docs/README.md).
 
 Recent product changes:
@@ -55,8 +117,8 @@ Frontend: `canAssignActionItemsToOthers()` in `actionItemPermissions.ts` (uses f
 | `/meetings` | Meeting Studio | 3-step wizard |
 | `/projects` | Projects | Entry to continuity/knowledge |
 | `/continuity/:projectId` | Continuity | Team action board |
-| `/feeling-logs` | Feeling log | Journal + manager insights |
-| `/projects/:id/knowledge` | Knowledge Hub | Onboarding baseline |
+| `/feeling-logs` | Feeling log | Journal + manager insights (hidden for INDIVIDUAL package) |
+| `/projects/:id/knowledge` | Knowledge Hub | Paste text or server file import |
 | `/projects/:id/notes` | General notes | PUBLIC / PRIVATE |
 
 ### Guest routes

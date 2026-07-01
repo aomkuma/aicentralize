@@ -15,6 +15,7 @@ export { tenantRouter } from "./tenants";
 export { systemSettingsRouter } from "./system-settings";
 export { adminRouter } from "./admin";
 export { packagesRouter } from "./packages";
+export { masterDataRouter } from "./master-data";
 export { communicationSentimentRouter } from "./communication-sentiment";
 export { feelingLogRouter } from "./feeling-logs";
 export { feelingLogBatchRouter } from "./feeling-log-batch";

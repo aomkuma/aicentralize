@@ -20,6 +20,80 @@ export async function isFeelingLogsEnabledForTenant(tenantId: string): Promise<b
   return !isIndividualPackageCode(tenant?.currentPackage?.code);
 }
 
+export async function isMeetingStudioEnabledForTenant(tenantId: string): Promise<boolean> {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      currentPackage: {
+        select: { code: true }
+      }
+    }
+  });
+
+  return !isIndividualPackageCode(tenant?.currentPackage?.code);
+}
+
+export async function ensureMeetingStudioAccess(
+  user: NonNullable<Express.Request["user"]>,
+  opts?: { projectId?: string; tenantId?: string; meetingId?: string }
+): Promise<{ allowed: true } | { allowed: false; message: string }> {
+  if (isPlatformAdmin(user)) {
+    return { allowed: true };
+  }
+
+  let tenantId = opts?.tenantId;
+
+  if (!tenantId && opts?.projectId) {
+    const project = await prisma.project.findUnique({
+      where: { id: opts.projectId },
+      select: { tenantId: true }
+    });
+    tenantId = project?.tenantId ?? undefined;
+  }
+
+  if (!tenantId && opts?.meetingId) {
+    const meeting = await prisma.meeting.findUnique({
+      where: { id: opts.meetingId },
+      select: { project: { select: { tenantId: true } } }
+    });
+    tenantId = meeting?.project?.tenantId ?? undefined;
+  }
+
+  if (tenantId) {
+    if (!(await isMeetingStudioEnabledForTenant(tenantId))) {
+      return {
+        allowed: false,
+        message: "Meeting Studio is not available on the INDIVIDUAL package"
+      };
+    }
+    return { allowed: true };
+  }
+
+  const tenantIds = await listTenantIdsForUser(user);
+  if (!tenantIds?.length) {
+    return { allowed: true };
+  }
+
+  const enabledTenantCount = await prisma.tenant.count({
+    where: {
+      id: { in: tenantIds },
+      OR: [
+        { currentPackageId: null },
+        { currentPackage: { code: { not: INDIVIDUAL_PACKAGE_CODE } } }
+      ]
+    }
+  });
+
+  if (enabledTenantCount === 0) {
+    return {
+      allowed: false,
+      message: "Meeting Studio is not available on the INDIVIDUAL package"
+    };
+  }
+
+  return { allowed: true };
+}
+
 export async function getTenantPackageFeatureCodes(tenantId: string): Promise<string[] | null> {
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },

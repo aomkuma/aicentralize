@@ -1,5 +1,9 @@
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
+import {
+  applyStructuralSegmentation,
+  segmentXlsxSheetText
+} from "./documentSegmentation";
 
 // pdf-parse v1 exposes a callable default export under CommonJS.
 const pdfParse = require("pdf-parse") as (
@@ -124,7 +128,7 @@ function extractXlsxText(buffer: Buffer) {
 
       const rows = XLSX.utils.sheet_to_csv(sheet, { FS: " | " }).trim();
       if (rows) {
-        sheetTexts.push(`# ${name}\n${rows}`);
+        sheetTexts.push(segmentXlsxSheetText(name, rows));
       }
     }
 
@@ -172,5 +176,6 @@ export async function extractDocumentText(buffer: Buffer, fileName: string): Pro
     throw new DocumentReadError("FILE_TOO_SHORT", "The extracted text is too short to create project knowledge.");
   }
 
-  return clipKnowledgeText(text);
+  const segmented = applyStructuralSegmentation(text, extension);
+  return clipKnowledgeText(segmented);
 }

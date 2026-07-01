@@ -13,7 +13,8 @@
     "all": "ทั้งหมด",
     "clear": "ล้าง",
     "joined": "เข้าร่วมเมื่อ",
-    "platformConsole": "คอนโซลแพลตฟอร์ม"
+    "platformConsole": "คอนโซลแพลตฟอร์ม",
+    "step": "ขั้นตอน {{current}} จาก {{total}}"
   },
   "auth": {
     "email": "อีเมล",
@@ -287,9 +288,43 @@
     "creatingProject": "กำลังสร้าง...",
     "cancel": "ยกเลิก",
     "projectCreated": "สร้างโปรเจคสำเร็จแล้ว",
+    "editProject": "แก้ไขโปรเจค",
+    "editProjectTitle": "แก้ไขโปรเจค",
+    "saveProject": "บันทึกการเปลี่ยนแปลง",
+    "savingProject": "กำลังบันทึก...",
+    "projectUpdated": "อัปเดตโปรเจคสำเร็จแล้ว",
     "selectOrganizationFirst": "กรุณาเลือกองค์กรก่อน",
     "projectValidation": "รหัสและชื่อโปรเจคต้องมีอย่างน้อย 2 ตัวอักษร",
     "projectCodeDuplicate": "รหัสโปรเจคนี้มีอยู่แล้ว",
+    "individualProjectLimit": "แพ็กเกจ INDIVIDUAL สร้างได้ 1 โปรเจค — กรุณาแก้ไขโปรเจคเดิมแทนการสร้างใหม่",
+    "projectLimit": "แพ็กเกจของคุณสร้างโปรเจคได้สูงสุด {{count}} โปรเจค — กรุณาแก้ไขโปรเจคเดิมหรืออัปเกรดแพ็กเกจ",
+    "individual": {
+      "eyebrow": "ศูนย์ความรู้ส่วนตัว",
+      "title": "คลังสมองกลางและความจำของคุณ",
+      "description": "รวบรวมเอกสารและโน้ตเป็นฐานความรู้ ถาม AI จากบริบทที่คุณเก็บไว้ และติดตามงานพื้นฐานได้ในที่เดียว",
+      "workspaceTitle": "พื้นที่คลังความรู้",
+      "workspaceDesc": "โปรเจคส่วนตัวหนึ่งเดียวเก็บความจำของคุณ — นำเข้าแหล่งข้อมูล อนุมัติ baseline แล้วกลับมาดูได้ทุกเมื่อ",
+      "workspaceBadge": "พื้นที่คลังความรู้",
+      "openKnowledge": "เปิดฐานความรู้โปรเจค",
+      "noWorkspace": "สร้างโปรเจคส่วนตัวเพื่อเริ่มต้นคลังความรู้ของคุณ",
+      "dismissGuide": "ปิดคำแนะนำนี้",
+      "askAiTitle": "ถามจากความจำของคุณ",
+      "askAiDesc": "คำถามจะอ้างอิงฐานความรู้และโน้ตที่คุณเก็บไว้ — ไม่ใช่การเดาแบบทั่วไป",
+      "steps": {
+        "import": {
+          "title": "นำเข้าความรู้",
+          "description": "อัปโหลด TOR โน้ต หรือเอกสารเข้าฐานความรู้ แล้วอนุมัติ baseline"
+        },
+        "ask": {
+          "title": "ถาม AI",
+          "description": "สนทนากับบริบทจากสิ่งที่คุณเก็บในคลังความจำ"
+        },
+        "tasks": {
+          "title": "ติดตามงาน",
+          "description": "ใช้รายการงานของฉันและ Reminders สำหรับงานติดตามพื้นฐาน"
+        }
+      }
+    },
     "teamManagement": "จัดการทีมองค์กร",
     "teamManagementDesc": "เพิ่มสมาชิกในองค์กรและเก็บข้อมูลติดต่อที่จำเป็นให้ครบ",
     "addTeamMember": "เพิ่มสมาชิกทีม",
@@ -329,6 +364,91 @@
     "trackActions": "ติดตามการดำเนิน",
     "trackActionsDesc": "อย่าให้พลาดรายการสิ่งที่ต้องทำหรือกำหนดเส้นตาย"
   },
+  "personalKnowledge": {
+    "title": "คลังความรู้ส่วนตัว",
+    "backToDashboard": "กลับแดชบอร์ด",
+    "description": {
+      "student": "อัปโหลดเอกสารวิชา สไลด์ หรือโน้ตจากอาจารย์ — ระบบอ่าน สรุปละเอียด และจัดหมวดตามบทเรียน",
+      "general": "เก็บเอกสารอ้างอิงและโน้ตงานไว้ที่เดียว — อัปโหลด สรุป และค้นหาตามหัวข้อได้ทุกเมื่อ"
+    },
+    "steps": {
+      "upload": {
+        "title": "อัปโหลดไฟล์",
+        "description": {
+          "student": "ใส่ PDF สไลด์ หรือโน้ตที่ได้รับจากอาจารย์",
+          "general": "ใส่ PDF, DOCX, ตาราง หรือไฟล์ข้อความที่ต้องการเก็บ"
+        }
+      },
+      "review": {
+        "title": "ตรวจสรุป",
+        "description": {
+          "student": "ดูแยกหมวดตามบทเรียนก่อนบันทึกเข้าความจำ",
+          "general": "ดูหัวข้อที่จัดกลุ่มแล้วก่อนบันทึกเข้าคลัง"
+        }
+      },
+      "memory": {
+        "title": "ใช้ความจำ",
+        "description": {
+          "student": "กลับไปถาม AI บนแดชบอร์ดจากสิ่งที่บันทึกไว้",
+          "general": "ถาม AI และเปิดดูความรู้ที่จัดหมวดแล้วได้ตลอด"
+        }
+      }
+    },
+    "uploadTitle": "อัปโหลดและสรุป",
+    "uploadHelp": {
+      "student": "เหมาะกับเอกสารประกอบการเรียน ไฟล์ยาวจะถูกแบ่งและสรุปทีละส่วน",
+      "general": "รองรับเอกสารอ้างอิงและโน้ตงาน ไฟล์ใหญ่ประมวลผลเป็นส่วน ๆ อัตโนมัติ"
+    },
+    "documentTitle": "ชื่อเอกสาร (ไม่บังคับ)",
+    "documentTitlePlaceholder": "เติมอัตโนมัติจากชื่อไฟล์",
+    "dropFiles": "เลือกไฟล์หรือลากมาวาง",
+    "supportedFormats": "PDF, DOCX, XLSX, CSV, TXT, MD",
+    "uploadAndSummarize": "อัปโหลดและสรุป",
+    "uploading": "กำลังประมวลผล...",
+    "selectFilesFirst": "กรุณาเลือกไฟล์ก่อน",
+    "reviewTitle": "พร้อมบันทึก",
+    "noPendingReview": "ยังไม่มีสรุปรอตรวจ — อัปโหลดไฟล์เพื่อเริ่ม",
+    "extractedItems": "สรุปได้ {{count}} รายการ",
+    "saveToMemory": "บันทึกเข้าความจำ",
+    "savedToMemory": "บันทึกเข้าความจำส่วนตัวแล้ว",
+    "approveFailed": "บันทึกเข้าความจำไม่สำเร็จ",
+    "showCategories": "ดูแยกหมวดหมู่",
+    "hideCategories": "ซ่อนหมวดหมู่",
+    "emptyDraft": "ยังไม่มีรายการแยกหมวด — ยังบันทึกภาพรวมได้",
+    "memoryTitle": "คลังความจำของคุณ",
+    "memoryCount": "บันทึกแล้ว {{count}} รายการ",
+    "noMemory": "ยังไม่มีข้อมูล — อัปโหลดแล้วกดบันทึกเข้าความจำ",
+    "categories": {
+      "student": {
+        "OVERVIEW": "ภาพรวมวิชา",
+        "SCOPE": "ขอบเขตวิชา",
+        "REQUIREMENT": "เนื้อหาบทเรียน",
+        "DECISION": "ประเด็นสำคัญ",
+        "RISK": "ข้อควรระวัง",
+        "ISSUE": "จุดที่มักสับสน",
+        "ACTION": "สิ่งที่ควรฝึก",
+        "MILESTONE": "สอบ / กำหนดส่ง",
+        "GLOSSARY": "คำศัพท์ / นิยาม",
+        "ASSUMPTION": "สมมติฐาน",
+        "OPEN_QUESTION": "คำถามที่ควรถาม",
+        "STAKEHOLDER": "ผู้เกี่ยวข้อง"
+      },
+      "general": {
+        "OVERVIEW": "ภาพรวม",
+        "SCOPE": "ขอบเขต",
+        "REQUIREMENT": "หัวข้อหลัก",
+        "DECISION": "การตัดสินใจ",
+        "RISK": "ความเสี่ยง",
+        "ISSUE": "ประเด็น",
+        "ACTION": "งานติดตาม",
+        "MILESTONE": "เหตุการณ์สำคัญ",
+        "GLOSSARY": "คำศัพท์",
+        "ASSUMPTION": "สมมติฐาน",
+        "OPEN_QUESTION": "คำถามค้าง",
+        "STAKEHOLDER": "ผู้เกี่ยวข้อง"
+      }
+    }
+  },
   "tenant": {
     "tenantAdmin": "ผู้ดูแลองค์กร",
     "manager": "ผู้จัดการ",
@@ -364,10 +484,12 @@
     "taskReminders": "แจ้งเตือนงาน",
     "meetingHistory": "ประวัติรายงานประชุม",
     "aiTrace": "ประวัติการใช้ AI",
+    "aiChatHistory": "ประวัติการแชทกับ AI",
     "organizationSetup": "ตั้งค่าองค์กร",
     "organizationAdmin": "จัดการองค์กร",
     "platformUsers": "ผู้ใช้แพลตฟอร์ม",
     "packages": "แพ็กเกจ",
+    "adminBilling": "บิลลิ่ง",
     "generalNotes": "โน๊ตทั่วไป",
     "feelingLogs": "บันทึกความรู้สึก",
     "projects": "โปรเจค",
@@ -415,7 +537,58 @@
     "emailSent": "ส่งอีเมลแล้ว",
     "emailNotSent": "ยังไม่ได้ส่งอีเมล",
     "emailError": "ข้อผิดพลาดอีเมล",
-    "noPendingInvitations": "ไม่มีคำเชิญที่รอตอบรับ"
+    "noPendingInvitations": "ไม่มีคำเชิญที่รอตอบรับ",
+    "billingStatus": "บิลลิ่ง",
+    "billingPending": "รอเปิดใช้งาน",
+    "billingActive": "เริ่มนับแล้ว",
+    "billingPastDue": "ค้างชำระ",
+    "billingSuspended": "ระงับบิล",
+    "billingCancelled": "ยกเลิกแล้ว",
+    "billingStartDate": "เริ่มนับบิล",
+    "billingPeriodEnd": "รอบสิ้นสุด",
+    "billingNotStarted": "—",
+    "viewBilling": "ดูบิลลิ่งและการชำระเงิน"
+  },
+  "adminBilling": {
+    "title": "บิลลิ่งและการชำระเงิน",
+    "description": "ตรวจสอบรอบบิล แนบสลิปโอนเงิน และอนุมัติการชำระแบบ manual (ยังไม่เชื่อม payment gateway)",
+    "organization": "องค์กร",
+    "period": "รอบบิล",
+    "periodEnd": "สิ้นสุด",
+    "package": "แพ็กเกจ",
+    "amount": "ยอดชำระ",
+    "status": "สถานะ",
+    "payments": "การชำระเงิน",
+    "statusFilter": "สถานะ",
+    "allStatuses": "ทุกสถานะ",
+    "noPayments": "ยังไม่มีสลิป",
+    "uploadSlip": "แนบสลิป",
+    "viewSlip": "ดูสลิป",
+    "approve": "อนุมัติ",
+    "reject": "ปฏิเสธ",
+    "slipUploaded": "อัปโหลดสลิปแล้ว รอตรวจสอบ",
+    "uploadFailed": "อัปโหลดสลิปไม่สำเร็จ",
+    "paymentApproved": "อนุมัติการชำระแล้ว รอบบิลถูกทำเครื่องหมายว่าชำระแล้ว",
+    "paymentRejected": "ปฏิเสธการชำระแล้ว",
+    "rejectPrompt": "เหตุผลในการปฏิเสธ (ไม่บังคับ)",
+    "slipOpenFailed": "เปิดไฟล์สลิปไม่สำเร็จ",
+    "empty": "ไม่พบรอบบิลตามตัวกรองที่เลือก",
+    "clearTenantFilter": "ล้างตัวกรององค์กร",
+    "pagination": "หน้า {{page}} จาก {{totalPages}}",
+    "prev": "ก่อนหน้า",
+    "next": "ถัดไป",
+    "periodStatus": {
+      "OPEN": "เปิดอยู่",
+      "AWAITING_PAYMENT": "รอชำระเงิน",
+      "PAID": "ชำระแล้ว",
+      "PAST_DUE": "ค้างชำระ",
+      "VOID": "ยกเลิก"
+    },
+    "paymentStatus": {
+      "PENDING": "รอตรวจสอบ",
+      "APPROVED": "อนุมัติแล้ว",
+      "REJECTED": "ปฏิเสธแล้ว"
+    }
   },
   "adminPlatformUsers": {
     "title": "ผู้ใช้แพลตฟอร์ม",
@@ -567,12 +740,29 @@
     },
     "progress": {
       "title": "สถานะการประมวลผลปัจจุบัน",
-      "subtitle": "อาจใช้เวลาสักครู่",
+      "subtitle": "เอกสารขนาดใหญ่อาจใช้เวลาหลายนาที",
+      "overall": "ความคืบหน้ารวม",
+      "chunkBar": "ความคืบหน้าการสกัด AI",
       "failedHint": "มีขั้นตอนที่ล้มเหลว กรุณาดูข้อความด้านบนแล้วลองใหม่",
       "fileCount": "กำลังประมวลผล {{count}} ไฟล์",
+      "elapsed": "ใช้เวลาแล้ว: {{duration}}",
+      "eta": "เหลือประมาณ {{duration}}",
+      "etaUnknown": "กำลังประมาณเวลาที่เหลือ…",
+      "readingDetail": "กำลังอ่านเอกสาร: {{name}}",
+      "savingDetail": "กำลังบันทึกแหล่งข้อมูล: {{name}}",
+      "chunkDetail": "{{name}} — chunk {{current}}/{{total}} (เหลือ {{remaining}} chunk)",
+      "durationSeconds": "{{count}} วินาที",
+      "durationMinutes": "{{count}} นาที",
+      "durationMinutesSeconds": "{{minutes}} นาที {{seconds}} วินาที",
+      "stats": {
+        "currentChunk": "Chunk ปัจจุบัน",
+        "remaining": "เหลืออีก",
+        "successful": "สำเร็จแล้ว"
+      },
       "steps": {
         "validatingInput": "ตรวจชื่อ ประเภท และเนื้อหาเอกสาร",
         "uploadingFile": "อัปโหลดไฟล์ไปเซิร์ฟเวอร์",
+        "readingFile": "อ่านและแบ่งส่วนข้อความจากเอกสาร",
         "processingOnServer": "อ่านเอกสาร บันทึกข้อมูล และสกัดด้วย AI บนเซิร์ฟเวอร์",
         "savingSource": "บันทึกข้อมูลเข้าคิว project knowledge",
         "aiExtracting": "สกัด baseline ด้วย AI",
@@ -1060,11 +1250,22 @@
     },
     "progress": {
       "title": "สถานะการประมวลผลตอนนี้",
-      "subtitle": "อาจใช้เวลาสักครู่",
+      "subtitle": "เอกสารขนาดใหญ่อาจใช้เวลาหลายนาที",
+      "overall": "ความคืบหน้ารวม",
+      "chunkBar": "ความคืบหน้าการวิเคราะห์ AI",
       "failedHint": "มีบางขั้นตอนล้มเหลว กรุณาดูข้อความผิดพลาดด้านบนแล้วลองอีกครั้ง",
+      "elapsed": "ใช้เวลาแล้ว: {{duration}}",
+      "eta": "เหลือประมาณ {{duration}}",
+      "etaUnknown": "กำลังประมาณเวลาที่เหลือ…",
+      "chunkDetail": "{{name}} — chunk {{current}}/{{total}} (เหลือ {{remaining}} chunk)",
+      "stats": {
+        "currentChunk": "Chunk ปัจจุบัน",
+        "remaining": "เหลืออีก",
+        "successful": "สำเร็จแล้ว"
+      },
       "steps": {
         "validatingInput": "ตรวจสอบไฟล์และข้อมูลการประชุม",
-        "extractingDocumentText": "อ่านข้อความจากไฟล์ DOCX",
+        "extractingDocumentText": "อ่านข้อความจากเอกสาร",
         "analyzingDocumentWithAI": "วิเคราะห์เนื้อหาเอกสารด้วย AI",
         "mappingToTemplate": "เติมข้อมูลลงในแบบฟอร์มรายงานการประชุม",
         "uploadingRecording": "อัปโหลดไฟล์บันทึกการประชุม",
@@ -1192,11 +1393,20 @@
     "placeholders": {
       "askAnything": "ถามรับจบเรื่องงานได้เลย..."
     },
+    "assistedBadge": "AI Assisted",
+    "suggestions": {
+      "tryAsk": "ลองถาม:",
+      "thisProject": "โปรเจกต์นี้",
+      "latestMeeting": "สรุปสถานะล่าสุดของโปรเจกต์ {{project}}",
+      "nearDeadline": "งานไหนใน {{project}} ใกล้ครบกำหนดบ้าง",
+      "openTasks": "ตอนนี้ฉันมีงานค้างอะไรบ้าง"
+    },
     "links": {
       "title": "จุดที่เกี่ยวข้อง",
       "openMeeting": "เปิดรายงานประชุม",
       "openProject": "เปิดความต่อเนื่องโปรเจกต์",
-      "openActions": "ดูรายการงาน"
+      "openActions": "ดูรายการงาน",
+      "openKnowledge": "เปิดโน้ต/ความรู้โปรเจกต์"
     },
     "status": {
       "ready": "พร้อมรับงาน",

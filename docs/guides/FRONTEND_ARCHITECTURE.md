@@ -27,15 +27,30 @@ All features are built with:
 
 ### Feature Flag System
 
-**Location:** `src/types/features.ts` & `src/stores/featureFlagStore.ts`
+**Location:** `src/types/features.ts`, `src/stores/featureFlagStore.ts`, `src/lib/featureAccess.ts`
 
-Feature entitlements by plan:
+Production entitlements come from the tenant's subscription package:
+
+1. `Layout.tsx` loads `GET /tenants/me` after login.
+2. `setPackageEntitlements(packageCode, features)` stores `enabledFeatureIds` from `currentPackage.features`.
+3. When `enabledFeatureIds` is set, it **overrides** the legacy static `FEATURE_ENTITLEMENTS` plan map.
+
+Legacy dev fallback (when no package loaded):
+
 ```
 FREE    -> AI_CHAT_BASIC, CONTINUITY_SUMMARY
 STARTER -> ↑ + AI_CHAT_ADVANCED, CONTINUITY_FULL, REMINDERS_BASIC
 PRO     -> ↑ + AI_TRACE_PANEL, REMINDERS_ESCALATION, OBSERVABILITY_BASIC
 ENTERPRISE -> ↑ + OBSERVABILITY_FULL, CUSTOM_WORKFLOWS
 ```
+
+**Route / nav guards:**
+
+- `FeatureRoute` — wraps routes in `App.tsx` (`ROUTE_FEATURE_REQUIREMENTS`)
+- `FeatureGate` — inline upgrade prompt inside pages (e.g. trace tabs)
+- `Sidebar` — `isNavItemAccessible()` hides nav items without entitlement
+
+**Feeling log (package code, not checkbox):** `lib/packageAccess.ts` — `INDIVIDUAL` package hides `/feeling-logs`.
 
 **Usage in components:**
 ```typescript
@@ -196,38 +211,27 @@ export function AiObservabilityPage() {
 
 ## Feature Flag Configuration
 
-### For Development
+### Production (current)
 
-Initialize in App or main layout:
+`Layout.tsx` syncs entitlements from `/tenants/me`:
 
 ```typescript
 import { useFeatureFlagStore } from '@/stores/featureFlagStore'
 
-export function App() {
-  const setPlan = useFeatureFlagStore(state => state.setPlan)
-  
-  useEffect(() => {
-    // TODO: Fetch user's plan from API
-    setPlan('PRO')  // or 'FREE', 'STARTER', 'ENTERPRISE'
-  }, [])
-  
-  return <Router>...</Router>
-}
+const setPackageEntitlements = useFeatureFlagStore((s) => s.setPackageEntitlements)
+
+// After GET /tenants/me:
+setPackageEntitlements(
+  tenant.currentPackage?.code ?? null,
+  tenant.currentPackage?.features ?? null,
+)
 ```
 
-### For Production
+Do **not** call `setPlan('PRO')` in production — package checkboxes are the source of truth.
 
-Fetch plan from user profile:
+### Legacy dev fallback
 
-```typescript
-useEffect(() => {
-  const fetchUserPlan = async () => {
-    const user = await get('/users/me')
-    setPlan(user.billingPlan)
-  }
-  fetchUserPlan()
-}, [])
-```
+If testing without a tenant package, `setPlan('PRO')` still applies the static `FEATURE_ENTITLEMENTS` map.
 
 ---
 
@@ -303,8 +307,10 @@ const { t } = useTranslation()
 ```typescript
 interface FeatureFlagState {
   plan: BillingPlan
-  enabledFeatures: Set<FeatureKey>
+  packageCode: string | null
+  enabledFeatureIds: string[] | null
   setPlan(plan: BillingPlan): void
+  setPackageEntitlements(packageCode: string | null, features: string[] | null): void
   isFeatureEnabled(feature: FeatureKey): boolean
   canAccessFeature(feature: FeatureKey): boolean
   getEnabledFeatures(): FeatureKey[]
@@ -384,9 +390,10 @@ Playwright scenarios:
 ## Troubleshooting
 
 ### Feature not showing?
-1. Check `useFeatureFlagStore` - is plan set correctly?
-2. Check user's membership role - does it allow access?
-3. Check console for API errors in network tab
+1. Check `GET /tenants/me` — does `currentPackage.features` include the required feature id?
+2. Check `featureFlagStore.enabledFeatureIds` (set by `Layout` via `setPackageEntitlements`).
+3. For Feeling Log: check `packageCode !== 'INDIVIDUAL'` (`packageAccess.ts`).
+4. Check console for API 403 from `packageAccessService`.
 
 ### Data not loading?
 1. Verify API endpoints are running

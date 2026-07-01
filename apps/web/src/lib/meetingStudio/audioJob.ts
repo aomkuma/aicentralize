@@ -14,6 +14,11 @@ import type {
 } from './jobTypes'
 import { parseTranscriptSummary, toChecklistItems, type OwnerOption } from './shared'
 import { buildTranscriptAnalysisPrompt } from './meetingAnalysisPrompt'
+import {
+  analyzeMeetingSourceTextInChunks,
+  type MeetingChunkProgress
+} from './chunkedMeetingAnalysis'
+import { buildMeetingAnalysisChunks } from '../textChunking'
 
 type AudioJobInput = {
   audioFile: File
@@ -30,7 +35,8 @@ export async function analyzeMeetingTranscriptFromText(
   ownerOptions: OwnerOption[],
   sessionAt: string,
   messages: MeetingStudioJobMessages,
-  onProgress: (key: MeetingStudioJobProgressKey) => void
+  onProgress: (key: MeetingStudioJobProgressKey) => void,
+  onChunkProgress?: (progress: MeetingChunkProgress) => void
 ): Promise<MeetingStudioJobResult> {
   const cleanText = text.trim()
   if (!cleanText) {
@@ -39,23 +45,31 @@ export async function analyzeMeetingTranscriptFromText(
 
   onProgress('analyzingRecording')
 
-  const analysisResponse = await fetch('/ai/playground/generate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'qwen2.5:7b',
-      prompt: buildTranscriptAnalysisPrompt(cleanText)
-    })
-  })
+  const chunks = buildMeetingAnalysisChunks(cleanText)
+  let parsedSummary = chunks.length > 1
+    ? await analyzeMeetingSourceTextInChunks(cleanText, 'transcript', onChunkProgress)
+    : null
 
-  const analysisData = await analysisResponse.json()
-  if (!analysisResponse.ok) {
-    throw new Error(analysisData.detail || analysisData.message || messages.documentAnalysisFailed)
+  if (!parsedSummary) {
+    const analysisResponse = await fetch('/ai/playground/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'qwen2.5:7b',
+        prompt: buildTranscriptAnalysisPrompt(cleanText)
+      })
+    })
+
+    const analysisData = await analysisResponse.json()
+    if (!analysisResponse.ok) {
+      throw new Error(analysisData.detail || analysisData.message || messages.documentAnalysisFailed)
+    }
+
+    parsedSummary = parseTranscriptSummary(analysisData.output || '')
   }
 
-  const parsedSummary = parseTranscriptSummary(analysisData.output || '')
   onProgress('mappingToTemplate')
 
   if (!parsedSummary) {

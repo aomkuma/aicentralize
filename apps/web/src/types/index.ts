@@ -12,14 +12,43 @@ export interface User {
   updatedAt?: string
 }
 
+export type TenantBillingStatus =
+  | 'PENDING_ACTIVATION'
+  | 'ACTIVE'
+  | 'PAST_DUE'
+  | 'SUSPENDED'
+  | 'CANCELLED'
+
 export interface Tenant {
   id: string
   slug: string
   name: string
   isActive?: boolean
+  entityType: 'ORGANIZATION' | 'INDIVIDUAL'
+  tenantCategoryId?: string | null
+  tenantCategory?: TenantCategory | null
   currentPackageId?: string | null
   currentPackage?: SubscriptionPackage | null
-  createdBy: User
+  billingStatus?: TenantBillingStatus
+  billingStartDate?: string | null
+  billingTimezone?: string
+  currentPeriodStart?: string | null
+  currentPeriodEnd?: string | null
+  activatedAt?: string | null
+  activatedByUserId?: string | null
+  activatedBy?: Pick<User, 'id' | 'name' | 'email'> | null
+  createdBy?: User
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TenantCategory {
+  id: string
+  code: string
+  name: string
+  entityType: 'ORGANIZATION' | 'INDIVIDUAL'
+  sortOrder: number
+  isActive: boolean
   createdAt: string
   updatedAt: string
 }
@@ -65,6 +94,47 @@ export type AdminTenant = Omit<Tenant, 'createdBy'> & {
     memberships: number
     projects: number
   }
+}
+
+export type TenantBillingPeriodStatus =
+  | 'OPEN'
+  | 'AWAITING_PAYMENT'
+  | 'PAID'
+  | 'PAST_DUE'
+  | 'VOID'
+
+export type TenantBillingPaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface AdminBillingPayment {
+  id: string
+  status: TenantBillingPaymentStatus
+  slipFileName: string
+  slipMimeType?: string | null
+  slipSizeBytes?: number | null
+  submittedAt: string
+  reviewedAt?: string | null
+  reviewNote?: string | null
+  submittedBy: Pick<User, 'id' | 'name' | 'email'>
+  reviewedBy?: Pick<User, 'id' | 'name' | 'email'> | null
+}
+
+export interface AdminBillingPeriod {
+  id: string
+  tenantId: string
+  tenant: Pick<Tenant, 'id' | 'name' | 'slug' | 'billingStatus'>
+  periodStart: string
+  periodEnd?: string | null
+  packageId?: string | null
+  packageCode: string
+  packageName?: string | null
+  amountCents: number
+  currency: string
+  status: TenantBillingPeriodStatus
+  paidAt?: string | null
+  closedAt?: string | null
+  createdAt?: string
+  updatedAt?: string
+  payments: AdminBillingPayment[]
 }
 
 export interface Project {
@@ -150,9 +220,11 @@ export interface ProjectKnowledgeSource {
 
 export interface ProjectKnowledgeImportJob {
   id: string
+  kind?: 'import' | 'extract'
   projectId: string
   userId: string
   fileName: string
+  sourceId?: string
   status: 'queued' | 'running' | 'completed' | 'failed'
   stage: 'queued' | 'readingFile' | 'savingSource' | 'extracting' | 'completed' | 'failed'
   detail?: string
@@ -161,7 +233,7 @@ export interface ProjectKnowledgeImportJob {
   successfulChunks?: number
   error?: string
   result?: {
-    source: ProjectKnowledgeSource
+    source?: ProjectKnowledgeSource
     extraction: unknown
   }
   createdAt: string
@@ -266,6 +338,8 @@ export interface AiProviderAccount {
 export interface TenantCreateRequest {
   name: string
   slug?: string
+  entityType: 'ORGANIZATION' | 'INDIVIDUAL'
+  tenantCategoryId: string
   currentPackageId?: string
 }
 

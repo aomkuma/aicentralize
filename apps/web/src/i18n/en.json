@@ -13,7 +13,8 @@
     "all": "All",
     "clear": "Clear",
     "joined": "Joined",
-    "platformConsole": "Platform Console"
+    "platformConsole": "Platform Console",
+    "step": "Step {{current}} of {{total}}"
   },
   "auth": {
     "email": "Email",
@@ -287,9 +288,43 @@
     "creatingProject": "Creating...",
     "cancel": "Cancel",
     "projectCreated": "Project created successfully.",
+    "editProject": "Edit project",
+    "editProjectTitle": "Edit project",
+    "saveProject": "Save changes",
+    "savingProject": "Saving...",
+    "projectUpdated": "Project updated successfully.",
     "selectOrganizationFirst": "Please select an organization first.",
     "projectValidation": "Project code and name must be at least 2 characters.",
     "projectCodeDuplicate": "This project code already exists.",
+    "individualProjectLimit": "The INDIVIDUAL plan allows one project. Edit your existing project instead of creating another.",
+    "projectLimit": "Your plan allows up to {{count}} project(s). Edit an existing project or upgrade your package.",
+    "individual": {
+      "eyebrow": "Personal knowledge hub",
+      "title": "Your central memory workspace",
+      "description": "Collect documents and notes into project knowledge, ask AI from trusted context, and keep basic follow-ups on track.",
+      "workspaceTitle": "Your knowledge workspace",
+      "workspaceDesc": "One personal project holds your memory — import sources, approve baseline, and revisit anytime.",
+      "workspaceBadge": "Knowledge workspace",
+      "openKnowledge": "Open project knowledge",
+      "noWorkspace": "Create your personal project to start building your knowledge base.",
+      "dismissGuide": "Dismiss this guide",
+      "askAiTitle": "Ask from your memory",
+      "askAiDesc": "Questions use approved project knowledge and notes as context — not generic guesses.",
+      "steps": {
+        "import": {
+          "title": "Import knowledge",
+          "description": "Upload TOR, notes, or documents into project knowledge and approve the baseline."
+        },
+        "ask": {
+          "title": "Ask AI",
+          "description": "Chat with context from what you stored in your personal memory."
+        },
+        "tasks": {
+          "title": "Track tasks",
+          "description": "Use My Tasks and reminders for simple follow-ups."
+        }
+      }
+    },
     "teamManagement": "Team Management",
     "teamManagementDesc": "Add organization members and keep required contact details complete.",
     "addTeamMember": "Add Team Member",
@@ -329,6 +364,91 @@
     "trackActions": "Track Actions",
     "trackActionsDesc": "Never miss an action item or deadline"
   },
+  "personalKnowledge": {
+    "title": "Personal knowledge library",
+    "backToDashboard": "Back to dashboard",
+    "description": {
+      "student": "Upload course handouts and lecture files — Kora reads them, summarizes in detail, and groups notes by lesson chapter.",
+      "general": "Store reference documents and notes in one place — upload, summarize, and browse by topic whenever you need them."
+    },
+    "steps": {
+      "upload": {
+        "title": "Upload files",
+        "description": {
+          "student": "Add PDFs, slides, or notes from your instructor.",
+          "general": "Add PDFs, DOCX, spreadsheets, or text files you want to keep."
+        }
+      },
+      "review": {
+        "title": "Review summary",
+        "description": {
+          "student": "Check the lesson breakdown before saving to memory.",
+          "general": "Skim grouped topics before saving to your library."
+        }
+      },
+      "memory": {
+        "title": "Use your memory",
+        "description": {
+          "student": "Ask AI on the dashboard using what you saved.",
+          "general": "Ask AI and revisit organized knowledge anytime."
+        }
+      }
+    },
+    "uploadTitle": "Upload and summarize",
+    "uploadHelp": {
+      "student": "Handouts and lecture files work best. Long documents are split and summarized chunk by chunk.",
+      "general": "Reference docs and working notes are welcome. Large files are processed in sections automatically."
+    },
+    "documentTitle": "Document name (optional)",
+    "documentTitlePlaceholder": "Auto-filled from file name",
+    "dropFiles": "Choose files or drag here",
+    "supportedFormats": "PDF, DOCX, XLSX, CSV, TXT, MD",
+    "uploadAndSummarize": "Upload and summarize",
+    "uploading": "Processing...",
+    "selectFilesFirst": "Choose at least one file first.",
+    "reviewTitle": "Ready to save",
+    "noPendingReview": "No summaries waiting. Upload a file to get started.",
+    "extractedItems": "{{count}} summarized items",
+    "saveToMemory": "Save to memory",
+    "savedToMemory": "Saved to your personal memory.",
+    "approveFailed": "Could not save to memory.",
+    "showCategories": "Show by category",
+    "hideCategories": "Hide categories",
+    "emptyDraft": "No structured items yet — you can still save the overview.",
+    "memoryTitle": "Your memory library",
+    "memoryCount": "{{count}} saved items",
+    "noMemory": "Nothing saved yet. Upload a document and approve the summary.",
+    "categories": {
+      "student": {
+        "OVERVIEW": "Course overview",
+        "SCOPE": "Course scope",
+        "REQUIREMENT": "Lesson content",
+        "DECISION": "Key points",
+        "RISK": "Watch out",
+        "ISSUE": "Common mistakes",
+        "ACTION": "To practice",
+        "MILESTONE": "Exam / deadline",
+        "GLOSSARY": "Terms & definitions",
+        "ASSUMPTION": "Assumptions",
+        "OPEN_QUESTION": "Questions to clarify",
+        "STAKEHOLDER": "People & roles"
+      },
+      "general": {
+        "OVERVIEW": "Overview",
+        "SCOPE": "Scope",
+        "REQUIREMENT": "Main topics",
+        "DECISION": "Decisions",
+        "RISK": "Risks",
+        "ISSUE": "Issues",
+        "ACTION": "Action items",
+        "MILESTONE": "Milestones",
+        "GLOSSARY": "Glossary",
+        "ASSUMPTION": "Assumptions",
+        "OPEN_QUESTION": "Open questions",
+        "STAKEHOLDER": "Stakeholders"
+      }
+    }
+  },
   "tenant": {
     "tenantAdmin": "TENANT_ADMIN",
     "manager": "MANAGER",
@@ -364,10 +484,12 @@
     "taskReminders": "Task Reminders",
     "meetingHistory": "Meeting History",
     "aiTrace": "AI Activity Log",
+    "aiChatHistory": "AI Chat History",
     "organizationSetup": "Organization Setup",
     "organizationAdmin": "Organizations",
     "platformUsers": "Platform Users",
     "packages": "Packages",
+    "adminBilling": "Billing",
     "generalNotes": "General Notes",
     "feelingLogs": "Feeling Log",
     "projects": "Projects",
@@ -415,7 +537,58 @@
     "emailSent": "Email sent",
     "emailNotSent": "Email not sent yet",
     "emailError": "Email error",
-    "noPendingInvitations": "No pending invitations."
+    "noPendingInvitations": "No pending invitations.",
+    "billingStatus": "Billing",
+    "billingPending": "Pending activation",
+    "billingActive": "Active",
+    "billingPastDue": "Past due",
+    "billingSuspended": "Suspended",
+    "billingCancelled": "Cancelled",
+    "billingStartDate": "Billing start",
+    "billingPeriodEnd": "Period ends",
+    "billingNotStarted": "—",
+    "viewBilling": "View billing & payments"
+  },
+  "adminBilling": {
+    "title": "Billing & payments",
+    "description": "Review billing periods, attach transfer slips, and approve manual payments (no payment gateway yet).",
+    "organization": "Organization",
+    "period": "Period",
+    "periodEnd": "Ends",
+    "package": "Package",
+    "amount": "Amount",
+    "status": "Status",
+    "payments": "Payments",
+    "statusFilter": "Status",
+    "allStatuses": "All statuses",
+    "noPayments": "No slips yet",
+    "uploadSlip": "Attach slip",
+    "viewSlip": "View slip",
+    "approve": "Approve",
+    "reject": "Reject",
+    "slipUploaded": "Transfer slip uploaded and pending review.",
+    "uploadFailed": "Unable to upload slip.",
+    "paymentApproved": "Payment approved. Billing period marked as paid.",
+    "paymentRejected": "Payment rejected.",
+    "rejectPrompt": "Reason for rejection (optional)",
+    "slipOpenFailed": "Unable to open slip file.",
+    "empty": "No billing periods match the current filters.",
+    "clearTenantFilter": "Clear organization filter",
+    "pagination": "Page {{page}} of {{totalPages}}",
+    "prev": "Previous",
+    "next": "Next",
+    "periodStatus": {
+      "OPEN": "Open",
+      "AWAITING_PAYMENT": "Awaiting payment",
+      "PAID": "Paid",
+      "PAST_DUE": "Past due",
+      "VOID": "Void"
+    },
+    "paymentStatus": {
+      "PENDING": "Pending review",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected"
+    }
   },
   "adminPlatformUsers": {
     "title": "Platform Users",
@@ -567,12 +740,29 @@
     },
     "progress": {
       "title": "Current processing status",
-      "subtitle": "This may take some time",
+      "subtitle": "Large documents may take several minutes",
+      "overall": "Overall progress",
+      "chunkBar": "AI extraction progress",
       "failedHint": "A step failed. Review the message above and try again.",
       "fileCount": "Processing {{count}} file(s)",
+      "elapsed": "Elapsed: {{duration}}",
+      "eta": "About {{duration}} left",
+      "etaUnknown": "Estimating time remaining…",
+      "readingDetail": "Reading document: {{name}}",
+      "savingDetail": "Saving source: {{name}}",
+      "chunkDetail": "{{name}} — chunk {{current}}/{{total}} ({{remaining}} remaining)",
+      "durationSeconds": "{{count}}s",
+      "durationMinutes": "{{count}} min",
+      "durationMinutesSeconds": "{{minutes}} min {{seconds}}s",
+      "stats": {
+        "currentChunk": "Current chunk",
+        "remaining": "Chunks left",
+        "successful": "Processed OK"
+      },
       "steps": {
         "validatingInput": "Validate title, type, and document content",
         "uploadingFile": "Upload file to server",
+        "readingFile": "Read and segment document text",
         "processingOnServer": "Read document, save source, and run AI extraction on server",
         "savingSource": "Save source to project knowledge queue",
         "aiExtracting": "Extract structured baseline with AI",
@@ -980,7 +1170,7 @@
       "recordTranscript": "Record & Transcript"
     },
     "actions": {
-      "generate": "Generate",
+      "generate": "Ask AI",
       "copyAnswer": "Copy answer",
       "clear": "Clear",
       "startRecording": "Start Recording",
@@ -1000,11 +1190,20 @@
     "placeholders": {
       "askAnything": "Ask Rubjob anything about the work..."
     },
+    "assistedBadge": "AI Assisted",
+    "suggestions": {
+      "tryAsk": "Try asking:",
+      "thisProject": "this project",
+      "latestMeeting": "Summarize the latest status for {{project}}",
+      "nearDeadline": "Which tasks in {{project}} are near the deadline?",
+      "openTasks": "What are my open tasks right now?"
+    },
     "links": {
       "title": "Related places",
       "openMeeting": "Open meeting minutes",
       "openProject": "Open project continuity",
-      "openActions": "View action items"
+      "openActions": "View action item",
+      "openKnowledge": "Open project notes/knowledge"
     },
     "status": {
       "ready": "Ready to take it on",
@@ -1188,11 +1387,22 @@
     },
     "progress": {
       "title": "Current processing status",
-      "subtitle": "This may take some time",
+      "subtitle": "Large documents may take several minutes",
+      "overall": "Overall progress",
+      "chunkBar": "AI analysis progress",
       "failedHint": "Some step failed. Please review the error above and try again.",
+      "elapsed": "Elapsed: {{duration}}",
+      "eta": "About {{duration}} left",
+      "etaUnknown": "Estimating time remaining…",
+      "chunkDetail": "{{name}} — chunk {{current}}/{{total}} ({{remaining}} remaining)",
+      "stats": {
+        "currentChunk": "Current chunk",
+        "remaining": "Chunks left",
+        "successful": "Processed OK"
+      },
       "steps": {
         "validatingInput": "Check input file and meeting context",
-        "extractingDocumentText": "Read text from DOCX file",
+        "extractingDocumentText": "Read text from document",
         "analyzingDocumentWithAI": "Analyze document with AI",
         "mappingToTemplate": "Fill minute template fields",
         "uploadingRecording": "Upload recording file",

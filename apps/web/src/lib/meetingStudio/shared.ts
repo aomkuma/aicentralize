@@ -228,6 +228,60 @@ export const toChecklistItems = (
     }
   })
 
+const actionItemKey = (item: AiActionItem) =>
+  item.task.trim().toLowerCase().replace(/\s+/g, ' ')
+
+export function mergeTranscriptSummaries(parts: TranscriptSummary[]): TranscriptSummary {
+  const decisions: string[] = []
+  const risks: string[] = []
+  const actionItems: AiActionItem[] = []
+  const seenDecisions = new Set<string>()
+  const seenRisks = new Set<string>()
+  const seenActions = new Set<string>()
+
+  for (const part of parts) {
+    for (const decision of part.decisions) {
+      const key = decision.toLowerCase()
+      if (!seenDecisions.has(key)) {
+        seenDecisions.add(key)
+        decisions.push(decision)
+      }
+    }
+
+    for (const risk of part.risks) {
+      const key = risk.toLowerCase()
+      if (!seenRisks.has(key)) {
+        seenRisks.add(key)
+        risks.push(risk)
+      }
+    }
+
+    for (const item of part.actionItems) {
+      const key = actionItemKey(item)
+      if (!key || seenActions.has(key)) {
+        continue
+      }
+      seenActions.add(key)
+      actionItems.push(item)
+    }
+  }
+
+  const summary = parts.map((part) => part.summary).find(Boolean) ?? ''
+  const objective = parts.map((part) => part.objective).find(Boolean) ?? ''
+  const consultantNotes = uniqueNonEmpty(parts.map((part) => part.consultantNotes), 4).join('\n')
+  const nextSteps = parts.map((part) => part.nextSteps).filter(Boolean).join('\n')
+
+  return {
+    summary,
+    objective,
+    consultantNotes,
+    decisions: decisions.slice(0, 30),
+    risks: risks.slice(0, 30),
+    actionItems: actionItems.slice(0, 40),
+    nextSteps
+  }
+}
+
 const extractJsonCandidate = (raw: string): string | null => {
   const trimmed = raw.trim()
   const stripped = trimmed

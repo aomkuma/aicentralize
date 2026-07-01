@@ -4,6 +4,15 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
 import WorkflowProgressPanel from '../components/WorkflowProgressPanel'
+import {
+  buildChunkSubProgress,
+  buildKnowledgeJobDetail,
+  computeKnowledgeProgressPercent,
+  estimateKnowledgeEtaMs,
+  formatKnowledgeDuration,
+  mapJobStageToProgressKey,
+  type KnowledgeProgressKey,
+} from '../lib/knowledgeProgress'
 import { useApi } from '../hooks/useApi'
 import type {
   ProjectKnowledgeAuthorityLevel,
@@ -33,19 +42,9 @@ const authorityLevels: ProjectKnowledgeAuthorityLevel[] = ['AUTHORITATIVE', 'SUP
 const HISTORY_PAGE_SIZE = 15
 
 type KnowledgeProgressMode = 'import' | 'save' | 'extract' | 'approve' | null
-type KnowledgeProgressKey =
-  | 'validatingInput'
-  | 'uploadingFile'
-  | 'processingOnServer'
-  | 'savingSource'
-  | 'aiExtracting'
-  | 'reviewingExtraction'
-  | 'savingToMemory'
-  | 'completed'
-  | 'failed'
 
 const progressFlowByMode: Record<Exclude<KnowledgeProgressMode, null>, KnowledgeProgressKey[]> = {
-  import: ['validatingInput', 'uploadingFile', 'processingOnServer', 'completed'],
+  import: ['validatingInput', 'uploadingFile', 'readingFile', 'savingSource', 'aiExtracting', 'completed'],
   save: ['validatingInput', 'savingSource', 'completed'],
   extract: ['validatingInput', 'aiExtracting', 'completed'],
   approve: ['reviewingExtraction', 'savingToMemory', 'completed'],
@@ -244,6 +243,10 @@ export default function ProjectKnowledgePage() {
   const [progressMode, setProgressMode] = useState<KnowledgeProgressMode>(null)
   const [progressKey, setProgressKey] = useState<KnowledgeProgressKey>('validatingInput')
   const [progressDetail, setProgressDetail] = useState('')
+  const [progressPercent, setProgressPercent] = useState(0)
+  const [progressStartedAt, setProgressStartedAt] = useState<number | null>(null)
+  const [progressElapsedSeconds, setProgressElapsedSeconds] = useState(0)
+  const [activeJobSnapshot, setActiveJobSnapshot] = useState<ProjectKnowledgeImportJob | null>(null)
 
   const fetchKnowledge = useCallback(async () => {
     if (!projectId) {
@@ -348,19 +351,119 @@ export default function ProjectKnowledgePage() {
     }))
   }, [progressMode, t])
 
+  useEffect(() => {
+    if (!progressMode || progressKey === 'completed' || progressKey === 'failed') {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      if (progressStartedAt) {
+        setProgressElapsedSeconds(Math.floor((Date.now() - progressStartedAt) / 1000))
+      }
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [progressKey, progressMode, progressStartedAt])
+
+  const progressPanelExtras = useMemo(() => {
+    const elapsedLabel = progressStartedAt
+      ? t('projectKnowledge.progress.elapsed', {
+          duration: formatKnowledgeDuration(progressElapsedSeconds, t),
+        })
+      : undefined
+
+    const etaMs = estimateKnowledgeEtaMs(
+      progressElapsedSeconds * 1000,
+      activeJobSnapshot?.currentChunk,
+      activeJobSnapshot?.totalChunks,
+    )
+    const etaLabel = etaMs !== null
+      ? t('projectKnowledge.progress.eta', {
+          duration: formatKnowledgeDuration(Math.ceil(etaMs / 1000), t),
+        })
+      : progressMode === 'import' || progressMode === 'extract'
+        ? t('projectKnowledge.progress.etaUnknown')
+        : undefined
+
+    const stats = activeJobSnapshot?.totalChunks
+      ? [
+          {
+            label: t('projectKnowledge.progress.stats.currentChunk'),
+            value: `${activeJobSnapshot.currentChunk ?? 0} / ${activeJobSnapshot.totalChunks}`,
+          },
+          {
+            label: t('projectKnowledge.progress.stats.remaining'),
+            value: String(
+              Math.max(
+                0,
+                activeJobSnapshot.totalChunks - (activeJobSnapshot.currentChunk ?? 0),
+              ),
+            ),
+          },
+          {
+            label: t('projectKnowledge.progress.stats.successful'),
+            value: String(activeJobSnapshot.successfulChunks ?? activeJobSnapshot.currentChunk ?? 0),
+          },
+        ]
+      : undefined
+
+    const chunkPercent = buildChunkSubProgress(activeJobSnapshot ?? undefined)
+    const subProgress = chunkPercent !== null
+      ? {
+          label: t('projectKnowledge.progress.chunkBar'),
+          percent: chunkPercent,
+        }
+      : undefined
+
+    return { elapsedLabel, etaLabel, stats, subProgress }
+  }, [
+    activeJobSnapshot,
+    progressElapsedSeconds,
+    progressMode,
+    progressStartedAt,
+    t,
+  ])
+
+  const beginProgress = (mode: Exclude<KnowledgeProgressMode, null>) => {
+    setProgressStartedAt(Date.now())
+    setProgressElapsedSeconds(0)
+    setActiveJobSnapshot(null)
+    setProgressMode(mode)
+  }
+
   const updateProgress = (
     mode: Exclude<KnowledgeProgressMode, null>,
     key: KnowledgeProgressKey,
     detail?: string,
+    percent?: number,
+    job?: ProjectKnowledgeImportJob | null,
   ) => {
     setProgressMode(mode)
     setProgressKey(key)
+    if (job !== undefined) {
+      setActiveJobSnapshot(job)
+    }
     if (detail !== undefined) {
       setProgressDetail(detail)
     }
+    if (percent !== undefined) {
+      setProgressPercent(percent)
+    } else if (key === 'completed') {
+      setProgressPercent(100)
+    } else if (key === 'failed') {
+      setProgressPercent(0)
+    } else {
+      const flow = progressFlowByMode[mode]
+      const index = flow.indexOf(key)
+      setProgressPercent(index >= 0 ? Math.max(5, (index / flow.length) * 100) : 5)
+    }
   }
 
-  const waitForImportJob = async (jobId: string, fileName: string) => {
+  const waitForKnowledgeJob = async (
+    mode: 'import' | 'extract',
+    jobId: string,
+    fallbackName: string,
+  ) => {
     while (true) {
       const job = await get<ProjectKnowledgeImportJob>(`/projects/${projectId}/knowledge/import-jobs/${jobId}`)
       if (!job) {
@@ -372,16 +475,16 @@ export default function ProjectKnowledgePage() {
       }
 
       if (job.status === 'completed') {
-        updateProgress('import', 'completed', fileName)
+        updateProgress(mode, 'completed', job.detail || fallbackName, 100, null)
         return job
       }
 
-      const chunkDetail = job.totalChunks
-        ? `${fileName} · chunk ${job.currentChunk ?? 0}/${job.totalChunks}`
-        : fileName
+      const progressKey = mapJobStageToProgressKey(job.stage)
+      const detail = buildKnowledgeJobDetail(job, fallbackName, t)
+      const percent = computeKnowledgeProgressPercent(progressKey, job)
 
-      updateProgress('import', 'processingOnServer', chunkDetail)
-      await wait(1500)
+      updateProgress(mode, progressKey, detail, percent, job)
+      await wait(1000)
     }
   }
 
@@ -393,6 +496,7 @@ export default function ProjectKnowledgePage() {
     const cleanTitle = title.trim()
     const cleanContent = contentText.trim()
 
+    beginProgress('save')
     updateProgress('save', 'validatingInput')
 
     if (cleanTitle.length < 2 || cleanContent.length < 20) {
@@ -436,7 +540,8 @@ export default function ProjectKnowledgePage() {
 
     setIsImporting(true)
     setNotice('')
-    updateProgress('import', 'validatingInput', t('projectKnowledge.progress.fileCount', { count: selectedFiles.length }))
+    beginProgress('import')
+    updateProgress('import', 'validatingInput', t('projectKnowledge.progress.fileCount', { count: selectedFiles.length }), 5)
 
     try {
       let importedCount = 0
@@ -461,16 +566,16 @@ export default function ProjectKnowledgePage() {
             formData.append('documentDate', new Date(file.lastModified).toISOString())
           }
 
-          updateProgress('import', 'uploadingFile', file.name)
+          updateProgress('import', 'uploadingFile', file.name, 15)
           const job = await postFormData<ProjectKnowledgeImportJob>(
             `/projects/${projectId}/knowledge/sources/import-jobs`,
             formData,
             {
-              onUploadComplete: () => updateProgress('import', 'processingOnServer', file.name),
+              onUploadComplete: () => updateProgress('import', 'readingFile', file.name, 22),
             },
           )
 
-          await waitForImportJob(job.id, file.name)
+          await waitForKnowledgeJob('import', job.id, file.name)
           importedCount += 1
         } catch (fileError) {
           failedFiles.push(formatFileErrorMessage(file.name, describeFileProcessingError(file, fileError, t)))
@@ -489,7 +594,7 @@ export default function ProjectKnowledgePage() {
 
       if (importedCount > 0) {
         setGuidedStep(2)
-        updateProgress('import', 'completed')
+        updateProgress('import', 'completed', undefined, 100)
       } else {
         updateProgress('import', 'failed')
       }
@@ -505,20 +610,28 @@ export default function ProjectKnowledgePage() {
 
   const handleExtract = async (sourceId: string) => {
     const source = sources.find((item) => item.id === sourceId)
-    updateProgress('extract', 'validatingInput', source?.title)
+    beginProgress('extract')
+    updateProgress('extract', 'validatingInput', source?.title, 3)
     setNotice('')
-    updateProgress('extract', 'aiExtracting', source?.title)
 
-    const result = await post(`/projects/${projectId}/knowledge/sources/${sourceId}/extract`)
-    if (result) {
+    try {
+      const job = await post<ProjectKnowledgeImportJob>(
+        `/projects/${projectId}/knowledge/sources/${sourceId}/extract-jobs`,
+        {},
+      )
+
+      if (!job) {
+        throw new Error(t('projectKnowledge.extractFailed'))
+      }
+
+      await waitForKnowledgeJob('extract', job.id, source?.title ?? t('projectKnowledge.source'))
       setNotice(t('projectKnowledge.extracted'))
       setGuidedStep(2)
-      updateProgress('extract', 'completed', source?.title)
       await fetchKnowledge()
-      return
+    } catch (extractError) {
+      setNotice(extractError instanceof Error ? extractError.message : t('projectKnowledge.extractFailed'))
+      updateProgress('extract', 'failed', source?.title, 0, null)
     }
-
-    updateProgress('extract', 'failed', source?.title)
   }
 
   const handleApprove = async (sourceId: string) => {
@@ -679,6 +792,12 @@ export default function ProjectKnowledgePage() {
               title={t('projectKnowledge.progress.title')}
               subtitle={t('projectKnowledge.progress.subtitle')}
               detail={progressDetail || undefined}
+              percent={progressPercent}
+              progressLabel={t('projectKnowledge.progress.overall')}
+              elapsedLabel={progressPanelExtras.elapsedLabel}
+              etaLabel={progressPanelExtras.etaLabel}
+              subProgress={progressPanelExtras.subProgress}
+              stats={progressPanelExtras.stats}
               steps={progressSteps}
               activeKey={progressKey}
               failedHint={progressKey === 'failed' ? t('projectKnowledge.progress.failedHint') : undefined}

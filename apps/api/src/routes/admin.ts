@@ -1,17 +1,22 @@
 import crypto from "node:crypto";
 import { Router } from "express";
-import { SystemRole, TenantRole } from "@prisma/client";
+import { SystemRole, TenantEntityType, TenantRole } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireSystemRole } from "../middleware/auth";
 import { env } from "../config/env";
 import { sendInvitationEmail } from "../services/emailService";
+import { getIndividualPackageOrThrow, getTenantCategoryOrThrow } from "../services/tenantMetadataService";
+import { recordTenantPackageChange } from "../services/tenantBillingService";
+import { adminBillingRouter } from "./admin-billing";
 
 export const adminRouter = Router();
 
 const updateTenantSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   slug: z.string().trim().min(2).max(80).optional(),
+  entityType: z.nativeEnum(TenantEntityType).optional(),
+  tenantCategoryId: z.string().min(1).nullable().optional(),
   isActive: z.boolean().optional(),
   currentPackageId: z.string().min(1).nullable().optional()
 }).refine((value) => Object.keys(value).length > 0, {
@@ -90,6 +95,8 @@ const updatePlatformUserSchema = z.object({
 });
 
 adminRouter.use(requireAuth, requireSystemRole([SystemRole.SUPER_ADMIN, SystemRole.MODERATOR]));
+
+adminRouter.use("/billing", adminBillingRouter);
 
 function createInviteToken() {
   return crypto.randomBytes(32).toString("base64url");
@@ -195,6 +202,14 @@ adminRouter.get("/tenants", async (_req, res) => {
   const tenants = await prisma.tenant.findMany({
     include: {
       currentPackage: true,
+      tenantCategory: true,
+      activatedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      },
       createdBy: {
         select: {
           id: true,
@@ -223,18 +238,104 @@ adminRouter.patch("/tenants/:tenantId", async (req, res) => {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
   }
 
+  const existingTenant = await prisma.tenant.findUnique({
+    where: { id: req.params.tenantId },
+    select: {
+      id: true,
+      entityType: true,
+      tenantCategoryId: true,
+      currentPackageId: true
+    }
+  });
+
+  if (!existingTenant) {
+    return res.status(404).json({ message: "Organization not found" });
+  }
+
+  const nextEntityType = parsed.data.entityType ?? existingTenant.entityType;
+  const nextTenantCategoryId = parsed.data.tenantCategoryId === undefined
+    ? existingTenant.tenantCategoryId
+    : parsed.data.tenantCategoryId;
+
+  if (!nextTenantCategoryId) {
+    return res.status(400).json({ message: "Tenant category is required" });
+  }
+
+  try {
+    await getTenantCategoryOrThrow(nextTenantCategoryId, nextEntityType);
+  } catch (error) {
+    return res.status(400).json({
+      message: error instanceof Error ? error.message : "Invalid tenant category"
+    });
+  }
+
+  let nextPackageId = parsed.data.currentPackageId;
+
+  if (nextEntityType === TenantEntityType.INDIVIDUAL) {
+    try {
+      const individualPackage = await getIndividualPackageOrThrow();
+      nextPackageId = individualPackage.id;
+    } catch (error) {
+      return res.status(400).json({
+        message: error instanceof Error ? error.message : "INDIVIDUAL package is not configured"
+      });
+    }
+  } else if (parsed.data.currentPackageId !== undefined && parsed.data.currentPackageId !== null) {
+    const pkg = await prisma.subscriptionPackage.findUnique({
+      where: { id: parsed.data.currentPackageId },
+      select: { id: true }
+    });
+
+    if (!pkg) {
+      return res.status(400).json({ message: "Package not found" });
+    }
+  } else if (
+    parsed.data.entityType === TenantEntityType.ORGANIZATION &&
+    existingTenant.entityType === TenantEntityType.INDIVIDUAL &&
+    parsed.data.currentPackageId === undefined
+  ) {
+    const defaultPackage = await prisma.subscriptionPackage.findFirst({
+      where: { isActive: true, isDefault: true },
+      orderBy: { createdAt: "asc" }
+    });
+
+    nextPackageId = defaultPackage?.id ?? null;
+  }
+
   const tenant = await prisma.tenant.update({
     where: { id: req.params.tenantId },
     data: {
       name: parsed.data.name,
       slug: parsed.data.slug,
+      entityType: parsed.data.entityType,
       isActive: parsed.data.isActive,
-      currentPackageId: parsed.data.currentPackageId
+      tenantCategoryId: parsed.data.tenantCategoryId === undefined ? undefined : nextTenantCategoryId,
+      currentPackageId: nextPackageId
     },
     include: {
-      currentPackage: true
+      tenantCategory: true,
+      currentPackage: true,
+      activatedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
     }
   });
+
+  if (
+    parsed.data.currentPackageId !== undefined &&
+    existingTenant.currentPackageId !== (nextPackageId ?? null)
+  ) {
+    await recordTenantPackageChange({
+      tenantId: existingTenant.id,
+      actorUserId: req.user!.id,
+      previousPackageId: existingTenant.currentPackageId,
+      nextPackageId: nextPackageId ?? null
+    });
+  }
 
   res.json(tenant);
 });

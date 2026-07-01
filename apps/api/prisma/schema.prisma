@@ -26,6 +26,43 @@ enum TenantRole {
   VIEWER
 }
 
+enum TenantEntityType {
+  ORGANIZATION
+  INDIVIDUAL
+}
+
+enum TenantBillingStatus {
+  PENDING_ACTIVATION
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum TenantBillingEventType {
+  ACTIVATED
+  PERIOD_OPENED
+  PAYMENT_SUBMITTED
+  PAYMENT_APPROVED
+  PAYMENT_REJECTED
+  PACKAGE_CHANGED
+  MARKED_PAST_DUE
+}
+
+enum TenantBillingPeriodStatus {
+  OPEN
+  AWAITING_PAYMENT
+  PAID
+  PAST_DUE
+  VOID
+}
+
+enum TenantBillingPaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum ActionStatus {
   OPEN
   TODO
@@ -172,6 +209,18 @@ enum ProjectKnowledgeSourceStatus {
   REJECTED
 }
 
+enum KnowledgeImportJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum KnowledgeImportJobKind {
+  IMPORT
+  EXTRACT
+}
+
 enum ProjectMemoryItemType {
   OVERVIEW
   SCOPE
@@ -289,11 +338,16 @@ model User {
   projectKnowledgeSourcesUploaded ProjectKnowledgeSource[] @relation("ProjectKnowledgeSourceUploader")
   projectMemoryItemsApproved ProjectMemoryItem[] @relation("ProjectMemoryItemApprover")
   projectGeneralNotesAuthored ProjectGeneralNote[] @relation("ProjectGeneralNoteAuthor")
+  projectKnowledgeImportJobs ProjectKnowledgeImportJob[]
   tenantMemberships TenantMembership[]
   createdTenants Tenant[] @relation("TenantCreator")
+  activatedTenants Tenant[] @relation("TenantActivatedBy")
   systemSettingsUpdates SystemSettings[]
   invitationsCreated UserInvitation[] @relation("InvitationCreator")
   invitationsAccepted UserInvitation[] @relation("InvitationAcceptedUser")
+  billingEventsActed TenantBillingEvent[] @relation("BillingEventActor")
+  billingPaymentsSubmitted TenantBillingPayment[] @relation("BillingPaymentSubmittedBy")
+  billingPaymentsReviewed TenantBillingPayment[] @relation("BillingPaymentReviewedBy")
 }
 
 model SystemSettings {
@@ -313,13 +367,24 @@ model Tenant {
   slug        String   @unique
   name        String
   isActive    Boolean  @default(true)
+  entityType  TenantEntityType @default(ORGANIZATION)
+  tenantCategoryId String?
   currentPackageId String?
+  billingStatus TenantBillingStatus @default(PENDING_ACTIVATION)
+  billingStartDate DateTime?
+  billingTimezone String @default("Asia/Bangkok")
+  currentPeriodStart DateTime?
+  currentPeriodEnd DateTime?
+  activatedAt DateTime?
+  activatedByUserId String?
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  tenantCategory TenantCategory? @relation(fields: [tenantCategoryId], references: [id], onDelete: SetNull)
   currentPackage SubscriptionPackage? @relation(fields: [currentPackageId], references: [id], onDelete: SetNull)
   createdBy   User     @relation("TenantCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  activatedBy User?    @relation("TenantActivatedBy", fields: [activatedByUserId], references: [id], onDelete: SetNull)
   memberships TenantMembership[]
   projects    Project[]
   invitations UserInvitation[]
@@ -329,9 +394,31 @@ model Tenant {
   communicationSentimentSnapshots CommunicationSentimentSnapshot[]
   morningBriefings MorningBriefing[]
   feelingLogs FeelingLog[] @relation("FeelingLogTenant")
+  billingEvents TenantBillingEvent[]
+  billingPeriods TenantBillingPeriod[]
+  billingPayments TenantBillingPayment[]
 
   @@index([createdAt])
   @@index([currentPackageId])
+  @@index([billingStatus])
+  @@index([billingStartDate])
+  @@index([activatedByUserId])
+  @@index([entityType, tenantCategoryId])
+}
+
+model TenantCategory {
+  id         String           @id @default(cuid())
+  code       String           @unique
+  name       String
+  entityType TenantEntityType
+  sortOrder  Int              @default(0)
+  isActive   Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  tenants    Tenant[]
+
+  @@index([entityType, isActive, sortOrder])
 }
 
 enum PackageDiscountType {
@@ -359,9 +446,73 @@ model SubscriptionPackage {
   updatedAt                DateTime              @updatedAt
 
   tenants Tenant[]
+  billingPeriods TenantBillingPeriod[]
 
   @@index([isActive, isDefault])
   @@index([createdAt])
+}
+
+model TenantBillingEvent {
+  id          String                 @id @default(cuid())
+  tenantId    String
+  actorUserId String?
+  type        TenantBillingEventType
+  payloadJson Json?
+  createdAt   DateTime               @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  User?  @relation("BillingEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([type, createdAt])
+}
+
+model TenantBillingPeriod {
+  id          String                    @id @default(cuid())
+  tenantId    String
+  periodStart DateTime
+  periodEnd   DateTime?
+  packageId   String?
+  packageCode String
+  packageName String?
+  amountCents Int
+  currency    String                    @default("THB")
+  status      TenantBillingPeriodStatus @default(AWAITING_PAYMENT)
+  paidAt      DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  tenant   Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  package  SubscriptionPackage?   @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  payments TenantBillingPayment[]
+
+  @@index([tenantId, periodStart])
+  @@index([status, periodEnd])
+}
+
+model TenantBillingPayment {
+  id                String                     @id @default(cuid())
+  periodId          String
+  tenantId          String
+  status            TenantBillingPaymentStatus @default(PENDING)
+  slipFileName      String
+  slipStoredName    String
+  slipMimeType      String?
+  slipSizeBytes     Int?
+  submittedByUserId String
+  reviewedByUserId  String?
+  reviewNote        String?
+  submittedAt       DateTime                   @default(now())
+  reviewedAt        DateTime?
+
+  period      TenantBillingPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  submittedBy User                @relation("BillingPaymentSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+  reviewedBy  User?               @relation("BillingPaymentReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([periodId, status])
+  @@index([tenantId, submittedAt])
 }
 
 model TenantMembership {
@@ -448,6 +599,7 @@ model Project {
   knowledgeSources ProjectKnowledgeSource[]
   memoryItems ProjectMemoryItem[]
   generalNotes ProjectGeneralNote[]
+  knowledgeImportJobs ProjectKnowledgeImportJob[]
 
   @@index([tenantId, createdAt])
 }
@@ -490,6 +642,32 @@ model ProjectKnowledgeExtraction {
   source            ProjectKnowledgeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@index([sourceId, createdAt])
+}
+
+model ProjectKnowledgeImportJob {
+  id               String                   @id @default(uuid())
+  kind             KnowledgeImportJobKind
+  projectId        String
+  userId           String
+  fileName         String
+  sourceId         String?
+  status           KnowledgeImportJobStatus @default(QUEUED)
+  stage            String                   @default("queued")
+  detail           String?
+  currentChunk     Int?
+  totalChunks      Int?
+  successfulChunks Int?
+  error            String?
+  resultJson       Json?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  completedAt      DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
 }
 
 model ProjectMemoryItem {

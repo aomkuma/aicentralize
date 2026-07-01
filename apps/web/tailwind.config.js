@@ -6,6 +6,10 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
+    fontFamily: {
+      sans: ['var(--font-sans)'],
+      display: ['var(--font-sans)'],
+    },
     extend: {
       colors: {
         brand: {

@@ -1,12 +1,40 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
 import { memberNickname } from '../lib/memberDisplay'
 import { useApi } from '../hooks/useApi'
 import { useAuthStore } from '../stores/authStore'
-import type { AdminTenant, SubscriptionPackage, TenantMembership, UserInvitation } from '../types'
+import type { AdminTenant, SubscriptionPackage, TenantCategory, TenantMembership, UserInvitation } from '../types'
 
 type TenantRole = 'TENANT_ADMIN' | 'MANAGER' | 'MEMBER' | 'VIEWER'
+
+function formatBillingDate(value?: string | null) {
+  if (!value) {
+    return null
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function billingStatusLabel(t: (key: string) => string, status?: AdminTenant['billingStatus']) {
+  switch (status) {
+    case 'ACTIVE':
+      return t('adminOrganizations.billingActive')
+    case 'PAST_DUE':
+      return t('adminOrganizations.billingPastDue')
+    case 'SUSPENDED':
+      return t('adminOrganizations.billingSuspended')
+    case 'CANCELLED':
+      return t('adminOrganizations.billingCancelled')
+    case 'PENDING_ACTIVATION':
+    default:
+      return t('adminOrganizations.billingPending')
+  }
+}
 
 export default function AdminOrganizationsPage() {
   const { t } = useTranslation()
@@ -25,6 +53,7 @@ export default function AdminOrganizationsPage() {
   const [members, setMembers] = useState<TenantMembership[]>([])
   const [invitations, setInvitations] = useState<UserInvitation[]>([])
   const [packages, setPackages] = useState<SubscriptionPackage[]>([])
+  const [categories, setCategories] = useState<TenantCategory[]>([])
   const [manualInviteUrl, setManualInviteUrl] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -49,6 +78,13 @@ export default function AdminOrganizationsPage() {
       setPackages(data)
     }
   }, [get, isSuperAdmin])
+
+  const fetchCategories = useCallback(async () => {
+    const data = await get<TenantCategory[]>('/master-data/tenant-categories')
+    if (Array.isArray(data)) {
+      setCategories(data)
+    }
+  }, [get])
 
   const fetchMembers = useCallback(async () => {
     if (!selectedTenantId) {
@@ -75,6 +111,10 @@ export default function AdminOrganizationsPage() {
   useEffect(() => {
     fetchPackages()
   }, [fetchPackages])
+
+  useEffect(() => {
+    fetchCategories()
+  }, [fetchCategories])
 
   useEffect(() => {
     fetchMembers()
@@ -141,6 +181,10 @@ export default function AdminOrganizationsPage() {
   }
 
   const onChangeTenantPackage = async (tenant: AdminTenant, packageId: string) => {
+    if (tenant.entityType === 'INDIVIDUAL') {
+      return
+    }
+
     if (tenant.currentPackageId === packageId) {
       return
     }
@@ -149,6 +193,19 @@ export default function AdminOrganizationsPage() {
     const updated = await patch<AdminTenant>(`/admin/tenants/${tenant.id}`, {
       currentPackageId: packageId || null,
     })
+
+    if (updated) {
+      setTenants((items) => items.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)))
+      setNotice(t('adminOrganizations.organizationSaved'))
+    }
+  }
+
+  const onChangeTenantMetadata = async (
+    tenant: AdminTenant,
+    payload: Partial<Pick<AdminTenant, 'entityType' | 'tenantCategoryId'>>,
+  ) => {
+    setNotice(null)
+    const updated = await patch<AdminTenant>(`/admin/tenants/${tenant.id}`, payload)
 
     if (updated) {
       setTenants((items) => items.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)))
@@ -257,6 +314,7 @@ export default function AdminOrganizationsPage() {
   }
 
   const selectedPackage = selectedTenant?.currentPackage ?? null
+  const individualPackage = packages.find((item) => item.code === 'INDIVIDUAL') ?? null
   const activeMembers = members.filter((member) => member.isActive !== false).length
   const includedUsers = selectedPackage?.maxUsers ?? 0
   const additionalUsers = Math.max(0, activeMembers - includedUsers)
@@ -293,7 +351,19 @@ export default function AdminOrganizationsPage() {
                     <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.organizationName')}</th>
                     <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">Slug</th>
                     {isSuperAdmin && (
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">Type</th>
+                    )}
+                    {isSuperAdmin && (
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">Business / Occupation</th>
+                    )}
+                    {isSuperAdmin && (
                       <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">Package</th>
+                    )}
+                    {isSuperAdmin && (
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.billingStatus')}</th>
+                    )}
+                    {isSuperAdmin && (
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.billingStartDate')}</th>
                     )}
                     <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.owner')}</th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700 dark:text-slate-300">{t('adminOrganizations.members')}</th>
@@ -323,17 +393,66 @@ export default function AdminOrganizationsPage() {
                       {isSuperAdmin && (
                         <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                           <select
-                            value={tenant.currentPackageId ?? ''}
-                            onChange={(event) => onChangeTenantPackage(tenant, event.target.value)}
+                            value={tenant.entityType}
+                            onChange={(event) => onChangeTenantMetadata(tenant, {
+                              entityType: event.target.value as AdminTenant['entityType'],
+                              tenantCategoryId: categories.find((item) => item.entityType === event.target.value)?.id ?? tenant.tenantCategoryId ?? null,
+                            })}
                             className="w-full min-w-[9rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                           >
-                            <option value="">No package</option>
-                            {packages.map((item) => (
+                            <option value="ORGANIZATION">Organization</option>
+                            <option value="INDIVIDUAL">Individual</option>
+                          </select>
+                        </td>
+                      )}
+                      {isSuperAdmin && (
+                        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          <select
+                            value={tenant.tenantCategoryId ?? ''}
+                            onChange={(event) => onChangeTenantMetadata(tenant, {
+                              tenantCategoryId: event.target.value,
+                            })}
+                            className="w-full min-w-[11rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                          >
+                            {categories
+                              .filter((item) => item.entityType === tenant.entityType)
+                              .map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                          </select>
+                        </td>
+                      )}
+                      {isSuperAdmin && (
+                        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          <select
+                            value={tenant.entityType === 'INDIVIDUAL'
+                              ? (individualPackage?.id ?? tenant.currentPackageId ?? '')
+                              : (tenant.currentPackageId ?? '')}
+                            onChange={(event) => onChangeTenantPackage(tenant, event.target.value)}
+                            disabled={tenant.entityType === 'INDIVIDUAL'}
+                            className="w-full min-w-[9rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                          >
+                            <option value="">{tenant.entityType === 'INDIVIDUAL' ? 'INDIVIDUAL only' : 'No package'}</option>
+                            {packages
+                              .filter((item) => tenant.entityType !== 'INDIVIDUAL' || item.code === 'INDIVIDUAL')
+                              .map((item) => (
                               <option key={item.id} value={item.id}>
                                 {item.name}
                               </option>
                             ))}
                           </select>
+                        </td>
+                      )}
+                      {isSuperAdmin && (
+                        <td className="px-4 py-3 text-gray-700 dark:text-slate-300">
+                          {billingStatusLabel(t, tenant.billingStatus)}
+                        </td>
+                      )}
+                      {isSuperAdmin && (
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
+                          {formatBillingDate(tenant.billingStartDate) ?? t('adminOrganizations.billingNotStarted')}
                         </td>
                       )}
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{tenant.createdBy?.email ?? '-'}</td>
@@ -390,7 +509,9 @@ export default function AdminOrganizationsPage() {
                       {selectedPackage?.name ?? 'No package'}
                     </p>
                     <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
-                      Current package
+                      {selectedTenant.entityType === 'INDIVIDUAL'
+                        ? `Individual · ${selectedTenant.tenantCategory?.name ?? 'No occupation'}`
+                        : `Organization · ${selectedTenant.tenantCategory?.name ?? 'No business type'}`}
                     </p>
                   </div>
                   {selectedPackage && (
@@ -420,6 +541,14 @@ export default function AdminOrganizationsPage() {
                       </p>
                     </div>
                   </div>
+                )}
+                {isSuperAdmin && (
+                  <Link
+                    to={`/admin/billing?tenantId=${selectedTenant.id}`}
+                    className="mt-3 inline-flex text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    {t('adminOrganizations.viewBilling')}
+                  </Link>
                 )}
               </div>
             )}

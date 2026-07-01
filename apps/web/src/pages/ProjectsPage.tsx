@@ -8,8 +8,13 @@ import { useFeatureFlagStore } from '../stores/featureFlagStore'
 import { useApi } from '../hooks/useApi'
 import Layout from '../components/Layout'
 import { memberNickname as getMemberNickname } from '../lib/memberDisplay'
+import {
+  canCreateProjectForPackage,
+  canManageOrganizationTeam,
+} from '../lib/packageAccess'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EditMemberDialog from '../components/EditMemberDialog'
+import EditProjectDialog from '../components/EditProjectDialog'
 import TeamSentimentBadge from '../components/TeamSentimentBadge'
 import type { CommunicationSentimentSnapshot, MemberOnboardRequest, MemberOnboardResponse, TenantMembership } from '../types'
 
@@ -30,6 +35,7 @@ export default function ProjectsPage() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.user)
   const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
+  const packageCode = useFeatureFlagStore((state) => state.packageCode)
   const currentTenant = useTenantStore((state) => state.currentTenant)
   const setCurrentTenant = useTenantStore((state) => state.setCurrentTenant)
   const clearCurrentTenant = useTenantStore((state) => state.clearCurrentTenant)
@@ -70,6 +76,11 @@ export default function ProjectsPage() {
     isLoading: isUpdatingMember,
     error: updateMemberError,
   } = useApi()
+  const {
+    patch: updateProject,
+    isLoading: isUpdatingProject,
+    error: updateProjectError,
+  } = useApi()
 
   const [memberships, setMemberships] = useState<TenantMembership[]>([])
   const [projects, setProjects] = useState<DashboardProject[]>([])
@@ -98,12 +109,22 @@ export default function ProjectsPage() {
   const [editJobTitle, setEditJobTitle] = useState('')
   const [editDepartment, setEditDepartment] = useState('')
   const [editRole, setEditRole] = useState<TenantMembership['role']>('MEMBER')
+  const [projectToEdit, setProjectToEdit] = useState<DashboardProject | null>(null)
+  const [editProjectCode, setEditProjectCode] = useState('')
+  const [editProjectName, setEditProjectName] = useState('')
+  const [editProjectDescription, setEditProjectDescription] = useState('')
+  const [editProjectNotice, setEditProjectNotice] = useState<string | null>(null)
 
   const activeMembership = memberships.find((membership) => membership.tenantId === currentTenant?.id) ?? memberships[0]
   const activeTenantId = activeMembership?.tenantId
   const activeTenantName = activeMembership?.tenant?.name ?? currentTenant?.name
   const canViewTeamSentiment = activeMembership?.role === 'TENANT_ADMIN' || activeMembership?.role === 'MANAGER'
   const canManageTeam = canViewTeamSentiment
+  const canShowTeamActions = canManageOrganizationTeam(packageCode)
+  const packageMaxProjects =
+    activeMembership?.tenant?.currentPackage?.maxProjects
+    ?? currentTenant?.currentPackage?.maxProjects
+  const canCreateProject = canCreateProjectForPackage(projects.length, packageMaxProjects)
 
   const canRemoveTeamMember = (member: TenantMembership) => {
     if (!canManageTeam || !user?.id) {
@@ -143,6 +164,52 @@ export default function ProjectsPage() {
     }
 
     return true
+  }
+
+  const openEditProject = (project: DashboardProject) => {
+    setProjectToEdit(project)
+    setEditProjectCode(project.code ?? '')
+    setEditProjectName(project.name)
+    setEditProjectDescription(project.description ?? '')
+    setEditProjectNotice(null)
+  }
+
+  const handleSaveProjectEdit = async () => {
+    if (!projectToEdit) {
+      return
+    }
+
+    const code = editProjectCode.trim()
+    const name = editProjectName.trim()
+    const description = editProjectDescription.trim()
+
+    if (code.length < 2 || name.length < 2) {
+      setEditProjectNotice(t('dashboard.projectValidation'))
+      return
+    }
+
+    const duplicateCode = projects.some(
+      (project) => project.id !== projectToEdit.id && project.code?.toLowerCase() === code.toLowerCase(),
+    )
+    if (duplicateCode) {
+      setEditProjectNotice(t('dashboard.projectCodeDuplicate'))
+      return
+    }
+
+    setEditProjectNotice(null)
+    const updated = await updateProject<DashboardProject>(`/projects/${projectToEdit.id}`, {
+      code,
+      name,
+      description,
+    })
+
+    if (updated) {
+      setProjects((current) => current.map((project) => (
+        project.id === updated.id ? { ...project, ...updated } : project
+      )))
+      setProjectToEdit(null)
+      setEditProjectNotice(t('dashboard.projectUpdated'))
+    }
   }
 
   const openEditMember = (member: TenantMembership) => {
@@ -251,6 +318,11 @@ export default function ProjectsPage() {
   }
 
   const handleCreateProject = async () => {
+    if (!canCreateProject) {
+      setCreateProjectNotice(t('dashboard.projectLimit', { count: packageMaxProjects ?? 0 }))
+      return
+    }
+
     const code = projectCode.trim()
     const name = projectName.trim()
     const description = projectDescription.trim()
@@ -403,7 +475,7 @@ export default function ProjectsPage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {canViewTeamSentiment && (
+                {canViewTeamSentiment && canShowTeamActions && (
                   <button
                     type="button"
                     onClick={() => void handleRefreshSentiment()}
@@ -413,16 +485,18 @@ export default function ProjectsPage() {
                     {isSentimentLoading ? t('communicationSentiment.refreshing') : t('communicationSentiment.refresh')}
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCreateMember((prev) => !prev)
-                    setMemberNotice(null)
-                  }}
-                  className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-                >
-                  {t('dashboard.addTeamMember')}
-                </button>
+                {canShowTeamActions && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateMember((prev) => !prev)
+                      setMemberNotice(null)
+                    }}
+                    className="px-3 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+                  >
+                    {t('dashboard.addTeamMember')}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -430,7 +504,7 @@ export default function ProjectsPage() {
               <p className="mb-3 text-sm text-indigo-700 dark:text-indigo-300">{sentimentNotice}</p>
             )}
 
-            {showCreateMember && (
+            {showCreateMember && canShowTeamActions && (
               <div className="mb-4 mt-4 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 p-4">
                 <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">
                   {t('dashboard.addTeamMemberTitle')}
@@ -564,7 +638,7 @@ export default function ProjectsPage() {
                       <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberPhone')}</th>
                       <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberRole')}</th>
                       <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberJobTitle')}</th>
-                      {canViewTeamSentiment && (
+                      {canViewTeamSentiment && canShowTeamActions && (
                         <th className="py-2 pr-3 font-semibold text-gray-700 dark:text-slate-300">{t('communicationSentiment.columnLabel')}</th>
                       )}
                       {canManageTeam && (
@@ -581,7 +655,7 @@ export default function ProjectsPage() {
                         <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{member.user?.phone || '-'}</td>
                         <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{t(tenantRoleLabelKey[member.role])}</td>
                         <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{member.jobTitle || '-'}</td>
-                        {canViewTeamSentiment && (
+                        {canViewTeamSentiment && canShowTeamActions && (
                           <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">
                             <TeamSentimentBadge snapshot={member.user?.id ? memberSentiments[member.user.id] : null} />
                           </td>
@@ -640,6 +714,30 @@ export default function ProjectsPage() {
             onConfirm={() => void handleConfirmRemoveMember()}
           />
 
+          <EditProjectDialog
+            open={Boolean(projectToEdit)}
+            projectName={editProjectName}
+            projectCode={editProjectCode}
+            projectDescription={editProjectDescription}
+            title={t('dashboard.editProjectTitle')}
+            saveLabel={isUpdatingProject ? t('dashboard.savingProject') : t('dashboard.saveProject')}
+            cancelLabel={t('dashboard.cancel')}
+            codeLabel={t('dashboard.projectCode')}
+            nameLabel={t('dashboard.projectName')}
+            descriptionLabel={t('dashboard.projectDescription')}
+            codePlaceholder={t('dashboard.projectCodePlaceholder')}
+            namePlaceholder={t('dashboard.projectNamePlaceholder')}
+            descriptionPlaceholder={t('dashboard.projectDescriptionPlaceholder')}
+            onProjectNameChange={setEditProjectName}
+            onProjectCodeChange={setEditProjectCode}
+            onProjectDescriptionChange={setEditProjectDescription}
+            onSave={() => void handleSaveProjectEdit()}
+            onCancel={() => setProjectToEdit(null)}
+            isLoading={isUpdatingProject}
+            errorMessage={updateProjectError?.message ?? null}
+            noticeMessage={editProjectNotice}
+          />
+
           <EditMemberDialog
             open={Boolean(memberToEdit)}
             member={memberToEdit}
@@ -685,19 +783,21 @@ export default function ProjectsPage() {
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
               {t('dashboard.projectsOnHand')}
             </h2>
-            <button
-              type="button"
-              onClick={() => {
-                setShowCreateProject((prev) => !prev)
-                setCreateProjectNotice(null)
-              }}
-              className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-            >
-              {t('dashboard.createProject')}
-            </button>
+            {canCreateProject && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateProject((prev) => !prev)
+                  setCreateProjectNotice(null)
+                }}
+                className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+              >
+                {t('dashboard.createProject')}
+              </button>
+            )}
           </div>
 
-          {showCreateProject && (
+          {showCreateProject && canCreateProject && (
             <div className="mb-6 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 sm:p-5">
               <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
                 {t('dashboard.createProjectTitle')}
@@ -782,11 +882,25 @@ export default function ProjectsPage() {
               {projects.map((project) => (
                 <div
                   key={project.id}
-                  className="p-4 sm:p-6 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
+                  className="relative p-4 sm:p-6 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
                 >
-                  <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">
+                  <button
+                    type="button"
+                    onClick={() => openEditProject(project)}
+                    title={t('dashboard.editProject')}
+                    aria-label={t('dashboard.editProject')}
+                    className="absolute top-3 right-3 rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <h3 className="pr-10 text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">
                     {project.name}
                   </h3>
+                  {project.code && (
+                    <p className="text-xs text-gray-400 dark:text-slate-500 font-mono mt-0.5 truncate">
+                      {project.code}
+                    </p>
+                  )}
                   <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-1 truncate">
                     {project.tenant?.name || t('dashboard.noTenant')}
                   </p>

@@ -5,9 +5,11 @@ import morgan from "morgan";
 import swaggerUi from "swagger-ui-express";
 import fs from "node:fs";
 import path from "node:path";
+import { BRAND_FONT_HEAD_HTML, BRAND_TAILWIND_FONT_FAMILY } from "./lib/brandFonts";
 import {
   actionItemRouter,
   adminRouter,
+  masterDataRouter,
   packagesRouter,
   aiRouter,
   askAiRouter,
@@ -60,17 +62,14 @@ export function createApp() {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kora</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+  ${BRAND_FONT_HEAD_HTML}
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: {
-            sans: ["Plus Jakarta Sans", "ui-sans-serif", "sans-serif"],
-            display: ["Sora", "Plus Jakarta Sans", "ui-sans-serif", "sans-serif"]
+            ${BRAND_TAILWIND_FONT_FAMILY}
           },
           colors: {
             deep: "#13233f",
@@ -306,6 +305,7 @@ export function createApp() {
 
   app.use("/auth", authRouter);
   app.use("/packages", packagesRouter);
+  app.use("/master-data", masterDataRouter);
   app.use("/admin", adminRouter);
   app.use("/projects", projectRouter);
   app.use("/meetings", meetingRouter);

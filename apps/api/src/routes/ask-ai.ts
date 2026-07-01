@@ -7,6 +7,7 @@ import { ensureAskAiScopeAccess } from "../services/accessScopeService";
 import { logAiRun } from "../services/aiRunLogService";
 import { askFromApprovedMinutes } from "../services/approvedAskAiService";
 import { ensureUserPackageFeature } from "../services/packageAccessService";
+import { listTenantIdsForUser } from "../services/tenantAccessService";
 
 export const askAiRouter = Router();
 
@@ -24,6 +25,13 @@ const askAiLogsQuerySchema = z.object({
   projectId: z.string().min(1).optional(),
   meetingId: z.string().min(1).optional(),
   userId: z.string().min(1).optional()
+});
+
+const askAiConversationsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  projectId: z.string().min(1).optional(),
+  meetingId: z.string().min(1).optional()
 });
 
 askAiRouter.post("/", requireAuth, async (req, res) => {
@@ -125,4 +133,89 @@ askAiRouter.get("/logs", requireAuth, async (req, res) => {
     pageSize: parsed.data.pageSize,
     total
   });
+});
+
+askAiRouter.get("/conversations", requireAuth, async (req, res) => {
+  const parsed = askAiConversationsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
+  }
+
+  const featureCheck = await ensureUserPackageFeature(req.user!, "AI_CHAT_BASIC", {
+    projectId: parsed.data.projectId
+  });
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
+  }
+
+  const tenantIds = await listTenantIdsForUser(req.user!);
+  const skip = (parsed.data.page - 1) * parsed.data.pageSize;
+  const where = {
+    userId: req.user!.id,
+    projectId: parsed.data.projectId,
+    meetingId: parsed.data.meetingId,
+    ...(tenantIds
+      ? {
+          AND: [
+            {
+              OR: [
+                { project: { tenantId: { in: tenantIds } } },
+                { projectId: null }
+              ]
+            }
+          ]
+        }
+      : {})
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.askAiQueryLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: parsed.data.pageSize,
+      include: {
+        project: { select: { id: true, code: true, name: true } },
+        meeting: { select: { id: true, title: true, sessionAt: true } }
+      }
+    }),
+    prisma.askAiQueryLog.count({ where })
+  ]);
+
+  return res.json({
+    items,
+    page: parsed.data.page,
+    pageSize: parsed.data.pageSize,
+    total
+  });
+});
+
+askAiRouter.get("/conversations/:id", requireAuth, async (req, res) => {
+  const featureCheck = await ensureUserPackageFeature(req.user!, "AI_CHAT_BASIC");
+  if (!featureCheck.allowed) {
+    return res.status(403).json({ message: featureCheck.message });
+  }
+
+  const tenantIds = await listTenantIdsForUser(req.user!);
+  const item = await prisma.askAiQueryLog.findUnique({
+    where: { id: req.params.id },
+    include: {
+      project: { select: { id: true, code: true, name: true, tenantId: true } },
+      meeting: { select: { id: true, title: true, sessionAt: true } }
+    }
+  });
+
+  if (!item || item.userId !== req.user!.id) {
+    return res.status(404).json({ message: "Conversation not found" });
+  }
+
+  if (
+    tenantIds &&
+    item.projectId &&
+    (!item.project?.tenantId || !tenantIds.includes(item.project.tenantId))
+  ) {
+    return res.status(404).json({ message: "Conversation not found" });
+  }
+
+  return res.json(item);
 });

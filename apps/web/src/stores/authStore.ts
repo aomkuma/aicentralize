@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { User, AuthResponse } from '../types'
+import { clearAllPersistedChatStates } from '../lib/aiChatStorage'
 
 interface AuthState {
   user: User | null
@@ -31,6 +32,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
       if (previousUser?.id !== auth.user.id) {
         localStorage.removeItem('tenant-store')
+        clearAllPersistedChatStates()
       }
       localStorage.setItem('accessToken', auth.accessToken)
       localStorage.setItem('refreshToken', auth.refreshToken)
@@ -65,6 +67,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
       localStorage.removeItem('tenant-store')
+      clearAllPersistedChatStates()
     }
     set({
       user: null,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Send, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   playgroundResponseMessage,
@@ -8,6 +9,7 @@ import {
   readPlaygroundJson
 } from '../lib/playgroundApi'
 import { resolveApiBaseUrl } from '../lib/pwaUtils'
+import { chatStateStorageKey, clearPersistedChatState as clearChatStateForProject } from '../lib/aiChatStorage'
 import { useFeatureFlagStore } from '../stores/featureFlagStore'
 
 type SpeakerLabel = 'A' | 'B' | 'C'
@@ -66,7 +68,6 @@ type SpeechRecognitionEventLike = {
 }
 
 const DEFAULT_MODEL = 'qwen2.5:7b'
-const CHAT_STATE_KEY_PREFIX = 'aicentralize-ai-chat-state'
 
 function calculateRms(samples: Float32Array<ArrayBufferLike> | null): number {
   if (!samples || !samples.length) {
@@ -185,7 +186,10 @@ function normalizeAppLinks(raw: unknown): AppLink[] {
       const value = item as Partial<AppLink>
       const type = value.type
       const url = typeof value.url === 'string' ? value.url : ''
-      if (!url.startsWith('/') || (type !== 'meeting' && type !== 'project' && type !== 'action')) {
+      if (
+        !url.startsWith('/') ||
+        (type !== 'meeting' && type !== 'project' && type !== 'action' && type !== 'knowledge')
+      ) {
         return null
       }
 
@@ -200,19 +204,31 @@ function normalizeAppLinks(raw: unknown): AppLink[] {
       return normalized
     })
     .filter((item): item is AppLink => Boolean(item))
-    .slice(0, 6)
 }
 
 type AIChatPanelProps = {
   projectId?: string
+  /** Stable sessionStorage scope; defaults to projectId when omitted. */
+  persistKey?: string
+  projectName?: string
   showModeTabs?: boolean
+  layout?: 'default' | 'dashboard'
 }
 
-export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPanelProps) {
+export default function AIChatPanel({
+  projectId,
+  persistKey,
+  projectName,
+  showModeTabs = true,
+  layout = 'default',
+}: AIChatPanelProps) {
   const { t } = useTranslation()
   const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
   const canAccessAdvanced = canAccessFeature('AI_CHAT_ADVANCED')
-  const chatStateKey = `${CHAT_STATE_KEY_PREFIX}:${projectId || 'dashboard'}`
+  const isDashboardLayout = layout === 'dashboard'
+  const readyStatusText = t('aiChat.status.ready')
+  const storageScope = persistKey ?? projectId
+  const chatStateKey = chatStateStorageKey(storageScope)
   const [activeTab, setActiveTab] = useState<'prompt' | 'record'>('prompt')
   const [prompt, setPrompt] = useState('')
   const [result, setResult] = useState(t('aiChat.status.ready'))
@@ -233,6 +249,7 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
   const statusTimerRef = useRef<number | null>(null)
   const typingTimerRef = useRef<number | null>(null)
   const copyNoticeTimerRef = useRef<number | null>(null)
+  const resultSectionRef = useRef<HTMLDivElement | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null)
@@ -265,7 +282,7 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
   }
 
   const clearPersistedChatState = () => {
-    window.sessionStorage.removeItem(chatStateKey)
+    clearChatStateForProject(storageScope)
   }
 
   const renderedTranscript = useMemo(() => {
@@ -948,6 +965,13 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
     }
   }
 
+  const scrollToResult = () => {
+    window.requestAnimationFrame(() => {
+      resultSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      resultSectionRef.current?.focus({ preventScroll: true })
+    })
+  }
+
   const generate = async () => {
     const cleanPrompt = prompt.trim()
     if (!cleanPrompt) {
@@ -961,6 +985,7 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
     setResult('')
     setAnswerLinks([])
     clearPersistedChatState()
+    scrollToResult()
 
     try {
       const accessToken = localStorage.getItem('accessToken')
@@ -1099,15 +1124,190 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
     if (link.type === 'action') {
       return t('aiChat.links.openActions')
     }
+    if (link.type === 'knowledge') {
+      return t('aiChat.links.openKnowledge')
+    }
     return t('aiChat.links.openProject')
   }
 
+  const dashboardSuggestions = useMemo(() => {
+    const project = projectName?.trim() || t('aiChat.suggestions.thisProject')
+    return [
+      t('aiChat.suggestions.latestMeeting', { project }),
+      t('aiChat.suggestions.nearDeadline', { project }),
+      t('aiChat.suggestions.openTasks'),
+    ]
+  }, [projectName, t])
+
+  const showDashboardResult = isBusy || result !== readyStatusText || answerLinks.length > 0
+
+  const resultPanel = (
+    <div
+      ref={resultSectionRef}
+      tabIndex={-1}
+      className={`rounded-xl border border-gray-200 bg-white p-4 outline-none dark:border-slate-700 dark:bg-slate-800 ${isDashboardLayout ? 'mt-5' : ''}`}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300">{t('aiChat.labels.result')}</label>
+        <button
+          type="button"
+          onClick={() => void copyResultAnswer()}
+          disabled={!canCopyResult}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          {t('aiChat.actions.copyAnswer')}
+        </button>
+      </div>
+      <div className={`max-h-[62vh] overflow-auto break-words rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm leading-relaxed text-gray-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 ${isBusy ? 'animate-pulse' : ''} ${isDashboardLayout ? 'min-h-[120px]' : 'min-h-[360px] font-mono'}`}>
+        <div className="whitespace-pre-wrap">{result}</div>
+        {answerLinks.length > 0 && (
+          <div className="mt-3 border-t border-gray-200 pt-3 dark:border-slate-700">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+              {t('aiChat.links.title')}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {answerLinks.map((link) => (
+                <Link
+                  key={`${link.type}-${link.sourceId ?? link.url}`}
+                  to={link.url}
+                  className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-950 dark:text-blue-200 dark:hover:bg-blue-950/40"
+                  title={link.context}
+                >
+                  {appLinkLabel(link)}
+                  {link.context ? ` · ${link.context}` : ''}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="mt-2 min-h-[1.2em] text-xs text-gray-500 dark:text-slate-400">{copyNotice}</div>
+      <div className="mt-2 min-h-[1.2em] text-sm text-gray-500 dark:text-slate-400">{status}</div>
+    </div>
+  )
+
+  const promptComposer = isDashboardLayout ? (
+    <>
+      <div className="relative rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-950">
+        <textarea
+          id="dashboard-ai-prompt"
+          aria-label={t('aiChat.labels.prompt')}
+          rows={5}
+          value={prompt}
+          onChange={(event) => setPrompt(event.target.value)}
+          placeholder={t('aiChat.placeholders.askAnything')}
+          className="min-h-[148px] w-full resize-y rounded-xl border-0 bg-transparent px-4 pb-10 pt-4 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.shiftKey) return
+            if (event.nativeEvent.isComposing || isBusy) return
+            event.preventDefault()
+            void generate()
+          }}
+        />
+        <div className="pointer-events-none absolute bottom-3 right-4 flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+          <img src="/brand/logo/kora-mark.png" alt="" className="h-4 w-4 opacity-80" />
+          <span>{t('aiChat.assistedBadge')}</span>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => void generate()}
+          disabled={isBusy}
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Send className="h-4 w-4" />
+          {isBusy ? t('aiChat.status.generating') : t('aiChat.actions.generate')}
+        </button>
+        <button
+          type="button"
+          onClick={clearAll}
+          className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          {t('aiChat.actions.clear')}
+        </button>
+      </div>
+
+      <div className="mt-5">
+        <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{t('aiChat.suggestions.tryAsk')}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {dashboardSuggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onClick={() => setPrompt(suggestion)}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-left text-xs text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-700 dark:hover:bg-blue-950/30 sm:text-sm"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {showDashboardResult && resultPanel}
+    </>
+  ) : (
+    <>
+      <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+        <textarea
+          id="dashboard-ai-prompt"
+          aria-label={t('aiChat.labels.prompt')}
+          rows={3}
+          value={prompt}
+          onChange={(event) => setPrompt(event.target.value)}
+          placeholder={t('aiChat.placeholders.askAnything')}
+          className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-relaxed text-gray-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.shiftKey) return
+            if (event.nativeEvent.isComposing || isBusy) return
+            event.preventDefault()
+            void generate()
+          }}
+        />
+
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <button
+            type="button"
+            onClick={() => void generate()}
+            disabled={isBusy}
+            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          >
+            {isBusy ? t('aiChat.status.generating') : t('aiChat.actions.generate')}
+          </button>
+          <button
+            type="button"
+            onClick={clearAll}
+            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:w-auto"
+          >
+            {t('aiChat.actions.clear')}
+          </button>
+        </div>
+      </div>
+
+      {resultPanel}
+    </>
+  )
+
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6">
+    <section
+      className={
+        isDashboardLayout
+          ? 'rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/40 sm:p-6'
+          : 'rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6'
+      }
+    >
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{t('aiChat.title')}</h2>
-          <p className="text-sm text-gray-600 dark:text-slate-400">{t('aiChat.description')}</p>
+        <div className={isDashboardLayout ? 'flex items-start gap-3' : undefined}>
+          {isDashboardLayout && (
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
+              <Sparkles className="h-5 w-5" />
+            </div>
+          )}
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">{t('aiChat.title')}</h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-slate-400">{t('aiChat.description')}</p>
+          </div>
         </div>
         {showModeTabs && canAccessAdvanced && (
           <div className="flex flex-wrap gap-2">
@@ -1138,78 +1338,8 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
       </div>
 
       {(showModeTabs ? activeTab === 'prompt' : true) ? (
-        <div className="mt-5 space-y-4">
-          <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-            <textarea
-              id="dashboard-ai-prompt"
-              aria-label={t('aiChat.labels.prompt')}
-              rows={3}
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder={t('aiChat.placeholders.askAnything')}
-              className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm leading-relaxed text-gray-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-              onKeyDown={(event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                  void generate()
-                }
-              }}
-            />
-
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-              <button
-                onClick={() => void generate()}
-                disabled={isBusy}
-                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-              >
-                {isBusy ? t('aiChat.status.generating') : t('aiChat.actions.generate')}
-              </button>
-              <button
-                onClick={clearAll}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:w-auto"
-              >
-                {t('aiChat.actions.clear')}
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300">{t('aiChat.labels.result')}</label>
-              <button
-                type="button"
-                onClick={() => void copyResultAnswer()}
-                disabled={!canCopyResult}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                {t('aiChat.actions.copyAnswer')}
-              </button>
-            </div>
-            <div className={`max-h-[62vh] min-h-[360px] overflow-auto break-words rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-sm leading-relaxed text-gray-800 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 ${isBusy ? 'animate-pulse' : ''}`}>
-              <div className="whitespace-pre-wrap">{result}</div>
-              {answerLinks.length > 0 && (
-                <div className="mt-3 border-t border-gray-200 pt-3 dark:border-slate-700">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
-                    {t('aiChat.links.title')}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {answerLinks.map((link) => (
-                      <Link
-                        key={`${link.type}-${link.url}`}
-                        to={link.url}
-                        className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-950 dark:text-blue-200 dark:hover:bg-blue-950/40"
-                        title={link.context}
-                      >
-                        {appLinkLabel(link)}
-                        {link.context ? ` · ${link.context}` : ''}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="mt-2 min-h-[1.2em] text-xs text-gray-500 dark:text-slate-400">{copyNotice}</div>
-            <div className="mt-2 min-h-[1.2em] text-sm text-gray-500 dark:text-slate-400">{status}</div>
-          </div>
+        <div className={isDashboardLayout ? 'mt-5' : 'mt-5 space-y-4'}>
+          {promptComposer}
         </div>
       ) : (
         <div className="mt-5 rounded-lg border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">

@@ -6,7 +6,7 @@ import {
   TenantRole,
   UserRole
 } from "@prisma/client";
-import { Router } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireRole } from "../middleware/auth";
@@ -16,9 +16,35 @@ import { buildEmbedding } from "../services/embeddingService";
 import { addMeetingArtifact, getMeetingDetail } from "../services/meetingIngestionService";
 import { extractMinuteDraft } from "../services/minuteExtractionService";
 import { ensureTenantRole, isPlatformAdmin } from "../services/tenantAccessService";
-import { ensureUserPackageFeature } from "../services/packageAccessService";
+import { ensureMeetingStudioAccess, ensureUserPackageFeature } from "../services/packageAccessService";
 
 export const meetingRouter = Router();
+
+async function enforceMeetingStudioAccess(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  if (!req.user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const projectId = typeof req.body?.projectId === "string"
+    ? req.body.projectId
+    : typeof req.query.projectId === "string"
+      ? req.query.projectId
+      : undefined;
+  const meetingId = typeof req.params.meetingId === "string" ? req.params.meetingId : undefined;
+
+  const check = await ensureMeetingStudioAccess(req.user, { projectId, meetingId });
+  if (!check.allowed) {
+    return res.status(403).json({ message: check.message, code: "MEETING_STUDIO_NOT_AVAILABLE" });
+  }
+
+  return next();
+}
+
+meetingRouter.use(requireAuth, enforceMeetingStudioAccess);
 
 const createMeetingSchema = z.object({
   projectId: z.string().min(1),
@@ -156,7 +182,7 @@ async function buildMeetingsListWhere(
   return clauses.length === 1 ? clauses[0] : { OR: clauses };
 }
 
-meetingRouter.get("/", requireAuth, async (req, res) => {
+meetingRouter.get("/", async (req, res) => {
   const projectId = req.query.projectId as string | undefined;
   const where = await buildMeetingsListWhere(req.user!, projectId);
 
@@ -173,7 +199,7 @@ meetingRouter.get("/", requireAuth, async (req, res) => {
   res.json(meetings);
 });
 
-meetingRouter.get("/:meetingId", requireAuth, async (req, res) => {
+meetingRouter.get("/:meetingId", async (req, res) => {
   const scope = await ensureMeetingScopeAccess(req.user!, req.params.meetingId);
   if (!scope.allowed) {
     if (scope.reason === "MEETING_NOT_FOUND") {
@@ -193,7 +219,7 @@ meetingRouter.get("/:meetingId", requireAuth, async (req, res) => {
   });
 });
 
-meetingRouter.post("/:meetingId/artifacts", requireAuth, async (req, res) => {
+meetingRouter.post("/:meetingId/artifacts", async (req, res) => {
   const scope = await ensureMeetingScopeAccess(req.user!, req.params.meetingId);
   if (!scope.allowed) {
     if (scope.reason === "MEETING_NOT_FOUND") {
@@ -224,7 +250,7 @@ meetingRouter.post("/:meetingId/artifacts", requireAuth, async (req, res) => {
   return res.status(201).json(artifact);
 });
 
-meetingRouter.post("/:meetingId/minute-drafts/extract", requireAuth, async (req, res) => {
+meetingRouter.post("/:meetingId/minute-drafts/extract", async (req, res) => {
   const scope = await ensureMeetingScopeAccess(req.user!, req.params.meetingId);
   if (!scope.allowed) {
     if (scope.reason === "MEETING_NOT_FOUND") {
@@ -272,7 +298,7 @@ meetingRouter.post("/:meetingId/minute-drafts/extract", requireAuth, async (req,
   }
 });
 
-meetingRouter.post("/", requireAuth, async (req, res) => {
+meetingRouter.post("/", async (req, res) => {
   const parsed = createMeetingSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
@@ -350,7 +376,7 @@ meetingRouter.post("/", requireAuth, async (req, res) => {
   res.status(201).json(meeting);
 });
 
-meetingRouter.patch("/:meetingId", requireAuth, async (req, res) => {
+meetingRouter.patch("/:meetingId", async (req, res) => {
   const scope = await ensureMeetingScopeAccess(req.user!, req.params.meetingId);
   if (!scope.allowed) {
     if (scope.reason === "MEETING_NOT_FOUND") {
@@ -433,7 +459,7 @@ meetingRouter.patch("/:meetingId", requireAuth, async (req, res) => {
   res.json(updated);
 });
 
-meetingRouter.patch("/action-items/:id/status", requireAuth, async (req, res) => {
+meetingRouter.patch("/action-items/:id/status", async (req, res) => {
   const parsed = updateActionStatusSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });

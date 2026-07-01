@@ -21,6 +21,10 @@ import {
   DocumentReadError,
   extractDocumentText
 } from "./documentTextService";
+import {
+  buildAiExtractionChunks,
+  segmentPlainText
+} from "./documentSegmentation";
 
 type ExtractedMemoryItem = {
   type: ProjectMemoryItemType;
@@ -132,42 +136,19 @@ const normalizeMemoryText = (value: string) =>
 const memoryItemKey = (item: Pick<ExtractedMemoryItem, "type" | "title" | "content">) =>
   `${item.type}:${normalizeMemoryText(item.title)}:${normalizeMemoryText(item.content)}`;
 
+function prepareContentForAiExtraction(contentText: string) {
+  if (/^\[(?:Page|Part|Section|Rows|Sheet) /m.test(contentText)) {
+    return contentText;
+  }
+  return segmentPlainText(contentText);
+}
+
 function buildTextChunks(text: string) {
-  if (text.length <= AI_EXTRACTION_CHAR_LIMIT) {
-    return [text];
-  }
-
-  const chunks: string[] = [];
-  let start = 0;
-
-  while (start < text.length && chunks.length < MAX_AI_EXTRACTION_CHUNKS) {
-    const hardEnd = Math.min(start + AI_EXTRACTION_CHAR_LIMIT, text.length);
-    let end = hardEnd;
-
-    if (hardEnd < text.length) {
-      const paragraphBreak = text.lastIndexOf("\n\n", hardEnd);
-      const lineBreak = text.lastIndexOf("\n", hardEnd);
-      const sentenceBreak = text.lastIndexOf(". ", hardEnd);
-      const softEnd = Math.max(paragraphBreak, lineBreak, sentenceBreak);
-
-      if (softEnd > start + Math.floor(AI_EXTRACTION_CHAR_LIMIT * 0.6)) {
-        end = softEnd + (softEnd === sentenceBreak ? 1 : 0);
-      }
-    }
-
-    const chunk = text.slice(start, end).trim();
-    if (chunk) {
-      chunks.push(chunk);
-    }
-
-    if (end >= text.length) {
-      break;
-    }
-
-    start = Math.max(0, end - AI_EXTRACTION_CHUNK_OVERLAP);
-  }
-
-  return chunks;
+  return buildAiExtractionChunks(text, {
+    charLimit: AI_EXTRACTION_CHAR_LIMIT,
+    overlap: AI_EXTRACTION_CHUNK_OVERLAP,
+    maxChunks: MAX_AI_EXTRACTION_CHUNKS
+  });
 }
 
 function extractJsonCandidate(raw: string) {
@@ -300,7 +281,7 @@ function buildProjectKnowledgeExtractionPrompt(source: {
     "- If information is historical or ambiguous, preserve that nuance in content.",
     "- Extract all useful project memory items in this chunk, up to 25 items.",
     "- Avoid generic document metadata unless it is project-critical.",
-    "- When page markers like [Page 12] are present, keep the page reference in content when it helps verification.",
+    "- When segment markers like [Page 12], [Part 3], [Section Scope], or [Sheet Summary - Rows 1-50] are present, keep the reference in content when it helps verification.",
     "- Use Thai when the source is Thai, otherwise preserve the source language.",
     "",
     `Source type: ${source.sourceType}`,
@@ -396,16 +377,29 @@ export function extractProjectKnowledge(source: {
   };
 }
 
-async function extractProjectKnowledgeWithAi(source: {
-  sourceType: ProjectKnowledgeSourceType;
-  title: string;
-  contentText: string;
-}, onProgress?: (progress: ProjectKnowledgeImportProgress) => void) {
-  const chunks = buildTextChunks(source.contentText);
+async function extractProjectKnowledgeWithAi(
+  source: {
+    sourceType: ProjectKnowledgeSourceType;
+    title: string;
+    contentText: string;
+  },
+  projectId: string,
+  onProgress?: (progress: ProjectKnowledgeImportProgress) => void
+) {
+  const preparedText = prepareContentForAiExtraction(source.contentText);
+  const chunks = buildTextChunks(preparedText);
   const mergedItems: ExtractedMemoryItem[] = [];
   const overviews: string[] = [];
   const models = new Set<string>();
   let successCount = 0;
+
+  onProgress?.({
+    stage: "extracting",
+    detail: source.title,
+    currentChunk: 0,
+    totalChunks: chunks.length,
+    successfulChunks: 0
+  });
 
   for (const [index, chunk] of chunks.entries()) {
     onProgress?.({
@@ -423,7 +417,8 @@ async function extractProjectKnowledgeWithAi(source: {
           contentText: chunk,
           chunkIndex: index + 1,
           chunkCount: chunks.length
-        })
+        }),
+        personaScope: { projectId }
       });
       const extraction = parseAiExtractionJson(result.output, source.sourceType);
 
@@ -578,12 +573,14 @@ export async function extractProjectKnowledgeSource(
   let model = "deterministic-baseline-extractor";
   let promptVersion = "project-knowledge-onboarding-v1";
 
+  onProgress?.({ stage: "extracting", detail: source.title });
+
   try {
     const aiResult = await extractProjectKnowledgeWithAi({
       sourceType: source.sourceType,
       title: source.title,
       contentText: source.contentText
-    }, onProgress);
+    }, source.projectId, onProgress);
     extraction = aiResult.extraction;
     model = aiResult.model;
     promptVersion = "project-knowledge-onboarding-v3-ai-chunked";

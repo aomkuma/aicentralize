@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFeatureFlagStore } from '../../../stores/featureFlagStore'
 import { canAccessObservabilityBasic, canAccessObservabilityFull } from '../../../lib/featureAccess'
+import { isIndividualPackage } from '../../../lib/packageAccess'
 import { useAuthStore } from '../../../stores/authStore'
 import { useAiRunLogs } from '../../../hooks/useAiRunLogs'
 import { useAskAiQueryLogs } from '../../../hooks/useAskAiQueryLogs'
@@ -42,16 +43,21 @@ export default function AskAiTracePanel({
 }: AskAiTracePanelProps) {
   const { t } = useTranslation()
   const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
+  const packageCode = useFeatureFlagStore((state) => state.packageCode)
+  const isIndividual = isIndividualPackage(packageCode)
   const user = useAuthStore((state) => state.user)
   const { logs, currentLog, isLoading, fetchLogs, fetchLogDetail } = useAiRunLogs()
   const { get: getOps, post: postOps, isLoading: isOpsLoading } = useApi()
+  const queryLogScope = canAccessObservabilityFull(canAccessFeature) && !isIndividual
+    ? 'tenant' as const
+    : 'self' as const
   const {
     logs: queryLogs,
     currentLog: currentQueryLog,
     isLoading: isQueryLoading,
     fetchLogs: fetchQueryLogs,
     fetchLogDetail: fetchQueryDetail,
-  } = useAskAiQueryLogs()
+  } = useAskAiQueryLogs(queryLogScope)
 
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null)
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(null)
@@ -65,10 +71,25 @@ export default function AskAiTracePanel({
   const copyNoticeTimerRef = useRef<number | null>(null)
 
   // Check feature access
-  const canAccessTrace = canAccessFeature('AI_TRACE_PANEL')
-  const canAccessRunLogs = canAccessObservabilityBasic(canAccessFeature)
+  const canAccessTrace = isIndividual
+    ? canAccessFeature('AI_CHAT_BASIC')
+    : canAccessFeature('AI_TRACE_PANEL')
+  const canAccessRunLogs = canAccessObservabilityBasic(canAccessFeature) && !isIndividual
   const canAccessConversations = canAccessObservabilityFull(canAccessFeature)
+    || (isIndividual && canAccessFeature('AI_CHAT_BASIC'))
   const isSuperAdmin = user?.systemRole === 'SUPER_ADMIN'
+  const preferredIndividualTabRef = useRef(false)
+
+  useEffect(() => {
+    if (preferredIndividualTabRef.current) {
+      return
+    }
+
+    if (isIndividual && canAccessConversations) {
+      setActiveTab('conversations')
+      preferredIndividualTabRef.current = true
+    }
+  }, [isIndividual, canAccessConversations])
 
   useEffect(() => {
     if (!canAccessRunLogs && activeTab === 'runs') {

@@ -2,6 +2,11 @@ import { prisma } from "../lib/prisma";
 import { env } from "../config/env";
 import { buildEmbedding, cosineSimilarity } from "./embeddingService";
 import { getSystemSettings, resolveActiveProviderCredential } from "./systemSettingsService";
+import {
+  applyPersonaToPrompt,
+  resolveTenantPersona,
+  type TenantPersonaScope
+} from "./tenantPersonaPromptService";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import { promisify } from "node:util";
@@ -23,6 +28,8 @@ type LocalGenerateInput = {
   provider?: AiProvider;
   fallbackProvider?: AiProvider;
   fallbackProviders?: AiProvider[];
+  personaScope?: TenantPersonaScope;
+  skipPersona?: boolean;
 };
 
 type LocalGenerateResult = {
@@ -547,9 +554,16 @@ export async function generateWithLocalModel(input: LocalGenerateInput): Promise
   const providers = generationConfig.providers;
   const errors: string[] = [];
 
+  let prompt = input.prompt;
+  if (!input.skipPersona) {
+    const persona = await resolveTenantPersona(input.personaScope ?? {});
+    prompt = applyPersonaToPrompt(prompt, persona);
+  }
+
   for (const provider of providers) {
     const runtimeInput: LocalGenerateInput = {
       ...input,
+      prompt,
       model: provider === providers[0] ? generationConfig.model : undefined
     };
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
+import WorkflowProgressPanel from '../components/WorkflowProgressPanel'
 import LiveMeetingRecorder, { type LiveMeetingRecordingResult } from '../components/LiveMeetingRecorder'
 import { useApi } from '../hooks/useApi'
 import {
@@ -13,13 +14,21 @@ import {
   MEETING_STUDIO_FILE_ACCEPT
 } from '../lib/documentText'
 import { buildOwnerOptionFromMembership, memberNickname } from '../lib/memberDisplay'
-import type { MeetingStudioJobResult } from '../lib/meetingStudio/jobTypes'
-import { useTenantStore } from '../stores/tenantStore'
-import { buildDocumentAnalysisPrompt } from '../lib/meetingStudio/meetingAnalysisPrompt'
-import { isMeetingStudioJobResultEmpty } from '../lib/meetingStudio/pendingJobStorage'
+import { formatKnowledgeDuration } from '../lib/knowledgeProgress'
+import { analyzeMeetingSourceTextInChunks } from '../lib/meetingStudio/chunkedMeetingAnalysis'
 import { analyzeMeetingTranscriptFromText } from '../lib/meetingStudio/audioJob'
+import type { MeetingStudioJobResult } from '../lib/meetingStudio/jobTypes'
+import { isMeetingStudioJobResultEmpty } from '../lib/meetingStudio/pendingJobStorage'
+import {
+  buildMeetingChunkDetail,
+  computeMeetingDocProgressPercent,
+  estimateMeetingChunkEtaMs,
+  type MeetingDocProgressKey,
+} from '../lib/meetingStudio/meetingProgress'
 import { useMeetingStudioJobStore } from '../stores/meetingStudioJobStore'
+import { useTenantStore } from '../stores/tenantStore'
 import type { Project } from '../types'
+import type { MeetingChunkProgress } from '../lib/meetingStudio/chunkedMeetingAnalysis'
 
 type UploadedFileMeta = {
   fileName: string
@@ -497,6 +506,11 @@ export default function MeetingStudioPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [progressMode, setProgressMode] = useState<ProgressMode>(null)
   const [progressKey, setProgressKey] = useState<ProgressKey>('validatingInput')
+  const [progressDetail, setProgressDetail] = useState('')
+  const [progressPercent, setProgressPercent] = useState(0)
+  const [progressStartedAt, setProgressStartedAt] = useState<number | null>(null)
+  const [progressElapsedSeconds, setProgressElapsedSeconds] = useState(0)
+  const [chunkSnapshot, setChunkSnapshot] = useState<MeetingChunkProgress | null>(null)
   const [guidedStep, setGuidedStep] = useState(1)
   const [hoveredGuideStep, setHoveredGuideStep] = useState<number | null>(null)
 
@@ -584,10 +598,135 @@ export default function MeetingStudioPage() {
   const stepTwoComplete = Boolean(recordingFile) || Boolean(transcript.trim())
   const stepThreeComplete = Boolean(summary.trim()) || Boolean(template.objective.trim()) || Boolean(template.consultantNotes.trim()) || Boolean(template.decisions.trim()) || Boolean(template.risks.trim()) || Boolean(template.actions.trim()) || Boolean(template.nextSteps.trim())
 
-  const updateProgress = (mode: Exclude<ProgressMode, null>, key: ProgressKey) => {
+  const updateProgress = (
+    mode: Exclude<ProgressMode, null>,
+    key: ProgressKey,
+    options?: {
+      detail?: string
+      percent?: number
+      chunk?: MeetingChunkProgress | null
+      resetTimer?: boolean
+    },
+  ) => {
+    if (options?.resetTimer !== false && (key === 'validatingInput' || options?.resetTimer)) {
+      setProgressStartedAt(Date.now())
+      setProgressElapsedSeconds(0)
+      setChunkSnapshot(null)
+    }
+
     setProgressMode(mode)
     setProgressKey(key)
+
+    if (options?.detail !== undefined) {
+      setProgressDetail(options.detail)
+    }
+
+    if (options?.chunk !== undefined) {
+      setChunkSnapshot(options.chunk)
+    }
+
+    if (options?.percent !== undefined) {
+      setProgressPercent(options.percent)
+      return
+    }
+
+    if (key === 'completed') {
+      setProgressPercent(100)
+      return
+    }
+
+    if (key === 'failed') {
+      setProgressPercent(0)
+      return
+    }
+
+    if (mode === 'docx') {
+      setProgressPercent(computeMeetingDocProgressPercent(
+        key as MeetingDocProgressKey,
+        options?.chunk ?? chunkSnapshot ?? undefined,
+      ))
+      return
+    }
+
+    const flow = progressFlowByMode[mode]
+    const index = flow.indexOf(key)
+    setProgressPercent(index >= 0 ? Math.max(5, Math.round(((index + 1) / flow.length) * 100)) : 5)
   }
+
+  useEffect(() => {
+    if (!progressMode || progressKey === 'completed' || progressKey === 'failed') {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      if (progressStartedAt) {
+        setProgressElapsedSeconds(Math.floor((Date.now() - progressStartedAt) / 1000))
+      }
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [progressKey, progressMode, progressStartedAt])
+
+  const progressPanelExtras = useMemo(() => {
+    const elapsedLabel = progressStartedAt
+      ? t('meetings.progress.elapsed', {
+          duration: formatKnowledgeDuration(progressElapsedSeconds, t),
+        })
+      : undefined
+
+    const etaMs = estimateMeetingChunkEtaMs(
+      progressElapsedSeconds * 1000,
+      chunkSnapshot?.currentChunk,
+      chunkSnapshot?.totalChunks,
+    )
+    const etaLabel = etaMs !== null
+      ? t('meetings.progress.eta', {
+          duration: formatKnowledgeDuration(Math.ceil(etaMs / 1000), t),
+        })
+      : (progressMode === 'docx' || progressKey === 'analyzingRecording' || progressKey === 'analyzingDocumentWithAI')
+        ? t('meetings.progress.etaUnknown')
+        : undefined
+
+    const stats = chunkSnapshot?.totalChunks
+      ? [
+          {
+            label: t('meetings.progress.stats.currentChunk'),
+            value: `${chunkSnapshot.currentChunk} / ${chunkSnapshot.totalChunks}`,
+          },
+          {
+            label: t('meetings.progress.stats.remaining'),
+            value: String(Math.max(0, chunkSnapshot.totalChunks - chunkSnapshot.currentChunk)),
+          },
+          {
+            label: t('meetings.progress.stats.successful'),
+            value: String(chunkSnapshot.successfulChunks),
+          },
+        ]
+      : undefined
+
+    const subProgress = chunkSnapshot?.totalChunks
+      ? {
+          label: t('meetings.progress.chunkBar'),
+          percent: Math.min(
+            100,
+            Math.round((chunkSnapshot.currentChunk / chunkSnapshot.totalChunks) * 100),
+          ),
+        }
+      : undefined
+
+    return { elapsedLabel, etaLabel, stats, subProgress }
+  }, [chunkSnapshot, progressElapsedSeconds, progressKey, progressMode, progressStartedAt, t])
+
+  const progressSteps = useMemo(() => {
+    if (!progressMode) {
+      return []
+    }
+
+    return progressFlowByMode[progressMode].map((key) => ({
+      key,
+      label: t(`meetings.progress.steps.${key}`),
+    }))
+  }, [progressMode, t])
 
   const captureUploadedFileMeta = (file: File | null) => {
     if (!file) {
@@ -743,45 +882,6 @@ export default function MeetingStudioPage() {
     })
   }, [checklistItems])
 
-  const extractJsonCandidate = (raw: string): string | null => {
-    const trimmed = raw.trim()
-    const stripped = trimmed
-      .replace(/^```json\s*/i, '')
-      .replace(/^```\s*/i, '')
-      .replace(/```$/i, '')
-      .trim()
-
-    const firstBrace = stripped.indexOf('{')
-    const lastBrace = stripped.lastIndexOf('}')
-    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-      return null
-    }
-
-    return stripped.slice(firstBrace, lastBrace + 1)
-  }
-
-  const parseDocxSummary = (raw: string): DocxMinuteSummary | null => {
-    const candidate = extractJsonCandidate(raw)
-    if (!candidate) {
-      return null
-    }
-
-    try {
-      const parsed = JSON.parse(candidate) as Partial<DocxMinuteSummary>
-      return {
-        summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : '',
-        objective: typeof parsed.objective === 'string' ? parsed.objective.trim() : '',
-        consultantNotes: typeof parsed.consultantNotes === 'string' ? parsed.consultantNotes.trim() : '',
-        decisions: Array.isArray(parsed.decisions) ? parsed.decisions.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean) : [],
-        risks: Array.isArray(parsed.risks) ? parsed.risks.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean) : [],
-        actionItems: normalizeAiActionItems(parsed.actionItems),
-        nextSteps: typeof parsed.nextSteps === 'string' ? parsed.nextSteps.trim() : ''
-      }
-    } catch {
-      return null
-    }
-  }
-
   const handleLiveRecordingReady = (result: LiveMeetingRecordingResult) => {
     const liveFile = new File([result.audioBlob], result.fileName, { type: result.audioBlob.type || 'audio/webm' })
     setRecordingFile(liveFile)
@@ -865,115 +965,81 @@ export default function MeetingStudioPage() {
     updateProgress('docx', 'validatingInput')
 
     try {
-      updateProgress('docx', 'extractingDocumentText')
+      updateProgress('docx', 'extractingDocumentText', {
+        detail: recordingFile.name,
+      })
       const extractedText = await extractFileText(recordingFile)
-        const heuristicSummary = deriveDocxSummaryHeuristic(extractedText)
-        const inferredMeta = deriveMeetingMetaFromDocx(extractedText, recordingFile.name)
+      const heuristicSummary = deriveDocxSummaryHeuristic(extractedText)
+      const inferredMeta = deriveMeetingMetaFromDocx(extractedText, recordingFile.name)
 
-        setTranscript(extractedText)
-        if (inferredMeta.title) {
-          setMeetingTitle(inferredMeta.title)
+      setTranscript(extractedText)
+      if (inferredMeta.title) {
+        setMeetingTitle(inferredMeta.title)
+      }
+      if (inferredMeta.sessionAt) {
+        setSessionAt(inferredMeta.sessionAt)
+      }
+      if (!summary.trim()) {
+        setSummary(heuristicSummary.summary || extractedText.slice(0, 240))
+      }
+
+      setStatus(t('meetings.status.analyzingDocument'))
+      updateProgress('docx', 'analyzingDocumentWithAI')
+
+      const applyParsedSummary = (
+        parsed: {
+          summary: string
+          objective: string
+          consultantNotes: string
+          decisions: string[]
+          risks: string[]
+          actionItems: AiActionItem[]
+          nextSteps: string
+        },
+        successStatusKey: 'documentAnalyzed' | 'documentProcessed',
+      ) => {
+        updateProgress('docx', 'mappingToTemplate')
+        setSummary(parsed.summary || heuristicSummary.summary || extractedText.slice(0, 240))
+        setTemplate((current) => ({
+          ...current,
+          objective: parsed.objective || current.objective,
+          consultantNotes: parsed.consultantNotes || current.consultantNotes,
+          decisions: parsed.decisions.join('\n') || current.decisions,
+          risks: parsed.risks.join('\n') || current.risks,
+          nextSteps: parsed.nextSteps || current.nextSteps,
+        }))
+        setChecklistItems(toChecklistItems(
+          parsed.actionItems,
+          ownerOptions,
+          inferredMeta.sessionAt ?? sessionAt,
+        ))
+        setRecordingInfo(`${t(`meetings.status.${successStatusKey}`)}: ${recordingFile.name}`)
+        setStatus(t(`meetings.status.${successStatusKey}`))
+      }
+
+      try {
+        const parsedSummary = await analyzeMeetingSourceTextInChunks(
+          extractedText,
+          'document',
+          (chunk) => {
+            updateProgress('docx', 'analyzingDocumentWithAI', {
+              detail: buildMeetingChunkDetail(recordingFile.name, chunk, t),
+              chunk,
+            })
+          },
+        )
+
+        if (parsedSummary) {
+          applyParsedSummary(parsedSummary, 'documentAnalyzed')
+        } else {
+          applyParsedSummary(heuristicSummary, 'documentProcessed')
         }
-        if (inferredMeta.sessionAt) {
-          setSessionAt(inferredMeta.sessionAt)
-        }
-        if (!summary.trim()) {
-          setSummary(heuristicSummary.summary || extractedText.slice(0, 240))
-        }
+      } catch {
+        setStatus(t('meetings.status.analysisTimedOutFallback'))
+        applyParsedSummary(heuristicSummary, 'documentProcessed')
+      }
 
-        setStatus(t('meetings.status.analyzingDocument'))
-        updateProgress('docx', 'analyzingDocumentWithAI')
-
-        let slowAnalysisTimer: ReturnType<typeof setTimeout> | null = null
-        let analysisTimeout: ReturnType<typeof setTimeout> | null = null
-
-        try {
-          slowAnalysisTimer = setTimeout(() => {
-            setStatus(t('meetings.status.analysisTakingLong'))
-          }, 18000)
-
-          const analysisController = new AbortController()
-          analysisTimeout = setTimeout(() => {
-            analysisController.abort()
-          }, 30000)
-
-          const analysisResponse = await fetch('/ai/playground/generate', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              model: 'qwen2.5:7b',
-              prompt: buildDocumentAnalysisPrompt(extractedText)
-            }),
-            signal: analysisController.signal
-          })
-
-          if (analysisTimeout) {
-            clearTimeout(analysisTimeout)
-          }
-
-          const analysisData = await analysisResponse.json()
-          if (!analysisResponse.ok) {
-            throw new Error(analysisData.message || t('meetings.errors.documentAnalysisFailed'))
-          }
-
-          const parsedSummary = parseDocxSummary(analysisData.output || '')
-          if (parsedSummary) {
-            updateProgress('docx', 'mappingToTemplate')
-            setSummary(parsedSummary.summary || extractedText.slice(0, 240))
-            setTemplate((current) => ({
-              ...current,
-              objective: parsedSummary.objective || current.objective,
-              consultantNotes: parsedSummary.consultantNotes || current.consultantNotes,
-              decisions: parsedSummary.decisions.join('\n'),
-              risks: parsedSummary.risks.join('\n'),
-              nextSteps: parsedSummary.nextSteps || current.nextSteps
-            }))
-            setChecklistItems(toChecklistItems(parsedSummary.actionItems, ownerOptions, inferredMeta.sessionAt ?? sessionAt))
-            setRecordingInfo(`${t('meetings.status.documentAnalyzed')}: ${recordingFile.name}`)
-            setStatus(t('meetings.status.documentAnalyzed'))
-          } else {
-            updateProgress('docx', 'mappingToTemplate')
-            setSummary(heuristicSummary.summary || extractedText.slice(0, 240))
-            setTemplate((current) => ({
-              ...current,
-              objective: heuristicSummary.objective || current.objective,
-              consultantNotes: heuristicSummary.consultantNotes || current.consultantNotes,
-              decisions: heuristicSummary.decisions.join('\n') || current.decisions,
-              risks: heuristicSummary.risks.join('\n') || current.risks,
-              nextSteps: heuristicSummary.nextSteps || current.nextSteps
-            }))
-            setChecklistItems(toChecklistItems(heuristicSummary.actionItems, ownerOptions, inferredMeta.sessionAt ?? sessionAt))
-            setRecordingInfo(`${t('meetings.status.documentProcessed')}: ${recordingFile.name}`)
-            setStatus(t('meetings.status.documentProcessed'))
-          }
-        } catch (analysisError) {
-          if (analysisError instanceof DOMException && analysisError.name === 'AbortError') {
-            setStatus(t('meetings.status.analysisTimedOutFallback'))
-          }
-          updateProgress('docx', 'mappingToTemplate')
-          setSummary(heuristicSummary.summary || extractedText.slice(0, 240))
-          setTemplate((current) => ({
-            ...current,
-            objective: heuristicSummary.objective || current.objective,
-            consultantNotes: heuristicSummary.consultantNotes || current.consultantNotes,
-            decisions: heuristicSummary.decisions.join('\n') || current.decisions,
-            risks: heuristicSummary.risks.join('\n') || current.risks,
-            nextSteps: heuristicSummary.nextSteps || current.nextSteps
-          }))
-          setChecklistItems(toChecklistItems(heuristicSummary.actionItems, ownerOptions, inferredMeta.sessionAt ?? sessionAt))
-          setRecordingInfo(`${t('meetings.status.documentProcessed')}: ${recordingFile.name}`)
-          setStatus(t('meetings.status.documentProcessed'))
-        } finally {
-          if (slowAnalysisTimer) {
-            clearTimeout(slowAnalysisTimer)
-          }
-          if (analysisTimeout) {
-            clearTimeout(analysisTimeout)
-          }
-        }
-        updateProgress('docx', 'completed')
+      updateProgress('docx', 'completed')
     } catch (transcribeError) {
       const message = transcribeError instanceof Error
         ? describeDocumentFileError(recordingFile, transcribeError, t)
@@ -1193,37 +1259,20 @@ export default function MeetingStudioPage() {
         )}
 
         {progressMode && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">{t('meetings.progress.title')}</h3>
-              <span className="text-xs text-slate-500 dark:text-slate-400">{t('meetings.progress.subtitle')}</span>
-            </div>
-
-            <div className="mt-3 space-y-2">
-              {progressFlowByMode[progressMode].map((key, index) => {
-                const activeIndex = progressFlowByMode[progressMode].indexOf(progressKey)
-                const isActive = progressKey === key
-                const isCompleted = activeIndex > -1 && index < activeIndex
-                const isFinalCompleted = key === 'completed' && isActive
-
-                return (
-                  <div
-                    key={`${progressMode}-${key}`}
-                    className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm ${isFinalCompleted || isCompleted ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-200' : isActive ? 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-200' : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300'}`}
-                  >
-                    <span className="mt-0.5 font-bold">{isFinalCompleted || isCompleted ? '✓' : isActive ? '•' : String(index + 1)}</span>
-                    <span>{t(`meetings.progress.steps.${key}`)}</span>
-                  </div>
-                )
-              })}
-
-              {progressKey === 'failed' && (
-                <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/20 dark:text-red-200">
-                  {t('meetings.progress.failedHint')}
-                </div>
-              )}
-            </div>
-          </section>
+          <WorkflowProgressPanel
+            title={t('meetings.progress.title')}
+            subtitle={t('meetings.progress.subtitle')}
+            detail={progressDetail || undefined}
+            percent={progressPercent}
+            progressLabel={t('meetings.progress.overall')}
+            elapsedLabel={progressPanelExtras.elapsedLabel}
+            etaLabel={progressPanelExtras.etaLabel}
+            subProgress={progressPanelExtras.subProgress}
+            stats={progressPanelExtras.stats}
+            steps={progressSteps}
+            activeKey={progressKey}
+            failedHint={progressKey === 'failed' ? t('meetings.progress.failedHint') : undefined}
+          />
         )}
 
         {guidedStep === 1 && (

@@ -1,6 +1,6 @@
 # AICentralize — Feature Catalog
 
-**Last updated:** 2026-07-01 · **`main` through `e82bc9d`**
+**Last updated:** 2026-07-01 · **pending push to `main`**
 
 This document is the product feature map (main modules and sub-features). For day-to-day commands and access rules, see [`QUICK_REFERENCE.md`](../QUICK_REFERENCE.md). For current status and open work, see [`HANDOVER.md`](./HANDOVER.md).
 
@@ -63,7 +63,7 @@ This document is the product feature map (main modules and sub-features). For da
 | **Continuity dashboard** | Risk summary, overdue by owner/project, missing owner/due-date audit, saved meetings section. |
 | **Workload balancing** | Suggestion popup when owner load is uneven (`ContinuityDashboard`). |
 | **Navigation** | Continuity is **not** in sidebar; open from project card. Bare `/continuity` → `/projects`. |
-| **Project knowledge** | Onboarding Q&A, file import, AI extraction into knowledge items (`projectKnowledgeService`). |
+| **Project knowledge** | Onboarding baseline: paste text or **upload files to server** (`POST .../knowledge/sources/import` sync, or **`POST .../import-jobs`** async + poll `GET .../import-jobs/:id`); job state in `ProjectKnowledgeImportJob` table; guided 3-step UX + `WorkflowProgressPanel`; supported: `.txt`, `.md`, `.csv`, `.tsv`, `.docx`, `.pdf`, `.xlsx` (120k char clip); AI extraction into review queue. Scanned PDFs return `PDF_NO_TEXT`. |
 | **General notes** | Free-form project notes used as Ask-AI evidence (`projectGeneralNoteService`); **PUBLIC** / **PRIVATE** visibility (private excluded from shared evidence); saved-note URLs are linkified and open in a new tab. |
 | **Team sentiment badges** | Mood indicators on projects team table (`TENANT_ADMIN` / `MANAGER`). |
 
@@ -71,15 +71,19 @@ This document is the product feature map (main modules and sub-features). For da
 
 ## 3. Ask-AI & AI Chat
 
-**Routes:** `/dashboard` (AI Chat), `/ai-trace` · **API:** `/ask-ai`, `/ai/playground/generate`, `/retrieval/*`
+**Routes:** `/dashboard` (AI Chat), `/ai-trace` · **API:** `/ask-ai`, `/ask-ai/conversations`, `/ai/playground/generate`, `/retrieval/*`
+
+**Package gates (tenant `currentPackage.features`):** `AI_CHAT_BASIC` (dashboard + INDIVIDUAL chat history), `AI_CHAT_ADVANCED` (Meeting Studio + history), `AI_TRACE_PANEL` (org trace page), `OBSERVABILITY_*` (run logs / all-tenant conversations). Enforced in web (`FeatureRoute`, sidebar) and API.
 
 | Sub-feature | Description |
 |-------------|-------------|
-| **Dashboard AI Chat** | Text prompt, record/upload audio, speaker grouping, diarize-analyze. |
+| **Dashboard AI Chat** | Text prompt, record/upload audio, speaker grouping, diarize-analyze; INDIVIDUAL mockup-style composer + suggestion pills. |
 | **Grounded answers** | Project snapshot + hybrid retrieval (lexical; vector planned). |
 | **Deep links** | Answers can link to projects, action items, knowledge (`approvedAskAiService`). |
-| **Session persistence** | Chat state persisted in localStorage. |
-| **Ask-AI trace** | Inspect AI runs, filters, evidence, errors (`/ai-trace`). |
+| **Session persistence** | Chat state in `sessionStorage` (`aiChatStorage.ts`); dashboard uses stable `persistKey`. |
+| **INDIVIDUAL chat history** | Sidebar link → `/ai-trace` conversations tab; `GET /ask-ai/conversations` (current user). |
+| **Ask-AI trace (org)** | Inspect AI runs, filters, evidence, errors (`/ai-trace`); observability endpoints for ADMIN/PM. |
+| **Tenant persona** | Signup `tenantCategory` prepended to server AI prompts (`tenantPersonaPromptService`). |
 | **Playground prompt limit** | Hard cap **120,000** chars; default system setting promoted from legacy 4k/12k. |
 | **Language policy** | Thai/English output rules applied server-side on generate. |
 
@@ -169,7 +173,11 @@ This document is the product feature map (main modules and sub-features). For da
 | **Organization registry** | `/admin/organizations` | `SUPER_ADMIN`, `MODERATOR` |
 | **Platform users** | `/admin/platform-users` | `SUPER_ADMIN` |
 | **Package management** | `/admin/packages`, `PATCH /admin/tenants/:id` (`currentPackageId`) | `SUPER_ADMIN` |
+| **Feature entitlements** | Ten checkbox features per package (`AI_CHAT_BASIC`, … `CUSTOM_WORKFLOWS`); synced to web via `/tenants/me` → `featureFlagStore`; enforced on routes (`FeatureRoute`) and API (`packageAccessService`) | Tenant users |
+| **INDIVIDUAL feeling log** | Package code `INDIVIDUAL` hides `/feeling-logs` (not a checkbox) | Tenant users |
 | **Project quota** | `POST /projects` | Enforces `currentPackage.maxProjects` per tenant |
+| **Billing clock** | First successful member login sets `billingStartDate`; `GET /tenants/me` + `/admin/organizations` show status | Tenant admins / SUPER_ADMIN |
+| **maxUsers quota** | Member create + invite accept | Enforced per `currentPackage.maxUsers` |
 | **Invitations** | `/accept-invite?token=...` | Public + logged-in |
 | **Member onboarding** | `POST /tenants/:id/members/create` | Tenant admin; SMTP invite |
 | **Account suspension** | `PATCH /admin/users/:id` | Platform admin |
@@ -237,6 +245,7 @@ This document is the product feature map (main modules and sub-features). For da
 | Sub-feature | Description |
 |-------------|-------------|
 | **Private journal** | Text + emoji; only author sees raw entries |
+| **INDIVIDUAL package** | Hidden from sidebar + route when tenant package code is `INDIVIDUAL` (not a checkbox feature) |
 | **@mention** | Autocomplete coworkers in organization |
 | **AI analysis (Rubjob)** | Batch every **3 days at 02:00** (Asia/Bangkok); grouped by author and mentioned people; leadership/mention outputs must be privacy-preserving psychological observations, not raw-entry quotes |
 | **Save flow** | Store immediately (`processedAt` null); no inline AI on save |
@@ -252,6 +261,7 @@ This document is the product feature map (main modules and sub-features). For da
 | Area | Location |
 |------|----------|
 | Feature modules | `apps/web/src/components/features/{continuity,reminders,aiTrace,action-items}` |
+| Package / feature gates | `featureFlagStore`, `lib/featureAccess.ts`, `FeatureRoute`, `FeatureGate`, `WorkflowProgressPanel` |
 | Action items panel | `apps/web/src/components/features/action-items/ActionItemsPanel.tsx` |
 | Assignee permissions | `apps/web/src/lib/actionItemPermissions.ts` |
 | Guest welcome | `apps/web/src/pages/WelcomePage.tsx` |
@@ -266,7 +276,7 @@ This document is the product feature map (main modules and sub-features). For da
 
 | Item | Detail |
 |------|--------|
-| **Monorepo** | `apps/api`, `apps/web`, `apps/asr` |
+| **Monorepo** | `apps/api`, `apps/web`, `apps/asr` — **use `pnpm install` at root** (Docker: `pnpm install --frozen-lockfile`) |
 | **Migrations** | `prisma migrate deploy` on API Docker boot (`docker/start.sh`) |
 | **Web proxy** | nginx: `/api/`, `/ai/` → API; `client_max_body_size 500m`; `/ai/` proxy **22200s** |
 | **ASR service** | Separate Railway/container; `ASR_BASE_URL` on API |

@@ -17,6 +17,7 @@ Start here for **Kora** (AI meeting & work OS).
 | Document | Topic |
 |----------|--------|
 | [`guides/FRONTEND_ARCHITECTURE.md`](./guides/FRONTEND_ARCHITECTURE.md) | React modules, feature flags, component patterns |
+| [`guides/BILLING.md`](./guides/BILLING.md) | **Tenant billing** — activation, periods, admin `/admin/billing` |
 | [`guides/PWA.md`](./guides/PWA.md) | Service worker, manifest, responsive layout |
 | [`guides/railway-asr.md`](./guides/railway-asr.md) | Railway ASR service deploy |
 | [`guides/whisper-production.md`](./guides/whisper-production.md) | Local Whisper → production checklist |

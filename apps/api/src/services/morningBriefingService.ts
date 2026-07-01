@@ -411,7 +411,8 @@ export async function generateMorningBriefingForMembership(input: {
         tenantName: input.tenantName,
         roleScope,
         items
-      })
+      }),
+      personaScope: { tenantId: input.tenantId, userId: input.userId }
     });
     content = normalizeAiContent(generated.output, fallback);
     model = `${generated.provider}:${generated.model}`;

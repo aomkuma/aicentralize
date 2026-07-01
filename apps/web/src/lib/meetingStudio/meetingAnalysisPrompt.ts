@@ -51,3 +51,32 @@ export function buildDocumentAnalysisPrompt(text: string) {
     text.slice(0, budget)
   ].join('\n')
 }
+
+export function buildChunkedMeetingAnalysisPrompt(
+  text: string,
+  options: {
+    sourceKind: 'document' | 'transcript'
+    chunkIndex: number
+    chunkCount: number
+  }
+) {
+  const sourceLabel = options.sourceKind === 'document'
+    ? `Document text chunk ${options.chunkIndex} of ${options.chunkCount}:`
+    : `Transcript chunk ${options.chunkIndex} of ${options.chunkCount}:`
+
+  const intro = options.sourceKind === 'document'
+    ? MEETING_ANALYSIS_INSTRUCTIONS.replace(
+        'Analyze the following source text',
+        'Analyze the following document text chunk'
+      )
+    : MEETING_ANALYSIS_INSTRUCTIONS
+
+  return [
+    intro,
+    '- Extract all useful meeting facts from this chunk only (up to 20 action items).',
+    '- When segment markers like [Page N] or [Part N] appear, keep references in output when helpful.',
+    '',
+    sourceLabel,
+    text
+  ].join('\n')
+}

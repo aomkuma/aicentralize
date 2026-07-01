@@ -7,6 +7,8 @@ import { z } from "zod";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
+import { maybeActivateTenantOnFirstLogin, ensureTenantCanAddMember, ensureTenantHasUserCapacity } from "../services/tenantBillingService";
+import { BRAND_FONT_HEAD_HTML, BRAND_TAILWIND_FONT_FAMILY } from "../lib/brandFonts";
 
 export const authRouter = Router();
 
@@ -90,17 +92,14 @@ authRouter.get("/login", (_req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Login | Kora</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+  ${BRAND_FONT_HEAD_HTML}
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: {
-            sans: ["Plus Jakarta Sans", "ui-sans-serif", "sans-serif"],
-            display: ["Sora", "Plus Jakarta Sans", "ui-sans-serif", "sans-serif"]
+            ${BRAND_TAILWIND_FONT_FAMILY}
           },
           colors: {
             deep: "#13233f"
@@ -299,6 +298,8 @@ authRouter.post("/login", async (req, res) => {
   if (!user.isActive) {
     return res.status(403).json({ message: "Account suspended" });
   }
+
+  await maybeActivateTenantOnFirstLogin(user.id);
 
   const token = signAccessToken({
     id: user.id,
@@ -505,6 +506,13 @@ authRouter.post("/invitations/:token/accept", async (req, res) => {
     }
   });
 
+  const capacityCheck = existingUser
+    ? await ensureTenantCanAddMember(invitation.tenantId, existingUser.id)
+    : await ensureTenantHasUserCapacity(invitation.tenantId);
+  if (!capacityCheck.allowed) {
+    return res.status(403).json({ message: capacityCheck.message });
+  }
+
   const user = existingUser
     ? await prisma.user.update({
       where: { id: existingUser.id },
@@ -571,6 +579,8 @@ authRouter.post("/invitations/:token/accept", async (req, res) => {
     userId: user.id,
     userAgent: req.get("user-agent") || undefined
   });
+
+  await maybeActivateTenantOnFirstLogin(user.id);
 
   return res.json({
     accessToken: token,

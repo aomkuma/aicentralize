@@ -1,6 +1,6 @@
 # Next-day handover — 2026-06-30
 
-Session notes for Meeting Studio raw-text flow and Continuity dashboard UX. **Not yet pushed** unless otherwise noted.
+Session notes for Meeting Studio raw-text flow and Continuity dashboard UX. **Meeting Studio + Continuity sections shipped in `cfbd0a1`.** Later sessions (nicknames, package gating, knowledge import, INDIVIDUAL UX) documented at end of file.
 
 ---
 
@@ -103,7 +103,7 @@ User said **เอาแบบนี้ไปก่อน** — keep current beh
 
 ## Open / follow-up
 
-1. **Deploy** — web changes above if not yet on Railway production.
+1. ~~**Deploy** — web changes above if not yet on Railway production.~~ Shipped (`cfbd0a1`+).
 2. **Meeting Studio** — optional: transcribe-only mode (no auto-analyze on background job).
 3. **Continuity** — PM timeline tab (still on backlog from earlier handover).
 
@@ -137,4 +137,137 @@ User said **เอาแบบนี้ไปก่อน** — keep current beh
 | API | `tenants.ts`, `admin.ts`, `auth.ts` |
 | Web | `lib/memberDisplay.ts`, `ProjectsPage`, `AdminOrganizationsPage` |
 | AI map | `meetingStudio/shared.ts`, `MeetingStudioPage.tsx` |
+
+---
+
+## Package feature gating — 2026-07-03 (`9755b97`)
+
+### Goal
+
+Every checkbox on `/admin/packages` must **actually gate** access on related pages and API routes.
+
+### Web
+
+| Layer | Files |
+|-------|--------|
+| Entitlements | `Layout.tsx` → `GET /tenants/me` → `setPackageEntitlements(packageCode, features)` |
+| Store | `featureFlagStore.ts` — `enabledFeatureIds` overrides legacy `plan` map |
+| Guards | `FeatureRoute.tsx`, `FeatureGate.tsx`, `lib/featureAccess.ts` |
+| Nav | `Sidebar.tsx` filters items by `NAV_FEATURE_REQUIREMENTS` |
+
+### API
+
+`packageAccessService.ts` — `requirePackageFeature()` on ask-ai, observability, continuity, reminders, meeting create/extract.
+
+### Feature → surface map (summary)
+
+| Feature | Gated surface |
+|---------|----------------|
+| `AI_CHAT_BASIC` | `/dashboard` |
+| `AI_CHAT_ADVANCED` | `/meetings`, meeting history |
+| `AI_TRACE_PANEL` | `/ai-trace` |
+| `OBSERVABILITY_*` | Trace tabs (run logs / conversations) |
+| `CONTINUITY_*` | `/continuity` |
+| `REMINDERS_*` | `/reminders` (+ escalation sub-features) |
+
+### Feeling log exception
+
+Blocked when package **code** is `INDIVIDUAL` — not a checkbox. `lib/packageAccess.ts`, `FeelingLogsRoute`, API `packageAccessService`.
+
+### Smoke test
+
+1. Assign STANDARD vs PRO packages to two test orgs.
+2. PRO org sees AI Trace; STANDARD without `AI_TRACE_PANEL` gets upgrade prompt / 403 on API.
+3. INDIVIDUAL org — no Feeling Log in sidebar or route.
+
+---
+
+## Project Knowledge — progress UI + server import — 2026-07-03 (`99b14fe`, `0366d1e`, `37f36a5`)
+
+### Problem fixed
+
+Large PDF uploads hung at step 2 with **no Network request** — client-side regex PDF parser blocked the main thread.
+
+### Solution
+
+Move extraction to API:
+
+```
+POST /projects/:projectId/knowledge/sources/import
+Content-Type: multipart/form-data
+field: file
+```
+
+| Layer | Files |
+|-------|--------|
+| Parser | `documentTextService.ts` — pdf-parse **v1.1.1**, mammoth (DOCX), xlsx |
+| Orchestration | `projectKnowledgeService.importProjectKnowledgeFromFile()` |
+| Route | `projects.ts` — multer upload |
+| Web | `ProjectKnowledgePage.tsx` — `postFormData`; removed client parsers |
+| Progress | `WorkflowProgressPanel` — steps: upload → `processingOnServer` → extract → review |
+
+### Supported file types
+
+`.txt`, `.md`, `.csv`, `.tsv`, `.docx`, `.pdf`, `.xlsx` — text clipped to **120k chars**.
+
+### Deploy note
+
+After changing `apps/api/package.json`, run **`pnpm install` at monorepo root** (not npm) so `pnpm-lock.yaml` stays in sync — Railway uses `pnpm install --frozen-lockfile`.
+
+### Smoke test
+
+1. `/projects/:id/knowledge` — upload small PDF with selectable text.
+2. DevTools Network → `POST .../knowledge/sources/import` returns 200.
+3. Progress panel advances through server processing; review queue populates.
+4. Scanned/image-only PDF → `PDF_NO_TEXT` error (expected).
+
+---
+
+## INDIVIDUAL dashboard + AI chat — 2026-07-01
+
+### Shipped
+
+| Area | Change |
+|------|--------|
+| **AI chat history (INDIVIDUAL)** | Sidebar **ประวัติการแชทกับ AI** restored; route `/ai-trace` uses conversations tab via `AI_CHAT_BASIC` |
+| **Self-scoped history API** | `GET /ask-ai/conversations`, `GET /ask-ai/conversations/:id` — current user only (replaces observability endpoint for INDIVIDUAL) |
+| **Chat session persistence** | Dashboard `AIChatPanel` uses `persistKey="dashboard"` + wait for projects load so prompt/answer survive navigation |
+| **Tenant persona** | `tenantPersonaPromptService` — signup `tenantCategory` shapes AI tone on all server prompts |
+| **Project limit** | `maxProjects` from package config (no hardcoded INDIVIDUAL = 1) |
+| **Typography** | IBM Plex Sans (+ Thai) app-wide; API HTML via `brandFonts.ts` |
+| **Dashboard UI** | INDIVIDUAL project cards 3-column grid; mockup-style chat composer; dismissible guide (localStorage) |
+
+### Key files
+
+| Layer | Files |
+|-------|--------|
+| History API | `apps/api/src/routes/ask-ai.ts` |
+| History web | `useAskAiQueryLogs.ts`, `AskAiTracePanel.tsx`, `packageAccess.ts`, `Sidebar.tsx` |
+| Chat persist | `aiChatStorage.ts`, `AIChatPanel.tsx`, `DashboardPage.tsx` |
+| Persona | `tenantPersonaPromptService.ts`, `aiService.ts` |
+
+### Smoke test
+
+1. INDIVIDUAL tenant — chat on dashboard → open **ประวัติการแชทกับ AI** → conversation listed.
+2. Ask AI → navigate away → return to dashboard → prompt + answer still visible.
+3. `/admin/packages` — set INDIVIDUAL `maxProjects: 3` → dashboard allows up to 3 project cards.
+
+---
+
+## Knowledge import jobs — DB persistence — 2026-07-01
+
+### Problem fixed
+
+Async import (`POST .../knowledge/sources/import-jobs` + poll `GET .../import-jobs/:id`) returned **404** near 100% when API restarted — jobs lived only in an in-memory `Map` (`ts-node-dev` reload).
+
+### Solution
+
+- Prisma model `ProjectKnowledgeImportJob` + migration `20260630150000_project_knowledge_import_jobs`
+- `projectKnowledgeImportJobService.ts` — create/update/read via DB; TTL cleanup after 1 hour
+
+### Smoke test
+
+1. `/projects/:id/knowledge` — upload `.xlsx` with extractable text.
+2. Network: `POST .../import-jobs` → 202; poll `GET .../import-jobs/:id` until `status: completed`.
+3. Restart API mid-import (optional) — poll should still resolve (job row survives restart; in-flight work does not resume).
 

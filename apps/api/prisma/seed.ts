@@ -44,47 +44,288 @@ async function main() {
     }
   });
 
-  const freePackage = await prisma.subscriptionPackage.upsert({
-    where: { code: "FREE" },
-    update: {
-      name: "Free",
-      description: "Default starter package for new organizations.",
-      priceCents: 0,
-      currency: "THB",
-      billingInterval: "MONTHLY",
+  const packageConfigs = [
+    {
+      code: "INDIVIDUAL",
+      name: "INDIVIDUAL",
+      description: "For Individual or Students",
+      priceCents: 69_900,
+      discountType: "PERCENT" as const,
+      discountValue: 70,
       maxProjects: 1,
-      maxUsers: 5,
+      maxUsers: 1,
       additionalUserPriceCents: 0,
-      features: ["AI_CHAT_BASIC", "CONTINUITY_SUMMARY"],
-      isActive: true,
+      features: [
+        "AI_CHAT_BASIC",
+        "AI_TRACE_PANEL",
+        "CONTINUITY_FULL",
+        "REMINDERS_ESCALATION",
+        "AI_CHAT_ADVANCED",
+        "CONTINUITY_SUMMARY",
+        "REMINDERS_BASIC",
+        "OBSERVABILITY_BASIC",
+        "OBSERVABILITY_FULL",
+        "CUSTOM_WORKFLOWS"
+      ],
+      isDefault: false
+    },
+    {
+      code: "STANDARD",
+      name: "STANDARD",
+      description: "For Small Team Group",
+      priceCents: 1_299_900,
+      discountType: "PERCENT" as const,
+      discountValue: 70,
+      maxProjects: 3,
+      maxUsers: 5,
+      additionalUserPriceCents: 30_000,
+      features: [
+        "AI_CHAT_BASIC",
+        "CONTINUITY_SUMMARY",
+        "AI_TRACE_PANEL",
+        "REMINDERS_BASIC",
+        "AI_CHAT_ADVANCED",
+        "CONTINUITY_FULL",
+        "REMINDERS_ESCALATION",
+        "OBSERVABILITY_BASIC",
+        "OBSERVABILITY_FULL"
+      ],
       isDefault: true
     },
-    create: {
-      code: "FREE",
-      name: "Free",
-      description: "Default starter package for new organizations.",
-      priceCents: 0,
-      currency: "THB",
-      billingInterval: "MONTHLY",
-      maxProjects: 1,
-      maxUsers: 5,
-      additionalUserPriceCents: 0,
-      features: ["AI_CHAT_BASIC", "CONTINUITY_SUMMARY"],
-      isActive: true,
-      isDefault: true
+    {
+      code: "PRO",
+      name: "PRO",
+      description: "For SME Business Group",
+      priceCents: 1_699_900,
+      discountType: "PERCENT" as const,
+      discountValue: 70,
+      maxProjects: 7,
+      maxUsers: 15,
+      additionalUserPriceCents: 30_000,
+      features: [
+        "AI_CHAT_BASIC",
+        "AI_TRACE_PANEL",
+        "CONTINUITY_FULL",
+        "REMINDERS_ESCALATION",
+        "AI_CHAT_ADVANCED",
+        "CONTINUITY_SUMMARY",
+        "REMINDERS_BASIC",
+        "OBSERVABILITY_BASIC",
+        "OBSERVABILITY_FULL",
+        "CUSTOM_WORKFLOWS"
+      ],
+      isDefault: false
+    },
+    {
+      code: "PROMAX",
+      name: "PRO MAX",
+      description: "For Professional Organize",
+      priceCents: 1_999_900,
+      discountType: "PERCENT" as const,
+      discountValue: 70,
+      maxProjects: 12,
+      maxUsers: 30,
+      additionalUserPriceCents: 30_000,
+      features: [
+        "AI_CHAT_BASIC",
+        "AI_CHAT_ADVANCED",
+        "CONTINUITY_SUMMARY",
+        "AI_TRACE_PANEL",
+        "CONTINUITY_FULL",
+        "REMINDERS_BASIC",
+        "REMINDERS_ESCALATION",
+        "OBSERVABILITY_BASIC",
+        "OBSERVABILITY_FULL",
+        "CUSTOM_WORKFLOWS",
+        "PRIORITY_SUPPORT"
+      ],
+      isDefault: false
+    }
+  ];
+
+  const packageMap = new Map<string, Awaited<ReturnType<typeof prisma.subscriptionPackage.upsert>>>();
+
+  for (const pkg of packageConfigs) {
+    const saved = await prisma.subscriptionPackage.upsert({
+      where: { code: pkg.code },
+      update: {
+        name: pkg.name,
+        description: pkg.description,
+        priceCents: pkg.priceCents,
+        currency: "THB",
+        billingInterval: "MONTHLY",
+        discountType: pkg.discountType,
+        discountValue: pkg.discountValue,
+        maxProjects: pkg.maxProjects,
+        maxUsers: pkg.maxUsers,
+        additionalUserPriceCents: pkg.additionalUserPriceCents,
+        features: pkg.features,
+        isActive: true,
+        isDefault: pkg.isDefault
+      },
+      create: {
+        code: pkg.code,
+        name: pkg.name,
+        description: pkg.description,
+        priceCents: pkg.priceCents,
+        currency: "THB",
+        billingInterval: "MONTHLY",
+        discountType: pkg.discountType,
+        discountValue: pkg.discountValue,
+        maxProjects: pkg.maxProjects,
+        maxUsers: pkg.maxUsers,
+        additionalUserPriceCents: pkg.additionalUserPriceCents,
+        features: pkg.features,
+        isActive: true,
+        isDefault: pkg.isDefault
+      }
+    });
+
+    packageMap.set(pkg.code, saved);
+  }
+
+  await prisma.subscriptionPackage.updateMany({
+    where: {
+      code: {
+        in: ["FREE", "STARTER", "ENTERPRISE"]
+      }
+    },
+    data: {
+      isActive: false,
+      isDefault: false
     }
   });
+
+  await prisma.subscriptionPackage.updateMany({
+    where: {
+      code: {
+        not: "STANDARD"
+      }
+    },
+    data: {
+      isDefault: false
+    }
+  });
+
+  await prisma.subscriptionPackage.update({
+    where: { code: "STANDARD" },
+    data: { isDefault: true }
+  });
+
+  const individualPackage = packageMap.get("INDIVIDUAL")!;
+  const standardPackage = packageMap.get("STANDARD")!;
+  const proPackage = packageMap.get("PRO")!;
+  const proMaxPackage = packageMap.get("PROMAX")!;
+
+  await prisma.tenant.updateMany({
+    where: {
+      currentPackage: {
+        code: "FREE"
+      }
+    },
+    data: {
+      currentPackageId: standardPackage.id
+    }
+  });
+
+  for (const legacyCode of ["FREE", "STARTER", "ENTERPRISE"]) {
+    const legacyPackage = await prisma.subscriptionPackage.findUnique({
+      where: { code: legacyCode },
+      select: { id: true }
+    });
+
+    if (!legacyPackage) {
+      continue;
+    }
+
+    const assignedCount = await prisma.tenant.count({
+      where: {
+        currentPackageId: legacyPackage.id
+      }
+    });
+
+    if (assignedCount === 0) {
+      await prisma.subscriptionPackage.delete({
+        where: { id: legacyPackage.id }
+      });
+    }
+  }
+
+  const categoryConfigs = [
+    { code: "TECHNOLOGY", name: "เทคโนโลยี / ซอฟต์แวร์", entityType: "ORGANIZATION" as const, sortOrder: 10 },
+    { code: "FINANCE", name: "การเงิน / บัญชี", entityType: "ORGANIZATION" as const, sortOrder: 20 },
+    { code: "HEALTHCARE", name: "สุขภาพ / การแพทย์", entityType: "ORGANIZATION" as const, sortOrder: 30 },
+    { code: "EDUCATION", name: "การศึกษา", entityType: "ORGANIZATION" as const, sortOrder: 40 },
+    { code: "MANUFACTURING", name: "การผลิต / อุตสาหกรรม", entityType: "ORGANIZATION" as const, sortOrder: 50 },
+    { code: "RETAIL", name: "ค้าปลีก / พาณิชย์", entityType: "ORGANIZATION" as const, sortOrder: 60 },
+    { code: "CONSULTING", name: "ที่ปรึกษา / บริการวิชาชีพ", entityType: "ORGANIZATION" as const, sortOrder: 70 },
+    { code: "GOVERNMENT", name: "ภาครัฐ / หน่วยงานสาธารณะ", entityType: "ORGANIZATION" as const, sortOrder: 80 },
+    { code: "NONPROFIT", name: "มูลนิธิ / องค์กรไม่แสวงกำไร", entityType: "ORGANIZATION" as const, sortOrder: 90 },
+    { code: "REAL_ESTATE", name: "อสังหาริมทรัพย์ / ก่อสร้าง", entityType: "ORGANIZATION" as const, sortOrder: 100 },
+    { code: "LOGISTICS", name: "โลจิสติกส์ / ขนส่ง", entityType: "ORGANIZATION" as const, sortOrder: 110 },
+    { code: "HOSPITALITY", name: "โรงแรม / ท่องเที่ยว / บริการ", entityType: "ORGANIZATION" as const, sortOrder: 120 },
+    { code: "MEDIA", name: "สื่อ / การตลาด / โฆษณา", entityType: "ORGANIZATION" as const, sortOrder: 130 },
+    { code: "OTHER_ORG", name: "อื่น ๆ", entityType: "ORGANIZATION" as const, sortOrder: 999 },
+    { code: "STUDENT", name: "นักเรียน / นักศึกษา", entityType: "INDIVIDUAL" as const, sortOrder: 10 },
+    { code: "TEACHER", name: "ครู / อาจารย์", entityType: "INDIVIDUAL" as const, sortOrder: 20 },
+    { code: "FREELANCER", name: "ฟรีแลนซ์", entityType: "INDIVIDUAL" as const, sortOrder: 30 },
+    { code: "CONSULTANT", name: "ที่ปรึกษาอิสระ", entityType: "INDIVIDUAL" as const, sortOrder: 40 },
+    { code: "ENTREPRENEUR", name: "เจ้าของกิจการ / ผู้ประกอบการ", entityType: "INDIVIDUAL" as const, sortOrder: 50 },
+    { code: "EMPLOYEE", name: "พนักงานบริษัท", entityType: "INDIVIDUAL" as const, sortOrder: 60 },
+    { code: "MANAGER_OCCUPATION", name: "ผู้จัดการ", entityType: "INDIVIDUAL" as const, sortOrder: 70 },
+    { code: "EXECUTIVE", name: "ผู้บริหาร", entityType: "INDIVIDUAL" as const, sortOrder: 80 },
+    { code: "ENGINEER", name: "วิศวกร", entityType: "INDIVIDUAL" as const, sortOrder: 90 },
+    { code: "DEVELOPER", name: "นักพัฒนาซอฟต์แวร์ / โปรแกรมเมอร์", entityType: "INDIVIDUAL" as const, sortOrder: 100 },
+    { code: "DESIGNER", name: "นักออกแบบ", entityType: "INDIVIDUAL" as const, sortOrder: 110 },
+    { code: "MARKETER", name: "นักการตลาด / นักขาย", entityType: "INDIVIDUAL" as const, sortOrder: 120 },
+    { code: "ACCOUNTANT", name: "นักบัญชี / การเงิน", entityType: "INDIVIDUAL" as const, sortOrder: 130 },
+    { code: "LAWYER", name: "ทนาย / นิติกร", entityType: "INDIVIDUAL" as const, sortOrder: 140 },
+    { code: "DOCTOR", name: "แพทย์ / บุคลากรทางการแพทย์", entityType: "INDIVIDUAL" as const, sortOrder: 150 },
+    { code: "GOV_OFFICER", name: "ข้าราชการ / พนักงานรัฐ", entityType: "INDIVIDUAL" as const, sortOrder: 160 },
+    { code: "CREATOR", name: "ครีเอเตอร์ / อินฟลูเอนเซอร์", entityType: "INDIVIDUAL" as const, sortOrder: 170 },
+    { code: "OTHER_INDIVIDUAL", name: "อื่น ๆ", entityType: "INDIVIDUAL" as const, sortOrder: 999 },
+  ];
+
+  const categoryMap = new Map<string, Awaited<ReturnType<typeof prisma.tenantCategory.upsert>>>();
+
+  for (const category of categoryConfigs) {
+    const saved = await prisma.tenantCategory.upsert({
+      where: { code: category.code },
+      update: {
+        name: category.name,
+        entityType: category.entityType,
+        sortOrder: category.sortOrder,
+        isActive: true
+      },
+      create: {
+        code: category.code,
+        name: category.name,
+        entityType: category.entityType,
+        sortOrder: category.sortOrder,
+        isActive: true
+      }
+    });
+
+    categoryMap.set(category.code, saved);
+  }
+
+  const technologyCategory = categoryMap.get("TECHNOLOGY")!;
+  const financeCategory = categoryMap.get("FINANCE")!;
 
   const tenant = await prisma.tenant.upsert({
     where: { slug: "org-local" },
     update: {
       name: "Org Local",
-      currentPackageId: freePackage.id
+      entityType: "ORGANIZATION",
+      tenantCategoryId: technologyCategory.id,
+      currentPackageId: standardPackage.id
     },
     create: {
       slug: "org-local",
       name: "Org Local",
-      currentPackageId: freePackage.id,
+      entityType: "ORGANIZATION",
+      tenantCategoryId: technologyCategory.id,
+      currentPackageId: standardPackage.id,
       createdById: admin.id
     }
   });
@@ -277,11 +518,17 @@ async function main() {
   const techcorp = await prisma.tenant.upsert({
     where: { slug: "techcorp-inc" },
     update: {
-      name: "TechCorp Inc"
+      name: "TechCorp Inc",
+      entityType: "ORGANIZATION",
+      tenantCategoryId: technologyCategory.id,
+      currentPackageId: proPackage.id
     },
     create: {
       slug: "techcorp-inc",
       name: "TechCorp Inc",
+      entityType: "ORGANIZATION",
+      tenantCategoryId: technologyCategory.id,
+      currentPackageId: proPackage.id,
       createdById: admin.id
     }
   });
@@ -370,11 +617,17 @@ async function main() {
   const financehub = await prisma.tenant.upsert({
     where: { slug: "financehub-ltd" },
     update: {
-      name: "FinanceHub Ltd"
+      name: "FinanceHub Ltd",
+      entityType: "ORGANIZATION",
+      tenantCategoryId: financeCategory.id,
+      currentPackageId: proMaxPackage.id
     },
     create: {
       slug: "financehub-ltd",
       name: "FinanceHub Ltd",
+      entityType: "ORGANIZATION",
+      tenantCategoryId: financeCategory.id,
+      currentPackageId: proMaxPackage.id,
       createdById: admin.id
     }
   });
@@ -430,6 +683,7 @@ async function main() {
   console.log(`  - Org Local (default)`);
   console.log(`  - TechCorp Inc`);
   console.log(`  - FinanceHub Ltd`);
+  console.log(`  - Individual package ready: ${individualPackage.code}`);
   console.log(`\n📊 Test Credentials:`);
   console.log(`  Admin: admin@org.local / Admin123!`);
   console.log(`  TechCorp CTO: cto@techcorp.local / TechCorp123!`);

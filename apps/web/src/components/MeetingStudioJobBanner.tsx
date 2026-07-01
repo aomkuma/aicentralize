@@ -1,9 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { canAccessMeetingStudio } from '../lib/packageAccess'
 import { progressPercent } from '../lib/meetingStudio/jobTypes'
 import { isMeetingStudioJobResultEmpty } from '../lib/meetingStudio/pendingJobStorage'
 import { useMeetingStudioJobStore } from '../stores/meetingStudioJobStore'
+import { useFeatureFlagStore } from '../stores/featureFlagStore'
 
 export default function MeetingStudioJobBanner() {
   const { t } = useTranslation()
@@ -16,10 +18,15 @@ export default function MeetingStudioJobBanner() {
   const dismissed = useMeetingStudioJobStore((state) => state.dismissed)
   const dismissBanner = useMeetingStudioJobStore((state) => state.dismissBanner)
   const hydratePendingJob = useMeetingStudioJobStore((state) => state.hydratePendingJob)
+  const packageCode = useFeatureFlagStore((state) => state.packageCode)
 
   useEffect(() => {
     hydratePendingJob()
   }, [hydratePendingJob])
+
+  if (!canAccessMeetingStudio(packageCode)) {
+    return null
+  }
 
   if (dismissed || status === 'idle') {
     return null

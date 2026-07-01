@@ -13,6 +13,7 @@ import { buildProjectAiSupplementText } from "../services/projectAiContextServic
 import { askMinutes, generateWithLocalModel, transcribeWithWhisper } from "../services/aiService";
 import { MAX_PLAYGROUND_PROMPT_CHARS } from "../constants/aiLimits";
 import { getSystemSettings } from "../services/systemSettingsService";
+import { BRAND_FONT_HEAD_HTML, BRAND_TAILWIND_FONT_FAMILY } from "../lib/brandFonts";
 
 export const aiRouter = Router();
 
@@ -489,7 +490,11 @@ aiRouter.post("/playground/generate", async (req, res) => {
 
     const data = await generateWithLocalModel({
       model: resolveRequestedModel(parsed.data.model),
-      prompt: guidedPrompt
+      prompt: guidedPrompt,
+      personaScope: {
+        projectId: parsed.data.projectId,
+        userId: authUser?.id
+      }
     });
 
     if (authUser) {
@@ -518,7 +523,7 @@ aiRouter.post("/playground/generate", async (req, res) => {
     return res.json({
       model: data.model,
       output: data.output,
-      appLinks: projectContext?.appLinks ?? []
+      appLinks: []
     });
   } catch (error) {
     return res.status(502).json({
@@ -683,9 +688,12 @@ aiRouter.post("/playground/diarize-analyze", async (req, res) => {
   ].filter(Boolean).join("\n");
 
   try {
+    const authUser = parseOptionalAuthUser(req);
+
     const data = await generateWithLocalModel({
       model: resolveRequestedModel(parsed.data.model),
-      prompt
+      prompt,
+      personaScope: { userId: authUser?.id }
     });
 
     return res.json({
@@ -1417,17 +1425,14 @@ aiRouter.get("/playground/page", (_req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Prompt Playground</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+  ${BRAND_FONT_HEAD_HTML}
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: {
-            sans: ["Plus Jakarta Sans", "ui-sans-serif", "sans-serif"],
-            display: ["Sora", "Plus Jakarta Sans", "ui-sans-serif", "sans-serif"]
+            ${BRAND_TAILWIND_FONT_FAMILY}
           },
           colors: {
             deep: "#13233f",

@@ -1,4 +1,4 @@
-import { SystemRole, TenantRole, UserRole } from "@prisma/client";
+import { SystemRole, TenantEntityType, TenantRole, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { Router } from "express";
@@ -8,12 +8,16 @@ import { requireAuth } from "../middleware/auth";
 import { env } from "../config/env";
 import { sendInvitationEmail } from "../services/emailService";
 import { ensureTenantMembership, ensureTenantRole, getTenantMembership, isPlatformAdmin, isSuperAdmin, type TenantAuthUser } from "../services/tenantAccessService";
+import { getIndividualPackageOrThrow, getTenantCategoryOrThrow } from "../services/tenantMetadataService";
+import { ensureTenantCanAddMember, ensureTenantHasUserCapacity } from "../services/tenantBillingService";
 
 export const tenantRouter = Router();
 
 const createTenantSchema = z.object({
   name: z.string().min(2).max(120),
   slug: z.string().min(2).max(80).optional(),
+  entityType: z.nativeEnum(TenantEntityType).default(TenantEntityType.ORGANIZATION),
+  tenantCategoryId: z.string().min(1),
   currentPackageId: z.string().min(1).optional()
 });
 
@@ -94,7 +98,24 @@ tenantRouter.get("/me", requireAuth, async (req, res) => {
           slug: true,
           name: true,
           isActive: true,
+          entityType: true,
+          tenantCategoryId: true,
+          tenantCategory: true,
           currentPackage: true,
+          billingStatus: true,
+          billingStartDate: true,
+          billingTimezone: true,
+          currentPeriodStart: true,
+          currentPeriodEnd: true,
+          activatedAt: true,
+          activatedByUserId: true,
+          activatedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
           createdAt: true,
           updatedAt: true
         }
@@ -124,22 +145,47 @@ tenantRouter.post("/", requireAuth, async (req, res) => {
   }
 
   const shouldCreateCreatorMembership = !isPlatformAdmin(req.user!);
-  const defaultPackage = parsed.data.currentPackageId
-    ? await prisma.subscriptionPackage.findUnique({ where: { id: parsed.data.currentPackageId } })
-    : await prisma.subscriptionPackage.findFirst({
-      where: { isActive: true, isDefault: true },
-      orderBy: { createdAt: "asc" }
+  try {
+    await getTenantCategoryOrThrow(parsed.data.tenantCategoryId, parsed.data.entityType);
+  } catch (error) {
+    return res.status(400).json({
+      message: error instanceof Error ? error.message : "Invalid tenant category"
     });
+  }
 
-  if (parsed.data.currentPackageId && !defaultPackage) {
-    return res.status(400).json({ message: "Package not found" });
+  let resolvedPackageId: string | undefined;
+
+  if (parsed.data.entityType === TenantEntityType.INDIVIDUAL) {
+    try {
+      const individualPackage = await getIndividualPackageOrThrow();
+      resolvedPackageId = individualPackage.id;
+    } catch (error) {
+      return res.status(400).json({
+        message: error instanceof Error ? error.message : "INDIVIDUAL package is not configured"
+      });
+    }
+  } else {
+    const defaultPackage = parsed.data.currentPackageId
+      ? await prisma.subscriptionPackage.findUnique({ where: { id: parsed.data.currentPackageId } })
+      : await prisma.subscriptionPackage.findFirst({
+        where: { isActive: true, isDefault: true },
+        orderBy: { createdAt: "asc" }
+      });
+
+    if (parsed.data.currentPackageId && !defaultPackage) {
+      return res.status(400).json({ message: "Package not found" });
+    }
+
+    resolvedPackageId = defaultPackage?.id;
   }
 
   const tenant = await prisma.tenant.create({
     data: {
       name: parsed.data.name,
       slug,
-      currentPackageId: defaultPackage?.id,
+      entityType: parsed.data.entityType,
+      tenantCategoryId: parsed.data.tenantCategoryId,
+      currentPackageId: resolvedPackageId,
       createdById: req.user!.id,
       ...(shouldCreateCreatorMembership
         ? {
@@ -153,7 +199,15 @@ tenantRouter.post("/", requireAuth, async (req, res) => {
         : {})
     },
     include: {
-      currentPackage: true
+      tenantCategory: true,
+      currentPackage: true,
+      activatedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
     }
   });
 
@@ -240,6 +294,11 @@ tenantRouter.post("/:tenantId/members", requireAuth, async (req, res) => {
     return res.status(404).json({ message: "User not found" });
   }
 
+  const capacityCheck = await ensureTenantCanAddMember(req.params.tenantId, parsed.data.userId);
+  if (!capacityCheck.allowed) {
+    return res.status(403).json({ message: capacityCheck.message });
+  }
+
   const membership = await prisma.tenantMembership.upsert({
     where: {
       tenantId_userId: {
@@ -301,6 +360,13 @@ tenantRouter.post("/:tenantId/members/create", requireAuth, async (req, res) => 
       mustChangePassword: true
     }
   });
+
+  const capacityCheck = existingUser
+    ? await ensureTenantCanAddMember(req.params.tenantId, existingUser.id)
+    : await ensureTenantHasUserCapacity(req.params.tenantId);
+  if (!capacityCheck.allowed) {
+    return res.status(403).json({ message: capacityCheck.message });
+  }
 
   const user = existingUser
     ? await prisma.user.update({

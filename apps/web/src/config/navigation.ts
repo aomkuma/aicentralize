@@ -88,6 +88,12 @@ export const PRIMARY_NAVIGATION: NavigationItemConfig[] = [
     icon: 'settings',
   },
   {
+    id: 'admin-billing',
+    to: '/admin/billing',
+    labelKey: 'navigation.adminBilling',
+    icon: 'settings',
+  },
+  {
     id: 'settings',
     to: '/settings',
     labelKey: 'navigation.systemSettings',

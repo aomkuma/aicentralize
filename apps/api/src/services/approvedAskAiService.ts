@@ -60,25 +60,107 @@ function uniqueByUrl(links: AppLink[]): AppLink[] {
   return result;
 }
 
-function buildAppLinks(citations: Citation[]): AppLink[] {
-  const links: AppLink[] = [];
+function extractActionItemTitle(snippet: string): string {
+  const match = snippet.match(/\[Action item\]\s*([^|]+)/i);
+  if (match?.[1]?.trim()) {
+    return match[1].trim();
+  }
+
+  const plain = snippet.split("|")[0]?.trim();
+  return plain || "Action item";
+}
+
+function normalizeMatchText(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function isOpenWorkQuestion(question: string): boolean {
+  const q = question.toLowerCase();
+  return /งานค้าง|งานที่ค้าง|มีงาน|รายการงาน|งานเปิด|งานที่ต้องทำ|ต้องทำอะไร|ติดอะไร|open task|pending task|overdue|เลยกำหนด|todo|to-do|action item/.test(q);
+}
+
+function isSelfTaskQuestion(question: string): boolean {
+  return /งานของฉัน|งานผม|งานฉัน|my task|assigned to me/i.test(question);
+}
+
+function citationReferencedInAnswer(citation: Citation, answer: string): boolean {
+  const answerNorm = normalizeMatchText(answer);
+  if (!answerNorm) {
+    return false;
+  }
+
+  if (citation.sourceType === "ACTION_ITEM") {
+    const title = extractActionItemTitle(citation.snippet);
+    const titleNorm = normalizeMatchText(title);
+    if (titleNorm.length >= 4 && answerNorm.includes(titleNorm)) {
+      return true;
+    }
+
+    const tokens = titleNorm.split(/\s+/).filter((token) => token.length >= 3);
+    const hits = tokens.filter((token) => answerNorm.includes(token)).length;
+    return hits >= 2 || (tokens.length === 1 && hits === 1);
+  }
+
+  const tokens = normalizeMatchText(citation.snippet)
+    .split(/\s+/)
+    .filter((token) => token.length >= 4);
+  const hits = tokens.filter((token) => answerNorm.includes(token)).length;
+  return hits >= 2;
+}
+
+function resolveRelatedChunkIds(
+  question: string,
+  answer: string,
+  citations: Citation[],
+  aiRelatedChunkIds: string[]
+): string[] {
+  const ids = new Set(aiRelatedChunkIds);
+  const openWork = isOpenWorkQuestion(question);
+  const selfTask = isSelfTaskQuestion(question);
 
   for (const citation of citations) {
+    if (citation.sourceType === "ACTION_ITEM" && citation.sourceRowId) {
+      if (openWork || selfTask || citationReferencedInAnswer(citation, answer)) {
+        ids.add(citation.chunkId);
+      }
+      continue;
+    }
+
+    if (citationReferencedInAnswer(citation, answer)) {
+      ids.add(citation.chunkId);
+    }
+  }
+
+  return [...ids];
+}
+
+function buildAppLinks(citations: Citation[], relatedChunkIds: string[]): AppLink[] {
+  if (!relatedChunkIds.length) {
+    return [];
+  }
+
+  const relevant = citations.filter((citation) => relatedChunkIds.includes(citation.chunkId));
+  const links: AppLink[] = [];
+
+  for (const citation of relevant) {
+    if (citation.sourceType === "ACTION_ITEM" && citation.sourceRowId) {
+      links.push({
+        label: "Open action item",
+        url: `/continuity/${citation.projectId}?tab=actions&actionItemId=${encodeURIComponent(citation.sourceRowId)}`,
+        type: "action",
+        sourceId: citation.sourceRowId,
+        context: extractActionItemTitle(citation.snippet)
+      });
+      continue;
+    }
+
     if (citation.sourceType === "PROJECT_GENERAL_NOTE") {
       links.push({
         label: "Open general notes",
         url: `/projects/${citation.projectId}/notes`,
         type: "knowledge",
         sourceId: citation.sourceRowId ?? citation.projectId,
-        context: "General notes"
-      });
-
-      links.push({
-        label: "Open project continuity",
-        url: `/continuity/${citation.projectId}`,
-        type: "project",
-        sourceId: citation.projectId,
-        context: "General notes"
+        context: citation.snippet.replace(/\s+/g, " ").trim().slice(0, 96)
       });
       continue;
     }
@@ -89,54 +171,93 @@ function buildAppLinks(citations: Citation[]): AppLink[] {
         url: `/projects/${citation.projectId}/knowledge`,
         type: "knowledge",
         sourceId: citation.sourceRowId ?? citation.projectId,
-        context: "Project baseline"
-      });
-
-      links.push({
-        label: "Open project continuity",
-        url: `/continuity/${citation.projectId}`,
-        type: "project",
-        sourceId: citation.projectId,
-        context: "Project baseline"
+        context: citation.snippet.replace(/\s+/g, " ").trim().slice(0, 96) || "Project baseline"
       });
       continue;
     }
 
-    links.push({
-      label: "Open meeting minutes",
-      url: `/meetings/history/${citation.meetingId}`,
-      type: "meeting",
-      sourceId: citation.meetingId,
-      context: citation.meetingTitle
-    });
-
-    links.push({
-      label: "Open project continuity",
-      url: `/continuity/${citation.projectId}`,
-      type: "project",
-      sourceId: citation.projectId,
-      context: citation.meetingTitle
-    });
-
-    if (citation.sourceType === "ACTION_ITEM" && citation.sourceRowId) {
+    if (citation.meetingId) {
       links.push({
-        label: "Review action item",
-        url: `/action-items/${encodeURIComponent(citation.sourceRowId)}`,
-        type: "action",
-        sourceId: citation.sourceRowId,
-        context: citation.meetingTitle
+        label: "Open meeting minutes",
+        url: `/meetings/history/${citation.meetingId}`,
+        type: "meeting",
+        sourceId: citation.meetingId,
+        context: citation.meetingTitle || "Meeting"
       });
     }
   }
 
-  return uniqueByUrl(links).slice(0, 6);
+  return uniqueByUrl(links).reduce<AppLink[]>((acc, link) => {
+    if (link.type === "action" && link.sourceId) {
+      if (acc.some((item) => item.type === "action" && item.sourceId === link.sourceId)) {
+        return acc;
+      }
+    }
+    acc.push(link);
+    return acc;
+  }, []);
 }
 
 const groundedOutputSchema = z.object({
   answer: z.string().trim().min(1),
   confidence: z.enum(["low", "medium", "high"]).default("medium"),
-  uncertainties: z.array(z.string().trim().min(1)).default([])
+  uncertainties: z.array(z.string().trim().min(1)).default([]),
+  relatedChunkIds: z.array(z.string().trim().min(1)).default([])
 });
+
+const groundedOutputLooseSchema = z.object({
+  answer: z.string().optional(),
+  output: z.string().optional(),
+  text: z.string().optional(),
+  response: z.string().optional(),
+  confidence: z.enum(["low", "medium", "high"]).optional(),
+  uncertainties: z.array(z.string()).optional(),
+  relatedChunkIds: z.array(z.string()).optional()
+});
+
+function pickAnswerText(data: z.infer<typeof groundedOutputLooseSchema>): string {
+  for (const value of [data.answer, data.output, data.text, data.response]) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+function parseGroundedModelOutput(raw: string) {
+  const trimmed = raw.trim();
+  const fallbackAnswer = "ขออภัยค่ะ รับจบตอบไม่ได้ในขณะนี้ ลองถามใหม่อีกครั้งนะคะ";
+
+  let candidate: unknown;
+  try {
+    candidate = safeParseJson(trimmed);
+  } catch {
+    return groundedOutputSchema.parse({
+      answer: trimmed || fallbackAnswer,
+      confidence: "medium",
+      uncertainties: [],
+      relatedChunkIds: []
+    });
+  }
+
+  const loose = groundedOutputLooseSchema.safeParse(candidate);
+  if (!loose.success) {
+    return groundedOutputSchema.parse({
+      answer: trimmed || fallbackAnswer,
+      confidence: "medium",
+      uncertainties: [],
+      relatedChunkIds: []
+    });
+  }
+
+  const answer = pickAnswerText(loose.data) || fallbackAnswer;
+  return groundedOutputSchema.parse({
+    answer,
+    confidence: loose.data.confidence ?? "medium",
+    uncertainties: (loose.data.uncertainties ?? []).map((item) => item.trim()).filter(Boolean),
+    relatedChunkIds: (loose.data.relatedChunkIds ?? []).map((item) => item.trim()).filter(Boolean)
+  });
+}
 
 function buildGroundedPrompt(question: string, evidence: UsedEvidence[]): string {
   const evidenceText = evidence
@@ -170,9 +291,15 @@ function buildGroundedPrompt(question: string, evidence: UsedEvidence[]): string
     "When answering about open actions, prioritize explicit action-item status from evidence over narrative text.",
     "Evidence with sourceType ACTION_ITEM from live-action-item chunks reflects current app task records, including manual tasks and completed/cancelled items.",
     "Evidence with sourceType TEAM_PULSE_AGGREGATE or COMMUNICATION_MOOD_AGGREGATE is anonymized team mood context only. Never quote raw feeling-log text or reveal who wrote a feeling log.",
+    "relatedChunkIds must list chunkId values from the evidence set that directly support your answer.",
+    "For greetings or small talk with no project facts, return relatedChunkIds as an empty array.",
+    "When the user asks about open tasks, overdue work, or action items, you MUST include every ACTION_ITEM chunkId you used in relatedChunkIds.",
+    "When your answer references multiple action items, notes, or meetings, include every supporting chunkId so the UI can link to each one.",
+    "Only use chunkIds that appear in the evidence set.",
+    "answer must never be empty. For greetings or small talk, reply briefly in Thai and set relatedChunkIds to [].",
     "Respond in Thai.",
     "Return ONLY JSON with this shape:",
-    '{"answer":"string","confidence":"low|medium|high","uncertainties":["string"]}',
+    '{"answer":"string","confidence":"low|medium|high","uncertainties":["string"],"relatedChunkIds":["chunkId"]}',
     "",
     `Question: ${question}`,
     "",
@@ -245,8 +372,13 @@ async function retrieveLiveProjectActionItemEvidence(input: { projectId?: string
     return [];
   }
 
+  const openWorkQuestion = isOpenWorkQuestion(input.question) || isSelfTaskQuestion(input.question);
+
   const rows = await prisma.actionItem.findMany({
-    where: { projectId: input.projectId },
+    where: {
+      projectId: input.projectId,
+      ...(openWorkQuestion ? { status: { notIn: ["DONE", "CANCELLED"] } } : {})
+    },
     include: {
       assignee: {
         select: {
@@ -256,8 +388,10 @@ async function retrieveLiveProjectActionItemEvidence(input: { projectId?: string
         }
       }
     },
-    orderBy: { updatedAt: "desc" },
-    take: 120
+    orderBy: openWorkQuestion
+      ? [{ dueDate: "asc" }, { updatedAt: "desc" }]
+      : [{ updatedAt: "desc" }],
+    take: openWorkQuestion ? Math.max(input.limit, 20) : 120
   });
 
   return rows
@@ -273,6 +407,7 @@ async function retrieveLiveProjectActionItemEvidence(input: { projectId?: string
       const lexical = scoreProjectMemory(text, input.question);
       const directMatchBoost = taskMatchesPrompt(item.task, input.question) ? 0.42 : 0;
       const statusBoost = item.status === "DONE" || item.status === "CANCELLED" ? 0.04 : 0.1;
+      const openWorkBoost = openWorkQuestion ? 0.22 : 0;
 
       return {
         chunkId: `live-action-item:${item.id}`,
@@ -296,10 +431,10 @@ async function retrieveLiveProjectActionItemEvidence(input: { projectId?: string
         lexicalScore: lexical,
         sourceBoost: 0.14,
         recencyBoost: 0.05,
-        hybridScore: lexical * 0.7 + directMatchBoost + statusBoost
+        hybridScore: lexical * 0.7 + directMatchBoost + statusBoost + openWorkBoost
       };
     })
-    .filter((item) => item.hybridScore > 0.12)
+    .filter((item) => openWorkQuestion || item.hybridScore > 0.12)
     .sort((a, b) => b.hybridScore - a.hybridScore)
     .slice(0, input.limit);
 }
@@ -484,7 +619,7 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
     retrieveLiveProjectActionItemEvidence({
       projectId: input.projectId,
       question: input.question,
-      limit: 8
+      limit: isOpenWorkQuestion(input.question) || isSelfTaskQuestion(input.question) ? 20 : 8
     }),
     input.projectId
       ? retrieveProjectAiSupplementEvidence({
@@ -616,17 +751,26 @@ export async function askFromApprovedMinutes(input: AskApprovedInput) {
   const prompt = buildGroundedPrompt(input.question, usedEvidence);
   const generated = await generateWithLocalModel({
     model: input.model,
-    prompt
+    prompt,
+    personaScope: { projectId: input.projectId }
   });
 
-  const parsed = groundedOutputSchema.parse(safeParseJson(generated.output));
+  const parsed = parseGroundedModelOutput(generated.output);
+  const evidenceChunkIds = new Set(citations.map((item) => item.chunkId));
+  const aiRelatedChunkIds = parsed.relatedChunkIds.filter((chunkId) => evidenceChunkIds.has(chunkId));
+  const relatedChunkIds = resolveRelatedChunkIds(
+    input.question,
+    parsed.answer,
+    citations,
+    aiRelatedChunkIds
+  );
 
   const result = {
     answer: parsed.answer,
     confidence: parsed.confidence,
     uncertainties: parsed.uncertainties,
     citations,
-    appLinks: buildAppLinks(citations),
+    appLinks: buildAppLinks(citations, relatedChunkIds),
     usedEvidence,
     usedMeetingIds: [...new Set(citations.map((item) => item.meetingId).filter(Boolean))],
     usedActionItemIds: [

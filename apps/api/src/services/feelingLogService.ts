@@ -203,6 +203,7 @@ function buildBatchAiPrompt(input: {
 }
 
 async function analyzeBatchWithAi(input: {
+  tenantId: string;
   mode: "author" | "mention" | "leadership";
   logs: PendingLog[];
   mentionNames: string[];
@@ -223,7 +224,8 @@ async function analyzeBatchWithAi(input: {
         mentionNames: input.mentionNames,
         mentionedPersonName: input.mentionedPersonName,
         heuristic
-      })
+      }),
+      personaScope: { tenantId: input.tenantId }
     });
 
     const candidate = extractJsonCandidate(result.output);
@@ -423,6 +425,7 @@ export async function processPendingFeelingLogsBatch(options?: { force?: boolean
         authorLogs.flatMap((log) => log.mentions.map((mention) => mention.mentionLabel))
       ));
       const outcome = await analyzeBatchWithAi({
+        tenantId,
         mode: "author",
         logs: authorLogs,
         mentionNames
@@ -458,6 +461,7 @@ export async function processPendingFeelingLogsBatch(options?: { force?: boolean
     for (const { target, logs } of logsByMention.values()) {
       mentionGroups += 1;
       const outcome = await analyzeBatchWithAi({
+        tenantId,
         mode: "mention",
         logs,
         mentionNames: [target.name],
@@ -479,6 +483,7 @@ export async function processPendingFeelingLogsBatch(options?: { force?: boolean
       tenantLogs.flatMap((log) => log.mentions.map((mention) => mention.mentionLabel))
     ));
     const leadershipOutcome = await analyzeBatchWithAi({
+      tenantId,
       mode: "leadership",
       logs: tenantLogs,
       mentionNames: leadershipMentionNames

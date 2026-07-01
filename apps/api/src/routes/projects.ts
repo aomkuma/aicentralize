@@ -33,8 +33,10 @@ import {
 } from "../services/projectGeneralNoteService";
 import {
   getProjectKnowledgeImportJob,
+  startProjectKnowledgeExtractJob,
   startProjectKnowledgeImportJob
 } from "../services/projectKnowledgeImportJobService";
+import { ensureMeetingStudioAccess } from "../services/packageAccessService";
 
 export const projectRouter = Router();
 
@@ -43,6 +45,12 @@ const createProjectSchema = z.object({
   name: z.string().min(2),
   description: z.string().optional(),
   tenantId: z.string().min(1).optional()
+});
+
+const updateProjectSchema = z.object({
+  code: z.string().min(2).optional(),
+  name: z.string().min(2).optional(),
+  description: z.string().optional()
 });
 
 const createProjectMeetingSchema = z.object({
@@ -272,6 +280,87 @@ projectRouter.post("/", requireAuth, async (req, res) => {
   res.status(201).json(project);
 });
 
+projectRouter.patch("/:projectId", requireAuth, async (req, res) => {
+  const parsed = updateProjectSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+  }
+
+  if (!parsed.data.code && !parsed.data.name && parsed.data.description === undefined) {
+    return res.status(400).json({ message: "At least one field is required" });
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: req.params.projectId },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      tenantId: true
+    }
+  });
+
+  if (!project) {
+    return res.status(404).json({ message: "Project not found" });
+  }
+
+  if (project.tenantId) {
+    const canUpdate = await ensureTenantRole(
+      req.user!,
+      project.tenantId,
+      [TenantRole.TENANT_ADMIN, TenantRole.MANAGER]
+    );
+    if (!canUpdate) {
+      return res.status(403).json({ message: "Forbidden tenant scope" });
+    }
+  } else if (!isSuperAdmin(req.user!)) {
+    return res.status(403).json({ message: "Forbidden project scope" });
+  }
+
+  const nextCode = parsed.data.code?.trim() ?? project.code;
+  const nextName = parsed.data.name?.trim() ?? project.name;
+
+  if (nextCode.toLowerCase() !== project.code.toLowerCase()) {
+    const duplicate = await prisma.project.findFirst({
+      where: {
+        id: { not: project.id },
+        code: {
+          equals: nextCode,
+          mode: "insensitive"
+        }
+      },
+      select: { id: true }
+    });
+
+    if (duplicate) {
+      return res.status(409).json({ message: "Project code already exists" });
+    }
+  }
+
+  const updated = await prisma.project.update({
+    where: { id: project.id },
+    data: {
+      code: nextCode,
+      name: nextName,
+      ...(parsed.data.description !== undefined ? { description: parsed.data.description } : {})
+    },
+    include: {
+      tenant: {
+        select: {
+          id: true,
+          slug: true,
+          name: true
+        }
+      },
+      _count: {
+        select: { meetings: true }
+      }
+    }
+  });
+
+  res.json(updated);
+});
+
 projectRouter.post("/:projectId/meetings", requireAuth, async (req, res) => {
   const parsed = createProjectMeetingSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -285,6 +374,11 @@ projectRouter.post("/:projectId/meetings", requireAuth, async (req, res) => {
 
   if (!project) {
     return res.status(404).json({ message: "Project not found" });
+  }
+
+  const meetingAccess = await ensureMeetingStudioAccess(req.user!, { projectId: project.id });
+  if (!meetingAccess.allowed) {
+    return res.status(403).json({ message: meetingAccess.message, code: "MEETING_STUDIO_NOT_AVAILABLE" });
   }
 
   if (project.tenantId) {
@@ -396,7 +490,7 @@ projectRouter.post(
     }
 
     try {
-      const job = startProjectKnowledgeImportJob({
+      const job = await startProjectKnowledgeImportJob({
         projectId: req.params.projectId,
         user: req.user!,
         fileName: req.file.originalname,
@@ -416,7 +510,7 @@ projectRouter.post(
 );
 
 projectRouter.get("/:projectId/knowledge/import-jobs/:jobId", requireAuth, async (req, res) => {
-  const job = getProjectKnowledgeImportJob(req.params.jobId, req.user!.id);
+  const job = await getProjectKnowledgeImportJob(req.params.jobId, req.user!.id);
   if (!job || job.projectId !== req.params.projectId) {
     return res.status(404).json({ message: "Knowledge import job not found" });
   }
@@ -477,6 +571,30 @@ projectRouter.post("/:projectId/knowledge/sources/:sourceId/extract", requireAut
   try {
     const extraction = await extractProjectKnowledgeSource(req.params.sourceId, req.user!);
     res.status(201).json(extraction);
+  } catch (error) {
+    handleProjectKnowledgeError(error, res);
+  }
+});
+
+projectRouter.post("/:projectId/knowledge/sources/:sourceId/extract-jobs", requireAuth, async (req, res) => {
+  try {
+    const source = await prisma.projectKnowledgeSource.findUnique({
+      where: { id: req.params.sourceId },
+      select: { id: true, projectId: true, title: true }
+    });
+
+    if (!source || source.projectId !== req.params.projectId) {
+      return res.status(404).json({ message: "Knowledge source not found" });
+    }
+
+    const job = await startProjectKnowledgeExtractJob({
+      projectId: req.params.projectId,
+      sourceId: source.id,
+      sourceTitle: source.title,
+      user: req.user!
+    });
+
+    res.status(202).json(job);
   } catch (error) {
     handleProjectKnowledgeError(error, res);
   }

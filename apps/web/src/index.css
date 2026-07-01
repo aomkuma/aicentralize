@@ -3,6 +3,20 @@
 @tailwind utilities;
 
 @layer base {
+  html,
+  body,
+  #root,
+  button,
+  input,
+  textarea,
+  select {
+    font-family: var(--font-sans);
+  }
+
+  html {
+    @apply antialiased;
+  }
+
   body {
     @apply bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-50;
   }

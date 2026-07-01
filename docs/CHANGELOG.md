@@ -4,6 +4,16 @@ Product-facing history for **Kora** (`main`). For current status and open work, 
 
 | Date | Commit | Summary |
 |------|--------|---------|
+| 2026-07-01 | (pending) | INDIVIDUAL AI chat history + self-scoped `/ask-ai/conversations`; dashboard chat persistence; knowledge import jobs in DB; tenant AI persona; IBM Plex Sans; billing phase 2 |
+| 2026-07-03 | (pending) | Tenant billing: `billingStartDate` on first login; `maxUsers` enforcement; admin billing columns |
+| 2026-07-03 | `37f36a5` | Sync `pnpm-lock.yaml` after API document parsing deps (Railway deploy fix) |
+| 2026-07-03 | `0366d1e` | Server-side Project Knowledge file import (`documentTextService`: pdf-parse, mammoth, xlsx) |
+| 2026-07-03 | `99b14fe` | Project Knowledge guided steps + live progress panel |
+| 2026-07-03 | `9755b97` | Enforce subscription package checkbox features across UI routes and API |
+| 2026-07-02 | `1e26b1b` | API build fix; knowledge history collapse + pagination |
+| 2026-07-02 | `9ba381d` | Tenant-scoped permissions, team edit UI, 500 MB upload limits |
+| 2026-07-02 | `b249758` | Tenant-scoped nicknames; team member removal |
+| 2026-07-02 | `cfbd0a1` | Meeting Studio raw-text Analyze button; Continuity focus UX |
 | 2026-07-01 | `e82bc9d` | Welcome origin story section + quote block; hero origin line |
 | 2026-07-01 | `8b95055` | Welcome packages: 4-column layout, sort by price, remove subtitle |
 | 2026-07-01 | `e15a048` | Public `GET /packages`; welcome pricing cards; fix new-package form reset |

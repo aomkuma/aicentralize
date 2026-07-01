@@ -217,7 +217,8 @@ systemSettingsRouter.post("/ai-keys/:id/test", requireAuth, requireSystemRole([S
     const result = await generateWithLocalModel({
       provider: active.provider,
       model: credential.model,
-      prompt: parsed.data.prompt ?? "Reply with exactly: AI key test success"
+      prompt: parsed.data.prompt ?? "Reply with exactly: AI key test success",
+      skipPersona: true
     });
 
     return res.json({

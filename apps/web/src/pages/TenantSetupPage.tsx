@@ -6,10 +6,10 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useAuthStore } from '../stores/authStore'
 import { setSetupOnboardingStatus } from '../lib/setupOnboarding'
 import LanguageSwitcher from '../components/LanguageSwitcher'
-import type { MemberOnboardRequest, MemberOnboardResponse, SubscriptionPackage, Tenant, TenantCreateRequest } from '../types'
+import type { MemberOnboardRequest, MemberOnboardResponse, SubscriptionPackage, Tenant, TenantCategory, TenantCreateRequest } from '../types'
 
 export default function TenantSetupPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const { post, isLoading } = useApi()
@@ -18,7 +18,9 @@ export default function TenantSetupPage() {
 
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState({
+    entityType: 'ORGANIZATION' as 'ORGANIZATION' | 'INDIVIDUAL',
     organizationName: '',
+    tenantCategoryId: '',
     contactEmail: '',
     contactName: '',
     currentPackageId: '',
@@ -30,15 +32,17 @@ export default function TenantSetupPage() {
     phone: '',
     jobTitle: '',
     department: '',
-    tenantRole: 'MEMBER' as MemberOnboardRequest['tenantRole'],
+    tenantRole: 'TENANT_ADMIN' as MemberOnboardRequest['tenantRole'],
   })
   const [createdTenant, setCreatedTenant] = useState<Tenant | null>(null)
   const [packages, setPackages] = useState<SubscriptionPackage[]>([])
+  const [categories, setCategories] = useState<TenantCategory[]>([])
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null)
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
   const [invitationEmailSent, setInvitationEmailSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hoveredField, setHoveredField] = useState<string | null>(null)
+  const isThai = (i18n.resolvedLanguage ?? i18n.language ?? 'en').toLowerCase().startsWith('th')
 
   const coachMarks = {
     organizationName: {
@@ -66,12 +70,48 @@ export default function TenantSetupPage() {
     }))
   }
 
+  const localized = {
+    workspaceType: isThai ? 'ประเภทเวิร์กสเปซ' : 'Workspace type',
+    organizationOption: isThai ? 'องค์กร' : 'Organization',
+    individualOption: isThai ? 'บุคคล' : 'Individual',
+    personName: isThai ? 'ชื่อ-นามสกุล' : 'Person Name',
+    personNamePlaceholder: isThai ? 'เช่น สมชาย ใจดี' : 'e.g., Jane Doe',
+    personNameHelp: isThai ? 'จำเป็น ใช้ชื่อเต็มสำหรับเวิร์กสเปซส่วนบุคคลนี้' : 'Required. Use the full name for this personal workspace.',
+    occupation: isThai ? 'อาชีพ' : 'Occupation',
+    businessType: isThai ? 'ประเภทธุรกิจ' : 'Business Type',
+    selectOccupation: isThai ? 'เลือกอาชีพ' : 'Select occupation',
+    selectBusinessType: isThai ? 'เลือกประเภทธุรกิจ' : 'Select business type',
+    currentPackage: isThai ? 'แพ็กเกจปัจจุบัน' : 'Current package',
+    individualPackageNoteBefore: isThai ? 'เวิร์กสเปซส่วนบุคคลจะใช้แพ็กเกจ ' : 'Personal workspaces always use the ',
+    individualPackageNoteAfter: isThai ? ' เท่านั้น' : ' package.',
+    platformDefault: isThai ? 'ใช้ค่าเริ่มต้นของระบบ' : 'Use platform default',
+    personNameRequired: isThai ? 'กรุณากรอกชื่อ-นามสกุล' : 'Person name is required',
+    organizationNameRequired: isThai ? 'กรุณากรอกชื่อองค์กร' : 'Organization name is required',
+    occupationRequired: isThai ? 'กรุณาเลือกอาชีพ' : 'Please select an occupation',
+    businessTypeRequired: isThai ? 'กรุณาเลือกประเภทธุรกิจ' : 'Please select a business type',
+    contactRequired: isThai ? 'กรุณากรอกชื่อหรืออีเมลอย่างน้อย 1 รายการ' : 'Please provide at least a name or email',
+    createOrganizationFailed: isThai ? 'สร้างองค์กรไม่สำเร็จ' : 'Failed to create organization',
+    createOrganizationError: isThai ? 'เกิดข้อผิดพลาดระหว่างสร้างองค์กร' : 'An error occurred while creating the organization',
+    createOrganizationFirst: isThai ? 'กรุณาสร้างองค์กรก่อน' : 'Please create an organization first',
+    createMemberFailed: isThai ? 'สร้างสมาชิกไม่สำเร็จ' : 'Failed to create team member',
+    individualSummary: isThai ? 'บุคคล' : 'Individual',
+    organizationSummary: isThai ? 'องค์กร' : 'Organization',
+    duty: isThai ? 'หน้าที่' : 'Role / Responsibility',
+    dutyPlaceholder: isThai ? 'เช่น นักเรียน, ฟรีแลนซ์, ผู้จัดการ' : 'e.g., Student, Freelancer, Manager',
+    workplace: isThai ? 'ที่ทำงาน/สถานศึกษา' : 'Workplace / School',
+    workplacePlaceholder: isThai ? 'เช่น โรงเรียนสวนกุหลาบ, ABC Company' : 'e.g., Suankularb School, ABC Company',
+    tenantAdminLabel: isThai ? 'ผู้ดูแลองค์กร' : 'Organization Admin',
+    individualMemberValidation: isThai
+      ? 'กรุณากรอกชื่อ อีเมล เบอร์โทร หน้าที่ และที่ทำงาน/สถานศึกษาให้ครบ'
+      : 'Name, email, phone, role/responsibility, and workplace/school are required.',
+  }
+
   useEffect(() => {
-    const loadPackages = async () => {
+    const loadSetupData = async () => {
       const data = await getPackages<SubscriptionPackage[]>('/admin/packages')
       if (Array.isArray(data)) {
         setPackages(data.filter((item) => item.isActive))
-        const defaultPackage = data.find((item) => item.isActive && item.isDefault)
+        const defaultPackage = data.find((item) => item.isActive && item.isDefault && item.code !== 'INDIVIDUAL')
         if (defaultPackage) {
           setFormData((current) => ({
             ...current,
@@ -79,10 +119,30 @@ export default function TenantSetupPage() {
           }))
         }
       }
+
+      const categoryData = await getPackages<TenantCategory[]>('/master-data/tenant-categories')
+      if (Array.isArray(categoryData)) {
+        setCategories(categoryData)
+      }
     }
 
-    void loadPackages()
+    void loadSetupData()
   }, [getPackages])
+
+  useEffect(() => {
+    const matchingCategories = categories.filter((item) => item.entityType === formData.entityType)
+    if (!matchingCategories.length) {
+      return
+    }
+
+    const hasCurrent = matchingCategories.some((item) => item.id === formData.tenantCategoryId)
+    if (!hasCurrent) {
+      setFormData((current) => ({
+        ...current,
+        tenantCategoryId: matchingCategories[0]?.id ?? '',
+      }))
+    }
+  }, [categories, formData.entityType, formData.tenantCategoryId])
 
   const handleMemberInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -95,14 +155,18 @@ export default function TenantSetupPage() {
   const handleNext = async () => {
     if (step === 1) {
       if (!formData.organizationName.trim()) {
-        setError('Organization name is required')
+        setError(formData.entityType === 'INDIVIDUAL' ? localized.personNameRequired : localized.organizationNameRequired)
+        return
+      }
+      if (!formData.tenantCategoryId) {
+        setError(formData.entityType === 'INDIVIDUAL' ? localized.occupationRequired : localized.businessTypeRequired)
         return
       }
       setStep(2)
       setError(null)
     } else if (step === 2) {
       if (!formData.contactName.trim() && !formData.contactEmail.trim()) {
-        setError('Please provide at least a name or email')
+        setError(localized.contactRequired)
         return
       }
       setStep(3)
@@ -116,7 +180,11 @@ export default function TenantSetupPage() {
 
       const payload: TenantCreateRequest = {
         name: formData.organizationName,
-        currentPackageId: formData.currentPackageId || undefined,
+        entityType: formData.entityType,
+        tenantCategoryId: formData.tenantCategoryId,
+        currentPackageId: formData.entityType === 'ORGANIZATION'
+          ? (formData.currentPackageId || undefined)
+          : undefined,
       }
 
       const response = await post<Tenant>('/tenants', payload)
@@ -127,14 +195,15 @@ export default function TenantSetupPage() {
           ...prev,
           name: formData.contactName,
           email: formData.contactEmail,
+          tenantRole: 'TENANT_ADMIN',
         }))
         setStep(4)
       } else {
-        setError('Failed to create organization')
+        setError(localized.createOrganizationFailed)
       }
     } catch (err) {
       console.error('[TenantSetupPage] Exception:', err)
-      setError('An error occurred while creating the organization')
+      setError(localized.createOrganizationError)
     }
   }
 
@@ -163,7 +232,7 @@ export default function TenantSetupPage() {
 
   const handleCreateFirstMember = async () => {
     if (!createdTenant) {
-      setError('Please create an organization first')
+      setError(localized.createOrganizationFirst)
       return
     }
 
@@ -174,11 +243,15 @@ export default function TenantSetupPage() {
       phone: memberForm.phone.trim(),
       jobTitle: memberForm.jobTitle.trim(),
       department: memberForm.department.trim(),
-      tenantRole: memberForm.tenantRole,
+      tenantRole: isIndividualTenant ? 'TENANT_ADMIN' : memberForm.tenantRole,
     }
 
     if (!payload.name || !payload.email || !payload.phone || !payload.jobTitle || !payload.department) {
-      setError(t('dashboard.memberValidation'))
+      setError(
+        isIndividualTenant
+          ? localized.individualMemberValidation
+          : t('dashboard.memberValidation')
+      )
       return
     }
 
@@ -190,9 +263,15 @@ export default function TenantSetupPage() {
       setInviteUrl(response.inviteUrl || null)
       setInvitationEmailSent(Boolean(response.invitationEmailSent))
     } else {
-      setError('Failed to create team member')
+      setError(localized.createMemberFailed)
     }
   }
+
+  const visibleCategories = categories.filter((item) => item.entityType === formData.entityType)
+  const selectedCategory = categories.find((item) => item.id === formData.tenantCategoryId) ?? null
+  const individualPackage = packages.find((item) => item.code === 'INDIVIDUAL') ?? null
+  const organizationPackages = packages.filter((item) => item.code !== 'INDIVIDUAL')
+  const isIndividualTenant = createdTenant?.entityType === 'INDIVIDUAL'
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 dark:from-slate-950 dark:via-blue-950 dark:to-slate-950 lg:from-white lg:via-blue-50 lg:to-white dark:lg:from-slate-950 dark:lg:via-blue-950 dark:lg:to-slate-950 flex items-center justify-center p-4">
@@ -272,9 +351,21 @@ export default function TenantSetupPage() {
             {/* Step 1: Organization Name */}
             {step === 1 && (
               <div className="space-y-4">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300">
+                  {localized.workspaceType}
+                  <select
+                    name="entityType"
+                    value={formData.entityType}
+                    onChange={handleInputChange}
+                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-400"
+                  >
+                    <option value="ORGANIZATION">{localized.organizationOption}</option>
+                    <option value="INDIVIDUAL">{localized.individualOption}</option>
+                  </select>
+                </label>
                 <div className="relative">
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">
-                    {t('setup.organizationName')}
+                    {formData.entityType === 'INDIVIDUAL' ? localized.personName : t('setup.organizationName')}
                   </label>
                   <div
                     className="relative"
@@ -284,13 +375,15 @@ export default function TenantSetupPage() {
                     <input
                       type="text"
                       name="organizationName"
-                      placeholder={t('setup.organizationNamePlaceholder')}
+                      placeholder={formData.entityType === 'INDIVIDUAL' ? localized.personNamePlaceholder : t('setup.organizationNamePlaceholder')}
                       value={formData.organizationName}
                       onChange={handleInputChange}
                       className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent outline-none transition-all"
                     />
                     <p className="mt-2 text-xs text-gray-600 dark:text-slate-400">
-                      {t('setup.organizationNameHelp')}
+                      {formData.entityType === 'INDIVIDUAL'
+                        ? localized.personNameHelp
+                        : t('setup.organizationNameHelp')}
                     </p>
 
                     {/* Coach mark */}
@@ -308,20 +401,49 @@ export default function TenantSetupPage() {
                   </div>
                 </div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300">
-                  Current package
+                  {formData.entityType === 'INDIVIDUAL' ? localized.occupation : localized.businessType}
                   <select
-                    name="currentPackageId"
-                    value={formData.currentPackageId}
+                    name="tenantCategoryId"
+                    value={formData.tenantCategoryId}
                     onChange={handleInputChange}
                     className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-400"
                   >
-                    <option value="">Use platform default</option>
-                    {packages.map((item) => (
+                    <option value="">
+                      {formData.entityType === 'INDIVIDUAL' ? localized.selectOccupation : localized.selectBusinessType}
+                    </option>
+                    {visibleCategories.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.name} ({item.maxProjects} projects / {item.maxUsers} users)
+                        {item.name}
                       </option>
                     ))}
                   </select>
+                </label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300">
+                  {localized.currentPackage}
+                  {formData.entityType === 'INDIVIDUAL' ? (
+                    <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-200">
+                      {localized.individualPackageNoteBefore}<strong>INDIVIDUAL</strong>{localized.individualPackageNoteAfter}
+                      {individualPackage && (
+                        <span className="block mt-1 text-xs opacity-80">
+                          {individualPackage.name} ({individualPackage.maxProjects} projects / {individualPackage.maxUsers} user)
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <select
+                      name="currentPackageId"
+                      value={formData.currentPackageId}
+                      onChange={handleInputChange}
+                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-400"
+                    >
+                      <option value="">{localized.platformDefault}</option>
+                      {organizationPackages.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} ({item.maxProjects} projects / {item.maxUsers} users)
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </label>
               </div>
             )}
@@ -413,11 +535,15 @@ export default function TenantSetupPage() {
                   <div className="flex items-center gap-3">
                     <div className="text-2xl">🏢</div>
                     <div>
-                      <p className="text-sm text-gray-600 dark:text-slate-400">
-                        {t('setup.organizationName')}
-                      </p>
+                        <p className="text-sm text-gray-600 dark:text-slate-400">
+                        {formData.entityType === 'INDIVIDUAL' ? localized.personName : t('setup.organizationName')}
+                        </p>
                       <p className="font-medium text-gray-900 dark:text-white">
                         {formData.organizationName}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                        {formData.entityType === 'INDIVIDUAL' ? localized.individualSummary : localized.organizationSummary}
+                        {selectedCategory ? ` · ${selectedCategory.name}` : ''}
                       </p>
                     </div>
                   </div>
@@ -509,39 +635,49 @@ export default function TenantSetupPage() {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberJobTitle')}</span>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+                      {isIndividualTenant ? localized.duty : t('dashboard.memberJobTitle')}
+                    </span>
                     <input
                       name="jobTitle"
                       value={memberForm.jobTitle}
                       onChange={handleMemberInputChange}
-                      placeholder={t('dashboard.memberJobTitlePlaceholder')}
+                      placeholder={isIndividualTenant ? localized.dutyPlaceholder : t('dashboard.memberJobTitlePlaceholder')}
                       className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                     />
                   </label>
                   <label className="block">
-                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberDepartment')}</span>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+                      {isIndividualTenant ? localized.workplace : t('dashboard.memberDepartment')}
+                    </span>
                     <input
                       name="department"
                       value={memberForm.department}
                       onChange={handleMemberInputChange}
-                      placeholder={t('dashboard.memberDepartmentPlaceholder')}
+                      placeholder={isIndividualTenant ? localized.workplacePlaceholder : t('dashboard.memberDepartmentPlaceholder')}
                       required
                       className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                     />
                   </label>
                   <label className="block">
                     <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">{t('dashboard.memberRole')}</span>
-                    <select
-                      name="tenantRole"
-                      value={memberForm.tenantRole}
-                      onChange={handleMemberInputChange}
-                      className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-                    >
-                      <option value="TENANT_ADMIN">{t('tenant.tenantAdmin')}</option>
-                      <option value="MANAGER">{t('tenant.manager')}</option>
-                      <option value="MEMBER">{t('tenant.member')}</option>
-                      <option value="VIEWER">{t('tenant.viewer')}</option>
-                    </select>
+                    {isIndividualTenant ? (
+                      <div className="mt-1 w-full px-4 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-200">
+                        {localized.tenantAdminLabel}
+                      </div>
+                    ) : (
+                      <select
+                        name="tenantRole"
+                        value={memberForm.tenantRole}
+                        onChange={handleMemberInputChange}
+                        className="mt-1 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      >
+                        <option value="TENANT_ADMIN">{t('tenant.tenantAdmin')}</option>
+                        <option value="MANAGER">{t('tenant.manager')}</option>
+                        <option value="MEMBER">{t('tenant.member')}</option>
+                        <option value="VIEWER">{t('tenant.viewer')}</option>
+                      </select>
+                    )}
                   </label>
                 </div>
 

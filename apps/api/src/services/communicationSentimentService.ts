@@ -274,6 +274,7 @@ function buildAiPrompt(messages: SentimentMessage[], heuristic: SentimentAnalysi
 }
 
 async function refineWithAi(
+  tenantId: string,
   messages: SentimentMessage[],
   heuristic: SentimentAnalysisResult
 ): Promise<SentimentAnalysisResult> {
@@ -283,7 +284,8 @@ async function refineWithAi(
 
   try {
     const result = await generateWithLocalModel({
-      prompt: buildAiPrompt(messages, heuristic)
+      prompt: buildAiPrompt(messages, heuristic),
+      personaScope: { tenantId }
     });
 
     const candidate = extractJsonCandidate(result.output);
@@ -500,7 +502,7 @@ async function analyzeScope(input: {
   );
 
   const heuristic = analyzeMessagesHeuristically(messages);
-  const analysis = await refineWithAi(messages, heuristic);
+  const analysis = await refineWithAi(input.tenantId, messages, heuristic);
 
   return persistSnapshot({
     tenantId: input.tenantId,

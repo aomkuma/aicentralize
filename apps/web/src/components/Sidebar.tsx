@@ -5,7 +5,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import LanguageSwitcher from './LanguageSwitcher'
 import { PRIMARY_NAVIGATION, type NavigationIcon } from '../config/navigation'
 import { useFeatureFlagStore } from '../stores/featureFlagStore'
-import { canAccessFeelingLogs } from '../lib/packageAccess'
+import { canAccessFeelingLogs, canAccessMeetingStudio, canAccessAiChatHistory, isIndividualPackage } from '../lib/packageAccess'
 import { isNavItemAccessible } from '../lib/featureAccess'
 
 interface SidebarProps {
@@ -183,10 +183,10 @@ export default function Sidebar({
   const navItems = PRIMARY_NAVIGATION.filter((item) => {
     if (isPlatformAdmin) {
       return item.id === 'admin-organizations' ||
-        (user?.systemRole === 'SUPER_ADMIN' && (item.id === 'admin-platform-users' || item.id === 'admin-packages' || item.id === 'settings' || item.id === 'setup'))
+        (user?.systemRole === 'SUPER_ADMIN' && (item.id === 'admin-platform-users' || item.id === 'admin-packages' || item.id === 'admin-billing' || item.id === 'settings' || item.id === 'setup'))
     }
 
-    if (item.id === 'admin-organizations' || item.id === 'admin-platform-users' || item.id === 'admin-packages') {
+    if (item.id === 'admin-organizations' || item.id === 'admin-platform-users' || item.id === 'admin-packages' || item.id === 'admin-billing') {
       return false
     }
 
@@ -202,6 +202,18 @@ export default function Sidebar({
       return false
     }
 
+    if ((item.id === 'meetings' || item.id === 'meeting-history') && !canAccessMeetingStudio(packageCode)) {
+      return false
+    }
+
+    if (item.id === 'ai-trace' && !canAccessAiChatHistory(packageCode, canAccessFeature)) {
+      return false
+    }
+
+    if (item.id === 'ai-trace') {
+      return true
+    }
+
     if (!isNavItemAccessible(item.id, canAccessFeature)) {
       return false
     }
@@ -214,7 +226,13 @@ export default function Sidebar({
     onCloseMobile()
   }
 
-  const getNavLabel = (item: (typeof PRIMARY_NAVIGATION)[number]) => item.labelKey ? t(item.labelKey) : item.id
+  const getNavLabel = (item: (typeof PRIMARY_NAVIGATION)[number]) => {
+    if (item.id === 'ai-trace' && isIndividualPackage(packageCode)) {
+      return t('navigation.aiChatHistory')
+    }
+
+    return item.labelKey ? t(item.labelKey) : item.id
+  }
 
   return (
     <>

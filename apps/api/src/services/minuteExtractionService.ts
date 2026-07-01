@@ -144,7 +144,8 @@ export async function extractMinuteDraft(input: ExtractMinuteDraftInput): Promis
   try {
     const generated = await generateWithLocalModel({
       model: input.model,
-      prompt
+      prompt,
+      personaScope: { projectId: meeting.projectId }
     });
 
     modelOutput = generated.output;

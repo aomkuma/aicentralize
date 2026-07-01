@@ -8,6 +8,7 @@ import ContinuityPage from './pages/ContinuityPage'
 import RemindersPage from './pages/RemindersPage'
 import ProjectsPage from './pages/ProjectsPage'
 import ProjectKnowledgePage from './pages/ProjectKnowledgePage'
+import PersonalKnowledgePage from './pages/PersonalKnowledgePage'
 import ProjectGeneralNotesPage from './pages/ProjectGeneralNotesPage'
 import AiTracePage from './pages/AiTracePage'
 import MeetingStudioPage from './pages/MeetingStudioPage'
@@ -19,11 +20,12 @@ import ProfilePage from './pages/ProfilePage'
 import AdminOrganizationsPage from './pages/AdminOrganizationsPage'
 import AdminPlatformUsersPage from './pages/AdminPlatformUsersPage'
 import AdminPackagesPage from './pages/AdminPackagesPage'
+import AdminBillingPage from './pages/AdminBillingPage'
 import FeelingLogsPage from './pages/FeelingLogsPage'
 import AcceptInvitePage from './pages/AcceptInvitePage'
 import WelcomePage from './pages/WelcomePage'
 import MyTasksPage from './pages/MyTasksPage'
-import { canAccessFeelingLogs } from './lib/packageAccess'
+import { canAccessFeelingLogs, canAccessMeetingStudio, isIndividualPackage, canAccessAiChatHistory } from './lib/packageAccess'
 import FeatureRoute from './components/FeatureRoute'
 import LoginPage from './pages/LoginPage'
 
@@ -89,6 +91,47 @@ function FeelingLogsRoute({ children }: { children: JSX.Element }) {
   return children
 }
 
+function MeetingStudioRoute({ children }: { children: JSX.Element }) {
+  const user = useAuthStore((state) => state.user)
+  const packageCode = useFeatureFlagStore((state) => state.packageCode)
+
+  if (isPlatformAdmin(user)) {
+    return <Navigate to="/admin/organizations" replace />
+  }
+
+  if (!canAccessMeetingStudio(packageCode)) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return children
+}
+
+function AiChatHistoryRoute({ children }: { children: JSX.Element }) {
+  const user = useAuthStore((state) => state.user)
+  const packageCode = useFeatureFlagStore((state) => state.packageCode)
+  const canAccessFeature = useFeatureFlagStore((state) => state.canAccessFeature)
+
+  if (isPlatformAdmin(user)) {
+    return <Navigate to="/admin/organizations" replace />
+  }
+
+  if (!canAccessAiChatHistory(packageCode, canAccessFeature)) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return children
+}
+
+function KnowledgeRoute() {
+  const packageCode = useFeatureFlagStore((state) => state.packageCode)
+
+  if (isIndividualPackage(packageCode)) {
+    return <PersonalKnowledgePage />
+  }
+
+  return <ProjectKnowledgePage />
+}
+
 function AppContent() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -141,28 +184,29 @@ function AppContent() {
           <Route path="/admin/organizations" element={<AdminManagementRoute><AdminOrganizationsPage /></AdminManagementRoute>} />
           <Route path="/admin/platform-users" element={<SuperAdminRoute><AdminPlatformUsersPage /></SuperAdminRoute>} />
           <Route path="/admin/packages" element={<SuperAdminRoute><AdminPackagesPage /></SuperAdminRoute>} />
+          <Route path="/admin/billing" element={<SuperAdminRoute><AdminBillingPage /></SuperAdminRoute>} />
           <Route path="/dashboard" element={<WorkflowRoute><FeatureRoute feature="AI_CHAT_BASIC"><DashboardPage /></FeatureRoute></WorkflowRoute>} />
           <Route path="/my-tasks" element={<WorkflowRoute><MyTasksPage /></WorkflowRoute>} />
           <Route path="/continuity" element={<WorkflowRoute><FeatureRoute feature="CONTINUITY_SUMMARY"><ContinuityPage /></FeatureRoute></WorkflowRoute>} />
           <Route path="/continuity/:projectId" element={<WorkflowRoute><FeatureRoute feature="CONTINUITY_SUMMARY"><ContinuityPage /></FeatureRoute></WorkflowRoute>} />
           <Route path="/action-items/:actionItemId" element={<WorkflowRoute><ActionItemRedirectPage /></WorkflowRoute>} />
           <Route path="/reminders" element={<WorkflowRoute><FeatureRoute feature="REMINDERS_BASIC"><RemindersPage /></FeatureRoute></WorkflowRoute>} />
-          <Route path="/meetings/history" element={<WorkflowRoute><FeatureRoute feature="AI_CHAT_ADVANCED"><MeetingHistoryPage /></FeatureRoute></WorkflowRoute>} />
-          <Route path="/meetings/history/:meetingId" element={<WorkflowRoute><FeatureRoute feature="AI_CHAT_ADVANCED"><MeetingHistoryPage /></FeatureRoute></WorkflowRoute>} />
-          <Route path="/meetings" element={<WorkflowRoute><FeatureRoute feature="AI_CHAT_ADVANCED"><MeetingStudioPage /></FeatureRoute></WorkflowRoute>} />
-          <Route path="/meetings/:projectId" element={<WorkflowRoute><FeatureRoute feature="AI_CHAT_ADVANCED"><MeetingStudioPage /></FeatureRoute></WorkflowRoute>} />
+          <Route path="/meetings/history" element={<WorkflowRoute><MeetingStudioRoute><FeatureRoute feature="AI_CHAT_ADVANCED"><MeetingHistoryPage /></FeatureRoute></MeetingStudioRoute></WorkflowRoute>} />
+          <Route path="/meetings/history/:meetingId" element={<WorkflowRoute><MeetingStudioRoute><FeatureRoute feature="AI_CHAT_ADVANCED"><MeetingHistoryPage /></FeatureRoute></MeetingStudioRoute></WorkflowRoute>} />
+          <Route path="/meetings" element={<WorkflowRoute><MeetingStudioRoute><FeatureRoute feature="AI_CHAT_ADVANCED"><MeetingStudioPage /></FeatureRoute></MeetingStudioRoute></WorkflowRoute>} />
+          <Route path="/meetings/:projectId" element={<WorkflowRoute><MeetingStudioRoute><FeatureRoute feature="AI_CHAT_ADVANCED"><MeetingStudioPage /></FeatureRoute></MeetingStudioRoute></WorkflowRoute>} />
           <Route
             path="/projects"
             element={<WorkflowRoute><ProjectsPage /></WorkflowRoute>}
           />
-          <Route path="/projects/:projectId/knowledge" element={<WorkflowRoute><ProjectKnowledgePage /></WorkflowRoute>} />
+          <Route path="/projects/:projectId/knowledge" element={<WorkflowRoute><KnowledgeRoute /></WorkflowRoute>} />
           <Route path="/projects/:projectId/notes" element={<WorkflowRoute><ProjectGeneralNotesPage /></WorkflowRoute>} />
           <Route path="/general-notes" element={<WorkflowRoute><ProjectGeneralNotesPage /></WorkflowRoute>} />
           <Route path="/feeling-logs" element={<FeelingLogsRoute><FeelingLogsPage /></FeelingLogsRoute>} />
           <Route path="/reminders/:projectId" element={<WorkflowRoute><FeatureRoute feature="REMINDERS_BASIC"><RemindersPage /></FeatureRoute></WorkflowRoute>} />
-          <Route path="/ai-trace" element={<WorkflowRoute><FeatureRoute feature="AI_TRACE_PANEL"><AiTracePage /></FeatureRoute></WorkflowRoute>} />
-          <Route path="/ai-trace/:projectId" element={<WorkflowRoute><FeatureRoute feature="AI_TRACE_PANEL"><AiTracePage /></FeatureRoute></WorkflowRoute>} />
-          <Route path="/ai-trace/:projectId/:meetingId" element={<WorkflowRoute><FeatureRoute feature="AI_TRACE_PANEL"><AiTracePage /></FeatureRoute></WorkflowRoute>} />
+          <Route path="/ai-trace" element={<WorkflowRoute><AiChatHistoryRoute><AiTracePage /></AiChatHistoryRoute></WorkflowRoute>} />
+          <Route path="/ai-trace/:projectId" element={<WorkflowRoute><AiChatHistoryRoute><AiTracePage /></AiChatHistoryRoute></WorkflowRoute>} />
+          <Route path="/ai-trace/:projectId/:meetingId" element={<WorkflowRoute><AiChatHistoryRoute><AiTracePage /></AiChatHistoryRoute></WorkflowRoute>} />
           <Route path="/settings" element={<SuperAdminRoute><SystemSettingsPage /></SuperAdminRoute>} />
           <Route path="/" element={<Navigate to={isPlatformAdmin(user) ? '/admin/organizations' : '/dashboard'} replace />} />
         </>
