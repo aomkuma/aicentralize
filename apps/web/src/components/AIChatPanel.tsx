@@ -7,6 +7,7 @@ import {
   postPlaygroundFormData,
   readPlaygroundJson
 } from '../lib/playgroundApi'
+import { resolveApiBaseUrl } from '../lib/pwaUtils'
 
 type SpeakerLabel = 'A' | 'B' | 'C'
 
@@ -966,7 +967,7 @@ export default function AIChatPanel({ projectId, showModeTabs = true }: AIChatPa
           throw new Error(t('aiChat.errors.requestFailed'))
         }
 
-        const response = await fetch('/ask-ai', {
+        const response = await fetch(`${resolveApiBaseUrl()}/ask-ai`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
