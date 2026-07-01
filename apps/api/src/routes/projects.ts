@@ -8,7 +8,9 @@ import {
   UserRole
 } from "@prisma/client";
 import { Router } from "express";
+import multer from "multer";
 import { z } from "zod";
+import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { listMemberProjectIds, listManagedProjectIds } from "../services/accessScopeService";
@@ -19,10 +21,12 @@ import {
   createProjectKnowledgeSource,
   extractProjectKnowledgeSource,
   getProjectKnowledgeBaseline,
+  importProjectKnowledgeFromFile,
   listProjectKnowledgeSources,
   listProjectMemoryItems,
   projectKnowledgeErrors
 } from "../services/projectKnowledgeService";
+import { isSupportedKnowledgeDocument } from "../services/documentTextService";
 import {
   createProjectGeneralNote,
   listProjectGeneralNotes
@@ -80,9 +84,36 @@ function handleProjectKnowledgeError(error: unknown, res: { status: (code: numbe
   if (message === "EXTRACTION_REQUIRED") {
     return res.status(409).json({ message: projectKnowledgeErrors.EXTRACTION_REQUIRED });
   }
+  if (message === "FILE_TOO_SHORT") {
+    return res.status(400).json({ message: projectKnowledgeErrors.FILE_TOO_SHORT, code: message });
+  }
+  if (message === "PDF_NO_TEXT") {
+    return res.status(400).json({ message: projectKnowledgeErrors.PDF_NO_TEXT, code: message });
+  }
+  if (message === "UNSUPPORTED_FILE_TYPE") {
+    return res.status(400).json({ message: projectKnowledgeErrors.UNSUPPORTED_FILE_TYPE, code: message });
+  }
+  if (message === "DOCUMENT_READ_FAILED") {
+    return res.status(400).json({ message: projectKnowledgeErrors.DOCUMENT_READ_FAILED, code: message });
+  }
+  if (message === "AI_EXTRACTION_PARSE_FAILED") {
+    return res.status(502).json({ message: projectKnowledgeErrors.AI_EXTRACTION_PARSE_FAILED, code: message });
+  }
   console.error("[ProjectKnowledge] Error:", error);
   return res.status(500).json({ message: "Project knowledge operation failed" });
 }
+
+const knowledgeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: env.maxUploadBytes },
+  fileFilter: (_req, file, callback) => {
+    if (!isSupportedKnowledgeDocument(file.originalname)) {
+      callback(new Error("UNSUPPORTED_FILE_TYPE"));
+      return;
+    }
+    callback(null, true);
+  }
+});
 
 async function buildProjectListWhere(user: NonNullable<Express.Request["user"]>, tenantId?: string) {
   const filters: object[] = [];
@@ -321,6 +352,63 @@ projectRouter.post("/:projectId/knowledge/sources", requireAuth, async (req, res
     handleProjectKnowledgeError(error, res);
   }
 });
+
+const importKnowledgeSourceSchema = z.object({
+  sourceType: z.nativeEnum(ProjectKnowledgeSourceType),
+  authorityLevel: z.nativeEnum(ProjectKnowledgeAuthorityLevel).optional(),
+  versionLabel: z.string().max(80).optional(),
+  title: z.string().min(2).max(180).optional(),
+  documentDate: z.string().datetime().optional()
+});
+
+projectRouter.post(
+  "/:projectId/knowledge/sources/import",
+  requireAuth,
+  (req, res, next) => {
+    knowledgeUpload.single("file")(req, res, (error) => {
+      if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ message: "File is too large for upload." });
+      }
+      if (error instanceof Error && error.message === "UNSUPPORTED_FILE_TYPE") {
+        return res.status(400).json({
+          message: projectKnowledgeErrors.UNSUPPORTED_FILE_TYPE,
+          code: "UNSUPPORTED_FILE_TYPE"
+        });
+      }
+      if (error) {
+        return res.status(400).json({ message: error instanceof Error ? error.message : "Upload failed" });
+      }
+      return next();
+    });
+  },
+  async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "Missing file upload." });
+    }
+
+    const parsed = importKnowledgeSourceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+    }
+
+    try {
+      const result = await importProjectKnowledgeFromFile({
+        projectId: req.params.projectId,
+        user: req.user!,
+        fileName: req.file.originalname,
+        buffer: req.file.buffer,
+        sourceType: parsed.data.sourceType,
+        authorityLevel: parsed.data.authorityLevel,
+        versionLabel: parsed.data.versionLabel?.trim() || undefined,
+        title: parsed.data.title?.trim(),
+        documentDate: parsed.data.documentDate ? new Date(parsed.data.documentDate) : undefined
+      });
+      res.status(201).json(result);
+    } catch (error) {
+      handleProjectKnowledgeError(error, res);
+    }
+  }
+);
 
 projectRouter.post("/:projectId/knowledge/sources/:sourceId/extract", requireAuth, async (req, res) => {
   try {

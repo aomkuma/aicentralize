@@ -516,7 +516,7 @@
     "addSource": "Add source material",
     "addSourceHelp": "Paste text from TOR, requirements, old minutes, action logs, or timeline documents. Extraction creates a draft baseline for PM review.",
     "fileUpload": "File upload",
-    "fileUploadHelp": "Supported: TXT, MD, CSV, TSV, DOCX, PDF, XLSX. The app uses the uploaded file name as the title and the file's last modified date as the document date.",
+    "fileUploadHelp": "Supported: TXT, MD, CSV, TSV, DOCX, PDF, XLSX. Files are uploaded to the server for text extraction and AI baseline import.",
     "importFiles": "Import files with AI extraction",
     "selectFilesFirst": "Please choose at least one file first.",
     "filesImported": "Imported and extracted {{count}} file(s).",
@@ -572,7 +572,8 @@
       "fileCount": "Processing {{count}} file(s)",
       "steps": {
         "validatingInput": "Validate title, type, and document content",
-        "extractingDocumentText": "Read text from uploaded file",
+        "uploadingFile": "Upload file to server",
+        "processingOnServer": "Read document, save source, and run AI extraction on server",
         "savingSource": "Save source to project knowledge queue",
         "aiExtracting": "Extract structured baseline with AI",
         "reviewingExtraction": "Review extracted baseline draft",

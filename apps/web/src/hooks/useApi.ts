@@ -171,5 +171,56 @@ export const useApi = () => {
     [request]
   )
 
-  return { get, post, patch, delete: del, isLoading, error }
+  const postFormData = useCallback(
+    async <T,>(
+      url: string,
+      formData: FormData,
+      options?: { onUploadComplete?: () => void }
+    ): Promise<T> => {
+      if (!apiRef.current) {
+        const apiError: ApiError = { message: 'API client not initialized' }
+        setError(apiError)
+        throw apiError
+      }
+
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        const response = await apiRef.current.request<T>({
+          method: 'POST',
+          url,
+          data: formData,
+          onUploadProgress: (event) => {
+            if (event.total && event.loaded >= event.total) {
+              options?.onUploadComplete?.()
+            }
+          },
+        })
+        return response.data
+      } catch (err) {
+        const apiError: ApiError = {
+          message: 'An error occurred',
+          status: (err as AxiosError)?.response?.status,
+          data: (err as AxiosError)?.response?.data,
+        }
+
+        if (axios.isAxiosError(err) && err.response?.data) {
+          const payload = err.response.data as { message?: string; code?: string }
+          apiError.message = payload.message || err.message
+          apiError.data = payload
+        } else if (err instanceof Error) {
+          apiError.message = err.message
+        }
+
+        setError(apiError)
+        throw apiError
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    []
+  )
+
+  return { get, post, postFormData, patch, delete: del, isLoading, error }
 }

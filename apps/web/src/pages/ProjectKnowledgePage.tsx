@@ -11,28 +11,7 @@ import type {
   ProjectKnowledgeSource,
   ProjectKnowledgeSourceType,
   ProjectMemoryItem,
-  ProjectMemoryItemType,
 } from '../types'
-
-type DocxTextExtractor = {
-  extractRawText?: (input: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }>
-  default?: {
-    extractRawText?: (input: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }>
-  }
-}
-
-type JsZipModule = {
-  loadAsync(data: ArrayBuffer): Promise<{
-    file: (name: string) => { async: (type: 'string') => Promise<string> } | null
-    folder: (name: string) => Array<{ name: string; async: (type: 'string') => Promise<string> }>
-  }>
-  default?: {
-    loadAsync(data: ArrayBuffer): Promise<{
-      file: (name: string) => { async: (type: 'string') => Promise<string> } | null
-      folder: (name: string) => Array<{ name: string; async: (type: 'string') => Promise<string> }>
-    }>
-  }
-}
 
 const sourceTypes: ProjectKnowledgeSourceType[] = [
   'TOR',
@@ -55,7 +34,8 @@ const HISTORY_PAGE_SIZE = 15
 type KnowledgeProgressMode = 'import' | 'save' | 'extract' | 'approve' | null
 type KnowledgeProgressKey =
   | 'validatingInput'
-  | 'extractingDocumentText'
+  | 'uploadingFile'
+  | 'processingOnServer'
   | 'savingSource'
   | 'aiExtracting'
   | 'reviewingExtraction'
@@ -64,7 +44,7 @@ type KnowledgeProgressKey =
   | 'failed'
 
 const progressFlowByMode: Record<Exclude<KnowledgeProgressMode, null>, KnowledgeProgressKey[]> = {
-  import: ['validatingInput', 'extractingDocumentText', 'savingSource', 'aiExtracting', 'completed'],
+  import: ['validatingInput', 'uploadingFile', 'processingOnServer', 'completed'],
   save: ['validatingInput', 'savingSource', 'completed'],
   extract: ['validatingInput', 'aiExtracting', 'completed'],
   approve: ['reviewingExtraction', 'savingToMemory', 'completed'],
@@ -163,13 +143,27 @@ function formatFileErrorMessage(fileName: string, reason: string) {
 }
 
 function describeFileProcessingError(file: File, error: unknown, t: (key: string) => string) {
-  const message = error instanceof Error ? error.message : ''
+  const apiError = error as { message?: string; data?: { message?: string; code?: string } }
+  const payload = typeof error === 'object' && error !== null
+    ? error as { message?: string; code?: string; data?: { message?: string; code?: string } }
+    : null
+  const message = apiError.data?.message ?? payload?.message ?? (error instanceof Error ? error.message : '')
+  const code = apiError.data?.code ?? payload?.code ?? ''
   const lowerName = file.name.toLowerCase()
 
+  if (code === 'PDF_NO_TEXT' || message.includes('image-only') || message.includes('unsupported encoding')) {
+    return t('projectKnowledge.fileReadErrors.pdfImageOnly')
+  }
+
+  if (code === 'FILE_TOO_SHORT' || message.includes('too short')) {
+    return t('projectKnowledge.fileTooShort')
+  }
+
+  if (code === 'UNSUPPORTED_FILE_TYPE' || message.startsWith('Unsupported file type')) {
+    return t('projectKnowledge.fileReadErrors.unsupportedType')
+  }
+
   if (lowerName.endsWith('.pdf')) {
-    if (message.includes('image-only') || message.includes('unsupported encoding')) {
-      return t('projectKnowledge.fileReadErrors.pdfImageOnly')
-    }
     return t('projectKnowledge.fileReadErrors.pdfGeneric')
   }
 
@@ -219,184 +213,10 @@ function toDateInputValue(timestamp: number) {
   return `${year}-${month}-${day}`
 }
 
-function escapeXml(value: string) {
-  return value.replace(/&/g, '&amp;')
-}
-
-function decodePdfTextChunk(value: string) {
-  return value
-    .replace(/\\([()\\])/g, '$1')
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\r')
-    .replace(/\\t/g, '\t')
-    .replace(/\\([0-7]{1,3})/g, (_, octal: string) => String.fromCharCode(Number.parseInt(octal, 8)))
-}
-
-async function extractDocxText(file: File) {
-  const mammothModule = (await import('mammoth/mammoth.browser')) as DocxTextExtractor
-  const extractRawText = mammothModule.extractRawText ?? mammothModule.default?.extractRawText
-
-  if (!extractRawText) {
-    throw new Error('DOCX extractor is not available')
-  }
-
-  const extracted = await extractRawText({ arrayBuffer: await file.arrayBuffer() })
-  return extracted.value.trim()
-}
-
-async function extractXlsxText(file: File) {
-  // @ts-expect-error Local fallback path used because jszip is present in the workspace but not declared as a direct web dependency.
-  const jszipModule = (await import('../../../../node_modules/.pnpm/jszip@3.10.1/node_modules/jszip/dist/jszip.js')) as unknown as JsZipModule
-  const loadAsync = jszipModule.loadAsync ?? jszipModule.default?.loadAsync
-  if (!loadAsync) {
-    throw new Error('XLSX extractor is not available')
-  }
-
-  const zip = await loadAsync(await file.arrayBuffer())
-  const sharedStringsXml = await zip.file('xl/sharedStrings.xml')?.async('string')
-  const workbookXml = await zip.file('xl/workbook.xml')?.async('string')
-  const workbookRelsXml = await zip.file('xl/_rels/workbook.xml.rels')?.async('string')
-
-  if (!workbookXml || !workbookRelsXml) {
-    throw new Error('Invalid XLSX structure')
-  }
-
-  const parser = new DOMParser()
-  const sharedStringsDoc = sharedStringsXml ? parser.parseFromString(sharedStringsXml, 'application/xml') : null
-  const workbookDoc = parser.parseFromString(workbookXml, 'application/xml')
-  const workbookRelsDoc = parser.parseFromString(workbookRelsXml, 'application/xml')
-
-  const sharedStrings = sharedStringsDoc
-    ? Array.from(sharedStringsDoc.getElementsByTagName('si')).map((si) =>
-      Array.from(si.getElementsByTagName('t')).map((node) => node.textContent ?? '').join('')
-    )
-    : []
-
-  const relationshipMap = new Map<string, string>()
-  Array.from(workbookRelsDoc.getElementsByTagName('Relationship')).forEach((rel) => {
-    const id = rel.getAttribute('Id')
-    const target = rel.getAttribute('Target')
-    if (id && target) {
-      relationshipMap.set(id, target.startsWith('xl/') ? target : `xl/${target.replace(/^\//, '')}`)
-    }
-  })
-
-  const sheetNodes = Array.from(workbookDoc.getElementsByTagName('sheet'))
-  const sheetTexts: string[] = []
-
-  for (const sheet of sheetNodes) {
-    const name = sheet.getAttribute('name') ?? 'Sheet'
-    const relationshipId = sheet.getAttribute('r:id') ?? sheet.getAttribute('id')
-    if (!relationshipId) {
-      continue
-    }
-
-    const sheetPath = relationshipMap.get(relationshipId)
-    if (!sheetPath) {
-      continue
-    }
-
-    const sheetXml = await zip.file(sheetPath)?.async('string')
-    if (!sheetXml) {
-      continue
-    }
-
-    const sheetDoc = parser.parseFromString(sheetXml, 'application/xml')
-    const rowTexts = Array.from(sheetDoc.getElementsByTagName('row')).map((row) => {
-      const cells = Array.from(row.getElementsByTagName('c')).map((cell) => {
-        const cellType = cell.getAttribute('t')
-        if (cellType === 'inlineStr') {
-          return Array.from(cell.getElementsByTagName('t')).map((node) => node.textContent ?? '').join(' ').trim()
-        }
-
-        const valueNode = cell.getElementsByTagName('v')[0]
-        const rawValue = valueNode?.textContent?.trim() ?? ''
-        if (!rawValue) {
-          return ''
-        }
-
-        if (cellType === 's') {
-          const index = Number.parseInt(rawValue, 10)
-          return Number.isFinite(index) ? (sharedStrings[index] ?? '') : rawValue
-        }
-
-        return rawValue
-      }).filter(Boolean)
-
-      return cells.join(' | ').trim()
-    }).filter(Boolean)
-
-    if (rowTexts.length) {
-      sheetTexts.push(`# ${name}\n${rowTexts.join('\n')}`)
-    }
-  }
-
-  return sheetTexts.join('\n\n').trim()
-}
-
-async function extractPdfText(file: File) {
-  const buffer = await file.arrayBuffer()
-  const bytes = new Uint8Array(buffer)
-  const binary = Array.from(bytes).map((byte) => String.fromCharCode(byte)).join('')
-  const textParts: string[] = []
-
-  const literalMatches = binary.matchAll(/\(([^()]*(?:\\.[^()]*)*)\)\s*Tj/g)
-  for (const match of literalMatches) {
-    textParts.push(decodePdfTextChunk(match[1]))
-  }
-
-  const arrayMatches = binary.matchAll(/\[(.*?)\]\s*TJ/gs)
-  for (const match of arrayMatches) {
-    const chunkMatches = match[1].matchAll(/\(([^()]*(?:\\.[^()]*)*)\)/g)
-    const combined = Array.from(chunkMatches).map((chunk) => decodePdfTextChunk(chunk[1])).join('')
-    if (combined.trim()) {
-      textParts.push(combined)
-    }
-  }
-
-  const cleaned = textParts
-    .join('\n')
-    .replace(/[^\S\r\n]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-
-  if (!cleaned) {
-    throw new Error('PDF text extraction failed. This PDF may be image-only or use unsupported encoding.')
-  }
-
-  return cleaned
-}
-
-async function extractFileText(file: File) {
-  const lowerName = file.name.toLowerCase()
-
-  if (lowerName.endsWith('.txt') || lowerName.endsWith('.md')) {
-    return (await file.text()).trim()
-  }
-
-  if (lowerName.endsWith('.csv') || lowerName.endsWith('.tsv')) {
-    return (await file.text()).trim()
-  }
-
-  if (lowerName.endsWith('.docx')) {
-    return extractDocxText(file)
-  }
-
-  if (lowerName.endsWith('.pdf')) {
-    return extractPdfText(file)
-  }
-
-  if (lowerName.endsWith('.xlsx')) {
-    return extractXlsxText(file)
-  }
-
-  throw new Error(`Unsupported file type: ${file.name}`)
-}
-
 export default function ProjectKnowledgePage() {
   const { t, i18n } = useTranslation()
   const { projectId } = useParams<{ projectId?: string }>()
-  const { get, post, isLoading, error } = useApi()
+  const { get, post, postFormData, isLoading, error } = useApi()
 
   const [baseline, setBaseline] = useState<ProjectKnowledgeBaseline | null>(null)
   const [sources, setSources] = useState<ProjectKnowledgeSource[]>([])
@@ -594,35 +414,31 @@ export default function ProjectKnowledgePage() {
 
       for (const file of selectedFiles) {
         try {
-          updateProgress('import', 'extractingDocumentText', file.name)
-          const extractedText = (await extractFileText(file)).trim()
-          if (extractedText.length < 20) {
-            failedFiles.push(formatFileErrorMessage(file.name, t('projectKnowledge.fileTooShort')))
-            continue
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('sourceType', sourceType)
+          formData.append('authorityLevel', authorityLevel)
+          if (versionLabel.trim()) {
+            formData.append('versionLabel', versionLabel.trim())
+          }
+          const importTitle = title.trim() || deriveTitleFromFileName(file.name)
+          if (importTitle.length >= 2) {
+            formData.append('title', importTitle.slice(0, 180))
+          }
+          if (documentDate) {
+            formData.append('documentDate', new Date(documentDate).toISOString())
+          } else if (file.lastModified) {
+            formData.append('documentDate', new Date(file.lastModified).toISOString())
           }
 
-          const derivedTitle = deriveTitleFromFileName(file.name).slice(0, 180)
-          updateProgress('import', 'savingSource', file.name)
-          const source = await post<ProjectKnowledgeSource>(`/projects/${projectId}/knowledge/sources`, {
-            sourceType,
-            title: derivedTitle,
-            contentText: extractedText,
-            documentDate: file.lastModified ? new Date(file.lastModified).toISOString() : undefined,
-            versionLabel: versionLabel.trim() || undefined,
-            authorityLevel,
-          })
-
-          if (!source) {
-            failedFiles.push(formatFileErrorMessage(file.name, t('projectKnowledge.importFailed')))
-            continue
-          }
-
-          updateProgress('import', 'aiExtracting', file.name)
-          const extraction = await post(`/projects/${projectId}/knowledge/sources/${source.id}/extract`)
-          if (!extraction) {
-            failedFiles.push(formatFileErrorMessage(file.name, t('projectKnowledge.extractFailed')))
-            continue
-          }
+          updateProgress('import', 'uploadingFile', file.name)
+          await postFormData<{ source: ProjectKnowledgeSource }>(
+            `/projects/${projectId}/knowledge/sources/import`,
+            formData,
+            {
+              onUploadComplete: () => updateProgress('import', 'processingOnServer', file.name),
+            },
+          )
 
           importedCount += 1
         } catch (fileError) {

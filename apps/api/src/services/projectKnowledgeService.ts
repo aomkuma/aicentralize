@@ -16,6 +16,11 @@ import {
 } from "./tenantAccessService";
 import { listMemberProjectIds } from "./accessScopeService";
 import { generateWithLocalModel } from "./aiService";
+import {
+  deriveTitleFromFileName,
+  DocumentReadError,
+  extractDocumentText
+} from "./documentTextService";
 
 type ExtractedMemoryItem = {
   type: ProjectMemoryItemType;
@@ -398,6 +403,45 @@ export async function listProjectKnowledgeSources(projectId: string, user: Tenan
   });
 }
 
+export async function importProjectKnowledgeFromFile(input: {
+  projectId: string;
+  user: TenantAuthUser;
+  fileName: string;
+  buffer: Buffer;
+  sourceType: ProjectKnowledgeSourceType;
+  authorityLevel?: ProjectKnowledgeAuthorityLevel;
+  versionLabel?: string;
+  title?: string;
+  documentDate?: Date;
+}) {
+  let contentText: string;
+
+  try {
+    contentText = await extractDocumentText(input.buffer, input.fileName);
+  } catch (error) {
+    if (error instanceof DocumentReadError) {
+      throw new Error(error.code);
+    }
+    throw error;
+  }
+
+  const title = (input.title?.trim() || deriveTitleFromFileName(input.fileName)).slice(0, 180);
+  const source = await createProjectKnowledgeSource({
+    projectId: input.projectId,
+    sourceType: input.sourceType,
+    title,
+    contentText,
+    documentDate: input.documentDate,
+    versionLabel: input.versionLabel,
+    authorityLevel: input.authorityLevel,
+    user: input.user
+  });
+
+  const extraction = await extractProjectKnowledgeSource(source.id, input.user);
+
+  return { source, extraction };
+}
+
 export async function extractProjectKnowledgeSource(sourceId: string, user: TenantAuthUser) {
   const source = await prisma.projectKnowledgeSource.findUnique({
     where: { id: sourceId }
@@ -598,5 +642,10 @@ export const projectKnowledgeErrors = {
   PROJECT_NOT_FOUND: "Project not found",
   FORBIDDEN_PROJECT_SCOPE: "Forbidden project scope",
   SOURCE_NOT_FOUND: "Knowledge source not found",
-  EXTRACTION_REQUIRED: "Run extraction before approval"
+  EXTRACTION_REQUIRED: "Run extraction before approval",
+  FILE_TOO_SHORT: "The extracted text is too short to create project knowledge.",
+  PDF_NO_TEXT: "PDF text extraction failed. This PDF may be image-only or use unsupported encoding.",
+  UNSUPPORTED_FILE_TYPE: "Unsupported file type.",
+  DOCUMENT_READ_FAILED: "Document text extraction failed.",
+  AI_EXTRACTION_PARSE_FAILED: "AI baseline extraction failed."
 };

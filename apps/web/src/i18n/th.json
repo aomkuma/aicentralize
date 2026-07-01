@@ -516,7 +516,7 @@
     "addSource": "เพิ่มข้อมูลตั้งต้น",
     "addSourceHelp": "วางข้อความจาก TOR, requirement, minutes เก่า, action log หรือ timeline ระบบจะสกัดเป็น draft baseline ให้ PM ตรวจ",
     "fileUpload": "อัปโหลดไฟล์",
-    "fileUploadHelp": "รองรับ TXT, MD, CSV, TSV, DOCX, PDF, XLSX โดยระบบจะใช้ชื่อไฟล์เป็นชื่อข้อมูล และใช้วันที่แก้ไขล่าสุดของไฟล์เป็นวันที่เอกสาร",
+    "fileUploadHelp": "รองรับ TXT, MD, CSV, TSV, DOCX, PDF, XLSX ระบบจะอัปโหลดไฟล์ไปเซิร์ฟเวอร์เพื่ออ่านข้อความและนำเข้า baseline ด้วย AI",
     "importFiles": "นำเข้าไฟล์และสกัดด้วย AI",
     "selectFilesFirst": "กรุณาเลือกไฟล์อย่างน้อย 1 ไฟล์ก่อน",
     "filesImported": "นำเข้าและสกัดแล้ว {{count}} ไฟล์",
@@ -572,7 +572,8 @@
       "fileCount": "กำลังประมวลผล {{count}} ไฟล์",
       "steps": {
         "validatingInput": "ตรวจชื่อ ประเภท และเนื้อหาเอกสาร",
-        "extractingDocumentText": "อ่านข้อความจากไฟล์ที่อัปโหลด",
+        "uploadingFile": "อัปโหลดไฟล์ไปเซิร์ฟเวอร์",
+        "processingOnServer": "อ่านเอกสาร บันทึกข้อมูล และสกัดด้วย AI บนเซิร์ฟเวอร์",
         "savingSource": "บันทึกข้อมูลเข้าคิว project knowledge",
         "aiExtracting": "สกัด baseline ด้วย AI",
         "reviewingExtraction": "ตรวจ draft baseline ที่สกัดได้",
