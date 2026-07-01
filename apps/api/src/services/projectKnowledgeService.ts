@@ -36,15 +36,25 @@ type ExtractionJson = {
     sourceType: ProjectKnowledgeSourceType;
     lineCount: number;
     extractedAt: string;
+    chunkCount?: number;
+    successfulChunkCount?: number;
   };
+};
+
+export type ProjectKnowledgeImportProgress = {
+  stage: "readingFile" | "savingSource" | "extracting" | "completed" | "failed";
+  detail?: string;
+  currentChunk?: number;
+  totalChunks?: number;
+  successfulChunks?: number;
 };
 
 const readTenantRoles = [TenantRole.TENANT_ADMIN, TenantRole.MANAGER, TenantRole.MEMBER, TenantRole.VIEWER];
 const writeTenantRoles = [TenantRole.TENANT_ADMIN, TenantRole.MANAGER];
 const AI_EXTRACTION_CHAR_LIMIT = 12000;
 const AI_EXTRACTION_CHUNK_OVERLAP = 800;
-const MAX_AI_EXTRACTION_CHUNKS = 20;
-const HEURISTIC_LINE_LIMIT = 2000;
+const MAX_AI_EXTRACTION_CHUNKS = 80;
+const HEURISTIC_LINE_LIMIT = 6000;
 
 export async function assertProjectKnowledgeAccess(
   projectId: string,
@@ -377,7 +387,7 @@ export function extractProjectKnowledge(source: {
 
   return {
     overview: overviewLines.join(" ") || source.title,
-    items: items.slice(0, 60),
+    items: items.slice(0, 240),
     signals: {
       sourceType: source.sourceType,
       lineCount: lines.length,
@@ -390,7 +400,7 @@ async function extractProjectKnowledgeWithAi(source: {
   sourceType: ProjectKnowledgeSourceType;
   title: string;
   contentText: string;
-}) {
+}, onProgress?: (progress: ProjectKnowledgeImportProgress) => void) {
   const chunks = buildTextChunks(source.contentText);
   const mergedItems: ExtractedMemoryItem[] = [];
   const overviews: string[] = [];
@@ -398,6 +408,14 @@ async function extractProjectKnowledgeWithAi(source: {
   let successCount = 0;
 
   for (const [index, chunk] of chunks.entries()) {
+    onProgress?.({
+      stage: "extracting",
+      detail: source.title,
+      currentChunk: index + 1,
+      totalChunks: chunks.length,
+      successfulChunks: successCount
+    });
+
     try {
       const result = await generateWithLocalModel({
         prompt: buildProjectKnowledgeExtractionPrompt({
@@ -433,7 +451,7 @@ async function extractProjectKnowledgeWithAi(source: {
   return {
     extraction: {
       overview: overviews[0] || source.title,
-      items: mergedItems.slice(0, 160),
+      items: mergedItems.slice(0, 500),
       signals: {
         sourceType: source.sourceType,
         lineCount: source.contentText.split(/\r?\n/).length,
@@ -504,10 +522,12 @@ export async function importProjectKnowledgeFromFile(input: {
   versionLabel?: string;
   title?: string;
   documentDate?: Date;
+  onProgress?: (progress: ProjectKnowledgeImportProgress) => void;
 }) {
   let contentText: string;
 
   try {
+    input.onProgress?.({ stage: "readingFile", detail: input.fileName });
     contentText = await extractDocumentText(input.buffer, input.fileName);
   } catch (error) {
     if (error instanceof DocumentReadError) {
@@ -517,6 +537,7 @@ export async function importProjectKnowledgeFromFile(input: {
   }
 
   const title = (input.title?.trim() || deriveTitleFromFileName(input.fileName)).slice(0, 180);
+  input.onProgress?.({ stage: "savingSource", detail: title });
   const source = await createProjectKnowledgeSource({
     projectId: input.projectId,
     sourceType: input.sourceType,
@@ -528,12 +549,17 @@ export async function importProjectKnowledgeFromFile(input: {
     user: input.user
   });
 
-  const extraction = await extractProjectKnowledgeSource(source.id, input.user);
+  const extraction = await extractProjectKnowledgeSource(source.id, input.user, input.onProgress);
+  input.onProgress?.({ stage: "completed", detail: title });
 
   return { source, extraction };
 }
 
-export async function extractProjectKnowledgeSource(sourceId: string, user: TenantAuthUser) {
+export async function extractProjectKnowledgeSource(
+  sourceId: string,
+  user: TenantAuthUser,
+  onProgress?: (progress: ProjectKnowledgeImportProgress) => void
+) {
   const source = await prisma.projectKnowledgeSource.findUnique({
     where: { id: sourceId }
   });
@@ -557,7 +583,7 @@ export async function extractProjectKnowledgeSource(sourceId: string, user: Tena
       sourceType: source.sourceType,
       title: source.title,
       contentText: source.contentText
-    });
+    }, onProgress);
     extraction = aiResult.extraction;
     model = aiResult.model;
     promptVersion = "project-knowledge-onboarding-v3-ai-chunked";

@@ -148,6 +148,27 @@ export interface ProjectKnowledgeSource {
   }
 }
 
+export interface ProjectKnowledgeImportJob {
+  id: string
+  projectId: string
+  userId: string
+  fileName: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  stage: 'queued' | 'readingFile' | 'savingSource' | 'extracting' | 'completed' | 'failed'
+  detail?: string
+  currentChunk?: number
+  totalChunks?: number
+  successfulChunks?: number
+  error?: string
+  result?: {
+    source: ProjectKnowledgeSource
+    extraction: unknown
+  }
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+}
+
 export interface ProjectMemoryItem {
   id: string
   projectId: string

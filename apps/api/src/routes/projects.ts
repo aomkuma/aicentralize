@@ -31,6 +31,10 @@ import {
   createProjectGeneralNote,
   listProjectGeneralNotes
 } from "../services/projectGeneralNoteService";
+import {
+  getProjectKnowledgeImportJob,
+  startProjectKnowledgeImportJob
+} from "../services/projectKnowledgeImportJobService";
 
 export const projectRouter = Router();
 
@@ -58,7 +62,7 @@ const createProjectMeetingSchema = z.object({
 const createKnowledgeSourceSchema = z.object({
   sourceType: z.nativeEnum(ProjectKnowledgeSourceType),
   title: z.string().min(2).max(180),
-  contentText: z.string().min(20).max(240000),
+  contentText: z.string().min(20).max(960000),
   documentDate: z.string().datetime().optional(),
   versionLabel: z.string().max(80).optional(),
   authorityLevel: z.nativeEnum(ProjectKnowledgeAuthorityLevel).optional()
@@ -359,6 +363,65 @@ const importKnowledgeSourceSchema = z.object({
   versionLabel: z.string().max(80).optional(),
   title: z.string().min(2).max(180).optional(),
   documentDate: z.string().datetime().optional()
+});
+
+projectRouter.post(
+  "/:projectId/knowledge/sources/import-jobs",
+  requireAuth,
+  (req, res, next) => {
+    knowledgeUpload.single("file")(req, res, (error) => {
+      if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+        return res.status(413).json({ message: "File is too large for upload." });
+      }
+      if (error instanceof Error && error.message === "UNSUPPORTED_FILE_TYPE") {
+        return res.status(400).json({
+          message: projectKnowledgeErrors.UNSUPPORTED_FILE_TYPE,
+          code: "UNSUPPORTED_FILE_TYPE"
+        });
+      }
+      if (error) {
+        return res.status(400).json({ message: error instanceof Error ? error.message : "Upload failed" });
+      }
+      return next();
+    });
+  },
+  async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "Missing file upload." });
+    }
+
+    const parsed = importKnowledgeSourceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid payload", errors: parsed.error.flatten() });
+    }
+
+    try {
+      const job = startProjectKnowledgeImportJob({
+        projectId: req.params.projectId,
+        user: req.user!,
+        fileName: req.file.originalname,
+        buffer: req.file.buffer,
+        sourceType: parsed.data.sourceType,
+        authorityLevel: parsed.data.authorityLevel,
+        versionLabel: parsed.data.versionLabel?.trim() || undefined,
+        title: parsed.data.title?.trim(),
+        documentDate: parsed.data.documentDate ? new Date(parsed.data.documentDate) : undefined
+      });
+
+      res.status(202).json(job);
+    } catch (error) {
+      handleProjectKnowledgeError(error, res);
+    }
+  }
+);
+
+projectRouter.get("/:projectId/knowledge/import-jobs/:jobId", requireAuth, async (req, res) => {
+  const job = getProjectKnowledgeImportJob(req.params.jobId, req.user!.id);
+  if (!job || job.projectId !== req.params.projectId) {
+    return res.status(404).json({ message: "Knowledge import job not found" });
+  }
+
+  res.json(job);
 });
 
 projectRouter.post(

@@ -13,7 +13,7 @@ const pdfParse = require("pdf-parse") as (
   }
 ) => Promise<{ text: string }>;
 
-const KNOWLEDGE_TEXT_MAX_CHARS = 240_000;
+const KNOWLEDGE_TEXT_MAX_CHARS = 960_000;
 
 const SUPPORTED_EXTENSIONS = new Set([
   ".txt",

@@ -8,6 +8,7 @@ import { useApi } from '../hooks/useApi'
 import type {
   ProjectKnowledgeAuthorityLevel,
   ProjectKnowledgeBaseline,
+  ProjectKnowledgeImportJob,
   ProjectKnowledgeSource,
   ProjectKnowledgeSourceType,
   ProjectMemoryItem,
@@ -213,6 +214,10 @@ function toDateInputValue(timestamp: number) {
   return `${year}-${month}-${day}`
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
 export default function ProjectKnowledgePage() {
   const { t, i18n } = useTranslation()
   const { projectId } = useParams<{ projectId?: string }>()
@@ -355,6 +360,31 @@ export default function ProjectKnowledgePage() {
     }
   }
 
+  const waitForImportJob = async (jobId: string, fileName: string) => {
+    while (true) {
+      const job = await get<ProjectKnowledgeImportJob>(`/projects/${projectId}/knowledge/import-jobs/${jobId}`)
+      if (!job) {
+        throw new Error(t('projectKnowledge.importFailed'))
+      }
+
+      if (job.status === 'failed') {
+        throw new Error(job.error || t('projectKnowledge.importFailed'))
+      }
+
+      if (job.status === 'completed') {
+        updateProgress('import', 'completed', fileName)
+        return job
+      }
+
+      const chunkDetail = job.totalChunks
+        ? `${fileName} · chunk ${job.currentChunk ?? 0}/${job.totalChunks}`
+        : fileName
+
+      updateProgress('import', 'processingOnServer', chunkDetail)
+      await wait(1500)
+    }
+  }
+
   if (!projectId) {
     return <Navigate to="/projects" replace />
   }
@@ -432,14 +462,15 @@ export default function ProjectKnowledgePage() {
           }
 
           updateProgress('import', 'uploadingFile', file.name)
-          await postFormData<{ source: ProjectKnowledgeSource }>(
-            `/projects/${projectId}/knowledge/sources/import`,
+          const job = await postFormData<ProjectKnowledgeImportJob>(
+            `/projects/${projectId}/knowledge/sources/import-jobs`,
             formData,
             {
               onUploadComplete: () => updateProgress('import', 'processingOnServer', file.name),
             },
           )
 
+          await waitForImportJob(job.id, file.name)
           importedCount += 1
         } catch (fileError) {
           failedFiles.push(formatFileErrorMessage(file.name, describeFileProcessingError(file, fileError, t)))
